@@ -327,6 +327,39 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-de
   -GcloudPath "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
 ```
 
+### Error: Invalid choice 'run deploy ...'
+
+Si `gcloud` responde algo parecido a:
+
+```text
+Invalid choice: 'run deploy identity-service ...'
+```
+
+significa que PowerShell paso todo `run deploy ...` como un solo argumento. Usar la version corregida de:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\deploy-cloudrun-dev.ps1
+```
+
+La version corregida ejecuta `gcloud` con argumentos separados mediante splatting real.
+
+### Error: no se encontro Python
+
+Si aparece:
+
+```text
+no se encontro Python; ejecutar sin argumentos para instalar desde Microsoft Store
+```
+
+definir Python para Google Cloud SDK:
+
+```powershell
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+gcloud version
+```
+
+Si ese archivo no existe, instalar Python o usar la ruta real donde este instalado.
+
 ### Backends privados no responden desde curl local
 
 Los backends estan planificados con `--no-allow-unauthenticated`. Para probar desde consola se requiere identidad autorizada o temporalmente permitir invocacion en dev.

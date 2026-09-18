@@ -7579,6 +7579,14 @@ Se genero logs\cloudrun-dev\deploy-cloudrun-dev.commands.plan.json.
 logs/ esta ignorado por Git, por lo que el plan local no se versiona accidentalmente.
 ```
 
+Ajuste posterior:
+
+```text
+Se corrigio scripts\deploy-cloudrun-dev.ps1 para ejecutar gcloud con splatting real.
+El error corregido era: Invalid choice 'run deploy identity-service ...'.
+Se agrego troubleshooting en docs\dia-54-cloud-run-dev.md para gcloud/Python.
+```
+
 Lectura ejecutiva:
 
 ```text

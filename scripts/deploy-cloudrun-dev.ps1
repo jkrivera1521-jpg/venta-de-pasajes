@@ -264,12 +264,25 @@ foreach ($Service in $Services) {
   $Commands.Add($CommandLine) | Out-Null
 
   if ($Execute) {
-    & $GcloudPath @($Deployment.Arguments)
+    $DeploymentArguments = [string[]]@($Deployment.Arguments)
+    & $GcloudPath @DeploymentArguments
     if ($LASTEXITCODE -ne 0) {
       throw "Fallo gcloud run deploy para $($Deployment.Id)."
     }
 
-    $Url = & $GcloudPath run services describe $Deployment.ServiceName --project $ProjectId --region $Region --format "value(status.url)"
+    $DescribeArguments = [string[]]@(
+      "run",
+      "services",
+      "describe",
+      $Deployment.ServiceName,
+      "--project",
+      $ProjectId,
+      "--region",
+      $Region,
+      "--format",
+      "value(status.url)"
+    )
+    $Url = & $GcloudPath @DescribeArguments
     if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($Url)) {
       $ServiceUrls[$Deployment.Id] = $Url.Trim()
       $Deployment.HealthUrl = "$($Url.Trim())$($Service.health_path)"
