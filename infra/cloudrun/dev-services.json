@@ -89,7 +89,7 @@
         "CLOUD_SQL_CONNECTION_NAME": "${CLOUD_SQL_CONNECTION_NAME}",
         "APP_DATABASE_SECRET_NAME": "document-service__db-connection",
         "APP_DB_USERNAME": "document-service-run@${PROJECT_ID}.iam",
-        "DOCUMENTS_BUCKET": "venta-pasajes-dev-documents"
+        "APP_DOCUMENT_BUCKET": "venta-pasajes-dev-documents"
       }
     },
     {

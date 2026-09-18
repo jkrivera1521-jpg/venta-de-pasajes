@@ -7669,3 +7669,57 @@ Se retiro APP_DOCUMENT_SERVICE_BASE_URL del descriptor Cloud Run dev de ticketin
 En perfil gcp, la integracion documental de ticketing-service queda apagada por defecto con APP_DOCUMENT_INTEGRATION_ENABLED=false y APP_DOCUMENT_WORKER_ENABLED=false.
 El despliegue real parcial vuelve a incluir identity-service, dispatch-service y ticketing-service.
 ```
+
+## Dia 56 - Compilacion nativa document-service
+
+Resumen:
+
+```text
+Se creo services\document-service\src\main\docker\Dockerfile.native.
+Se creo scripts\build-document-service-native.ps1.
+El script prepara la imagen local document-service:0.1.0-native.
+El script etiqueta la imagen remota us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/document-service:0.1.0-native.
+Se agrego -PlanOnly para validar rutas sin compilar.
+Se corrigio infra\cloudrun\dev-services.json para usar APP_DOCUMENT_BUCKET.
+Se documento docs\dia-56-compilacion-nativa-document-service.md con Reversa primero y Guia manual desde cero.
+README.md fue actualizado a Dias 1 a 56.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\services\document-service\src\main\docker\Dockerfile.native
+C:\VENTA-DE-PASAJES\scripts\build-document-service-native.ps1
+C:\VENTA-DE-PASAJES\docs\dia-56-compilacion-nativa-document-service.md
+C:\VENTA-DE-PASAJES\infra\cloudrun\dev-services.json
+```
+
+Comandos ejecutados:
+
+```powershell
+Get-Content -LiteralPath .\infra\cloudrun\dev-services.json -Raw | ConvertFrom-Json | Out-Null
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-document-service-native.ps1 -PlanOnly
+mvn -f .\services\document-service\pom.xml test
+Test-Path -LiteralPath .\services\document-service\src\main\docker\Dockerfile.native
+Test-Path -LiteralPath .\scripts\build-document-service-native.ps1
+```
+
+Validaciones:
+
+```text
+dev-services.json OK.
+PlanOnly devolvio ready=true.
+Dockerfile.native existe.
+build-document-service-native.ps1 existe.
+Maven test: BUILD SUCCESS.
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0.
+No se ejecuto compilacion nativa pesada ni publicacion a Artifact Registry en esta validacion ligera.
+```
+
+Lectura ejecutiva:
+
+```text
+document-service ya tiene ruta reproducible para generar y publicar imagen nativa.
+El siguiente paso operativo es ejecutar build nativo real y push cuando Docker este listo.
+Luego se puede crear el tag dev de document-service y avanzar con reporting-service o audit-service.
+```

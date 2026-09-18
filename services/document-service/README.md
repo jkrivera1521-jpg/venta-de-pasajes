@@ -52,6 +52,41 @@ Para reutilizar el jar ya construido:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-document-service-local.ps1 -SkipPackage
 ```
 
+## Compilacion nativa
+
+Validar rutas de build sin compilar:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-document-service-native.ps1 -PlanOnly
+```
+
+Compilar binario nativo, crear imagen local y etiquetar para Artifact Registry:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-document-service-native.ps1 -UseCleanWorkspace
+```
+
+Imagen local:
+
+```text
+document-service:0.1.0-native
+```
+
+Imagen remota:
+
+```text
+us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/document-service:0.1.0-native
+```
+
+Publicar una imagen ya construida:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-document-service-native.ps1 `
+  -SkipNativeBuild `
+  -SkipDockerBuild `
+  -Push
+```
+
 ## Secretos
 
 La plantilla no guarda secretos reales.

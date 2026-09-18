@@ -89,3 +89,23 @@ The command above is plan-only. Execute the real tag promotion only after review
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 -SourceTag 0.1.0-native -TargetTag dev -Execute
 ```
+
+## Dia 56 document-service native image
+
+Validate the `document-service` native image plan without compiling:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-document-service-native.ps1 -PlanOnly
+```
+
+Build and tag the local native image:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-document-service-native.ps1 -UseCleanWorkspace
+```
+
+Publish after the local image exists:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-document-service-native.ps1 -SkipNativeBuild -SkipDockerBuild -Push
+```
