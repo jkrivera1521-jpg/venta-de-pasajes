@@ -7585,6 +7585,8 @@ Ajuste posterior:
 Se corrigio scripts\deploy-cloudrun-dev.ps1 para ejecutar gcloud con splatting real.
 El error corregido era: Invalid choice 'run deploy identity-service ...'.
 Se agrego troubleshooting en docs\dia-54-cloud-run-dev.md para gcloud/Python.
+Se agrego validacion previa de imagenes en Artifact Registry antes de ejecutar Cloud Run deploy.
+Se documento limpieza del servicio identity-service si un deploy fallido dejo el servicio creado sin revision util.
 ```
 
 Lectura ejecutiva:

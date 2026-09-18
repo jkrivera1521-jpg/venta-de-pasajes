@@ -222,6 +222,8 @@ Si la imagen no existe, Cloud Run no podra desplegar ese servicio.
 
 Advertencia: este paso si modifica Google Cloud.
 
+El script valida primero que la imagen exista en Artifact Registry. Si la imagen no existe, detiene el despliegue antes de llamar a Cloud Run.
+
 Primero definir el tag real. No usar signos `<` ni `>` en PowerShell:
 
 ```powershell
@@ -249,6 +251,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-de
   -ImageTag $ImageTag `
   -Execute `
   -AllowUnresolved
+```
+
+Si se necesita saltar la validacion de imagenes para diagnostico avanzado:
+
+```powershell
+$ImageTag = "dev"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
+  -ImageTag $ImageTag `
+  -Execute `
+  -SkipImageCheck
 ```
 
 ## Peticiones HTTP listas para copiar
@@ -310,7 +323,34 @@ Significa que una variable depende de una URL que Cloud Run entrega despues del 
 
 ### Cloud Run responde que la imagen no existe
 
-Publicar primero la imagen en Artifact Registry con el mismo tag usado en `-ImageTag`.
+Ejemplo del error:
+
+```text
+Image 'us-central1-docker.pkg.dev/<project>/<repo>/identity-service:dev' not found.
+```
+
+Esto significa que Cloud Run recibio el comando, pero Artifact Registry no tiene esa imagen con ese tag. Publicar primero la imagen en Artifact Registry con el mismo tag usado en `-ImageTag`.
+
+Verificar si existe:
+
+```powershell
+gcloud artifacts docker images describe `
+  "us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/identity-service:dev" `
+  --project "project-fbb34cd7-0b82-43e1-867"
+```
+
+Si el intento fallido dejo el servicio creado sin una revision util, revisar y borrar:
+
+```powershell
+gcloud run services describe identity-service `
+  --project "project-fbb34cd7-0b82-43e1-867" `
+  --region "us-central1"
+
+gcloud run services delete identity-service `
+  --project "project-fbb34cd7-0b82-43e1-867" `
+  --region "us-central1" `
+  --quiet
+```
 
 ### gcloud no se reconoce
 

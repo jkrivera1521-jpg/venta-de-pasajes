@@ -10,7 +10,8 @@ param(
   [switch]$BackendOnly,
   [switch]$FrontendOnly,
   [switch]$Execute,
-  [switch]$AllowUnresolved
+  [switch]$AllowUnresolved,
+  [switch]$SkipImageCheck
 )
 
 $ErrorActionPreference = "Stop"
@@ -198,6 +199,30 @@ function Build-DeployArguments {
   }
 }
 
+function Assert-ArtifactImageExists {
+  param(
+    [string]$ImageUri,
+    [string]$ServiceId
+  )
+
+  $ImageDescribeArguments = [string[]]@(
+    "artifacts",
+    "docker",
+    "images",
+    "describe",
+    $ImageUri,
+    "--project",
+    $ProjectId,
+    "--format",
+    "value(image_summary.fully_qualified_digest)"
+  )
+
+  $Output = & $GcloudPath @ImageDescribeArguments 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    throw "No existe la imagen requerida para $ServiceId`: $ImageUri. Publique la imagen en Artifact Registry o use un -ImageTag existente. Detalle: $($Output -join ' ')"
+  }
+}
+
 $ConfigFullPath = if ([System.IO.Path]::IsPathRooted($ConfigPath)) { $ConfigPath } else { Join-Path $ProjectRoot $ConfigPath }
 $Config = Read-JsonFile -Path $ConfigFullPath
 
@@ -264,6 +289,10 @@ foreach ($Service in $Services) {
   $Commands.Add($CommandLine) | Out-Null
 
   if ($Execute) {
+    if (-not $SkipImageCheck) {
+      Assert-ArtifactImageExists -ImageUri $Deployment.ImageUri -ServiceId $Deployment.Id
+    }
+
     $DeploymentArguments = [string[]]@($Deployment.Arguments)
     & $GcloudPath @DeploymentArguments
     if ($LASTEXITCODE -ne 0) {
