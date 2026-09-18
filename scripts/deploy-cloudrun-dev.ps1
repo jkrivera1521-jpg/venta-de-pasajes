@@ -63,6 +63,50 @@ function Initialize-CloudSdkPython {
   return $env:CLOUDSDK_PYTHON
 }
 
+function Initialize-GcloudPath {
+  param([string]$ConfiguredGcloud)
+
+  $Candidate = First-Value @($ConfiguredGcloud, $env:GCLOUD_PATH)
+  if (-not [string]::IsNullOrWhiteSpace($Candidate)) {
+    if ($Candidate.EndsWith(".ps1", [System.StringComparison]::OrdinalIgnoreCase)) {
+      $CmdSibling = [System.IO.Path]::ChangeExtension($Candidate, ".cmd")
+      if (Test-Path -LiteralPath $CmdSibling) {
+        return $CmdSibling
+      }
+    }
+
+    return $Candidate
+  }
+
+  $KnownChocolateyPath = "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+  if (Test-Path -LiteralPath $KnownChocolateyPath) {
+    return $KnownChocolateyPath
+  }
+
+  return "gcloud.cmd"
+}
+
+function Invoke-NativeCommand {
+  param(
+    [Parameter(Mandatory = $true)][string]$FilePath,
+    [Parameter(Mandatory = $true)][string[]]$Arguments
+  )
+
+  $PreviousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    $Output = & $FilePath @Arguments 2>&1
+    $ExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $PreviousErrorActionPreference
+  }
+
+  return [pscustomobject]@{
+    ExitCode = $ExitCode
+    Output = @($Output)
+  }
+}
+
 function Quote-Argument {
   param([string]$Value)
 
@@ -238,9 +282,9 @@ function Assert-ArtifactImageExists {
     "value(image_summary.fully_qualified_digest)"
   )
 
-  $Output = & $GcloudPath @ImageDescribeArguments 2>&1
-  if ($LASTEXITCODE -ne 0) {
-    throw "No existe la imagen requerida para $ServiceId`: $ImageUri. Publique la imagen en Artifact Registry o use un -ImageTag existente. Detalle: $($Output -join ' ')"
+  $Result = Invoke-NativeCommand -FilePath $GcloudPath -Arguments $ImageDescribeArguments
+  if ($Result.ExitCode -ne 0) {
+    throw "No existe la imagen requerida para $ServiceId`: $ImageUri. Publique la imagen en Artifact Registry o use un -ImageTag existente. Detalle: $($Result.Output -join ' ')"
   }
 }
 
@@ -252,7 +296,7 @@ $Region = First-Value @($Region, $env:GOOGLE_CLOUD_REGION, [string]$Config.defau
 $Repository = First-Value @($Repository, $env:ARTIFACT_REGISTRY_REPOSITORY, [string]$Config.default_repository)
 $ImageTag = First-Value @($ImageTag, $env:IMAGE_TAG, $env:GITHUB_SHA, [string]$Config.default_image_tag)
 $CloudSqlConnectionName = First-Value @($CloudSqlConnectionName, $env:CLOUD_SQL_CONNECTION_NAME, [string]$Config.default_cloud_sql_connection_name)
-$GcloudPath = First-Value @($GcloudPath, $env:GCLOUD_PATH, "gcloud")
+$GcloudPath = Initialize-GcloudPath -ConfiguredGcloud $GcloudPath
 $ResolvedCloudSdkPython = Initialize-CloudSdkPython -ConfiguredPython $CloudSdkPython
 
 if ([string]::IsNullOrWhiteSpace($ProjectId)) { throw "ProjectId es requerido." }
@@ -316,9 +360,9 @@ foreach ($Service in $Services) {
     }
 
     $DeploymentArguments = [string[]]@($Deployment.Arguments)
-    & $GcloudPath @DeploymentArguments
-    if ($LASTEXITCODE -ne 0) {
-      throw "Fallo gcloud run deploy para $($Deployment.Id)."
+    $DeployResult = Invoke-NativeCommand -FilePath $GcloudPath -Arguments $DeploymentArguments
+    if ($DeployResult.ExitCode -ne 0) {
+      throw "Fallo gcloud run deploy para $($Deployment.Id). Detalle: $($DeployResult.Output -join ' ')"
     }
 
     $DescribeArguments = [string[]]@(
@@ -333,10 +377,11 @@ foreach ($Service in $Services) {
       "--format",
       "value(status.url)"
     )
-    $Url = & $GcloudPath @DescribeArguments
-    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($Url)) {
-      $ServiceUrls[$Deployment.Id] = $Url.Trim()
-      $Deployment.HealthUrl = "$($Url.Trim())$($Service.health_path)"
+    $DescribeResult = Invoke-NativeCommand -FilePath $GcloudPath -Arguments $DescribeArguments
+    $Url = ($DescribeResult.Output -join [Environment]::NewLine).Trim()
+    if ($DescribeResult.ExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($Url)) {
+      $ServiceUrls[$Deployment.Id] = $Url
+      $Deployment.HealthUrl = "$Url$($Service.health_path)"
     }
   }
 

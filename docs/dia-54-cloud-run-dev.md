@@ -331,6 +331,13 @@ Image 'us-central1-docker.pkg.dev/<project>/<repo>/identity-service:dev' not fou
 
 Esto significa que Cloud Run recibio el comando, pero Artifact Registry no tiene esa imagen con ese tag. Publicar primero la imagen en Artifact Registry con el mismo tag usado en `-ImageTag`.
 
+La version corregida del script valida la imagen antes del despliegue y debe mostrar un mensaje controlado parecido a:
+
+```text
+No existe la imagen requerida para identity-service: us-central1-docker.pkg.dev/.../identity-service:dev.
+Publique la imagen en Artifact Registry o use un -ImageTag existente.
+```
+
 Verificar si existe:
 
 ```powershell
@@ -366,6 +373,24 @@ O pasarla directo:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
   -GcloudPath "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
 ```
+
+### gcloud.ps1 muestra NativeCommandError
+
+Si PowerShell muestra errores desde:
+
+```text
+C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.ps1
+```
+
+usar `gcloud.cmd`:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
+  -ImageTag dev `
+  -GcloudPath "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+```
+
+La version corregida del script ya prefiere `gcloud.cmd` cuando existe.
 
 ### Error: Invalid choice 'run deploy ...'
 
