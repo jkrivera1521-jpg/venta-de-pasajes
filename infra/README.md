@@ -109,3 +109,27 @@ Publish after the local image exists:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-document-service-native.ps1 -SkipNativeBuild -SkipDockerBuild -Push
 ```
+
+## Dia 57 document-service Cloud Run dev
+
+Validate the `document-service` dev image before deployment:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev -ServiceIds document-service -CheckImagesOnly
+```
+
+Deploy only `document-service` to Cloud Run dev:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev -ServiceIds document-service -Execute
+```
+
+Validate the private health endpoint with an identity token:
+
+```powershell
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+$GcloudPath = "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+$Url = (& $GcloudPath run services describe document-service --project project-fbb34cd7-0b82-43e1-867 --region us-central1 --format "value(status.url)").Trim()
+$Token = (& $GcloudPath auth print-identity-token).Trim()
+curl.exe --ssl-no-revoke -i -sS -H "Authorization: Bearer $Token" "$Url/api/v1/document/health"
+```

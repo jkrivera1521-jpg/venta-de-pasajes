@@ -8,7 +8,7 @@ Fecha de inicio: 2026-09-01
 
 Avance documentado:
 
-- Dias 1 a 56 documentados en `docs`.
+- Dias 1 a 57 documentados en `docs`.
 - Monorepo base preparado para desarrollo multi-modulo.
 - Toolchain backend Quarkus validada con servicio demo JVM y nativo.
 - Toolchain frontend Next.js/MFE validada con shell y MFE Identity demo.
@@ -18,6 +18,7 @@ Avance documentado:
 - Plan de despliegue Cloud Run dev agregado en `infra/cloudrun/dev-services.json` y `scripts/deploy-cloudrun-dev.ps1`.
 - Promocion controlada de tags Artifact Registry agregada en `scripts/promote-artifact-image-tags.ps1`.
 - Ruta de compilacion nativa de `document-service` agregada en `scripts/build-document-service-native.ps1`.
+- `document-service` desplegado en Cloud Run dev con health autenticado validado.
 - El sistema legacy se conserva en `legacy`.
 - Los respaldos iniciales se guardan en `backups`.
 - La bitacora operativa vive en `vitacora.md`.
@@ -86,6 +87,7 @@ backups/
 - `docs/dia-11-toolchain-frontend-nextjs-mfe.md`: validacion Node, npm, Next.js y composicion MFE.
 - `docs/dia-12-infraestructura-google-cloud-base.md`: bootstrap Google Cloud dev, APIs y presupuesto.
 - `docs/dia-37-document-service.md`: generacion de PDF de boleto, storage y evento `DocumentGenerated`.
+- `docs/dia-57-despliegue-cloud-run-document-service.md`: despliegue Cloud Run dev de `document-service`.
 - `docs/onpremise-offline-runbook.md`: guia para correr servicios sin dependencia de Google Cloud.
 - `docs/api-conventions.md`: convenciones REST.
 - `docs/naming-standards.md`: estandar de nombres.
@@ -105,4 +107,4 @@ backups/
 
 - Integrar emision de boleto con generacion/descarga de comprobante.
 - Conectar outbox de eventos a Pub/Sub.
-- Ejecutar compilacion/publicacion nativa de `document-service` y continuar con imagenes de `reporting-service`, `audit-service` y frontends.
+- Continuar con imagenes y despliegue dev de `reporting-service`, `audit-service` y frontends.

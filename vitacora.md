@@ -7740,3 +7740,60 @@ Se agrego quarkus.native.additional-build-args para inicializar PublicKeySecurit
 Se valido mvn test y se ejecuto build-document-service-native.ps1 -UseCleanWorkspace con BUILD SUCCESS.
 Imagen local creada: document-service:0.1.0-native.
 ```
+
+## Dia 57 - Despliegue Cloud Run document-service
+
+Resumen:
+
+```text
+Se valido que document-service:0.1.0-native existe en Artifact Registry.
+Se valido que document-service:dev existe en Artifact Registry.
+Se ejecuto preflight Cloud Run para document-service con -CheckImagesOnly.
+Se desplego document-service en Cloud Run dev con -Execute.
+Se valido estado Ready, revision activa y trafico 100%.
+Se valido /api/v1/document/health con token de identidad.
+Se creo docs\dia-57-despliegue-cloud-run-document-service.md con Reversa primero y Guia manual desde cero.
+README.md fue actualizado a Dias 1 a 57.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-57-despliegue-cloud-run-document-service.md
+C:\VENTA-DE-PASAJES\infra\cloudrun\dev-services.json
+C:\VENTA-DE-PASAJES\scripts\deploy-cloudrun-dev.ps1
+```
+
+Comandos ejecutados:
+
+```powershell
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+& "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd" auth list --filter=status:ACTIVE --format "value(account)"
+& "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd" config get-value project
+& "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd" artifacts docker images describe "us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/document-service:0.1.0-native" --project "project-fbb34cd7-0b82-43e1-867" --format "value(image_summary.digest)"
+& "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd" artifacts docker images describe "us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/document-service:dev" --project "project-fbb34cd7-0b82-43e1-867" --format "value(image_summary.digest)"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev -ServiceIds document-service -CheckImagesOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev -ServiceIds document-service -Execute
+curl.exe --ssl-no-revoke -i -sS -w "`nHTTP_STATUS:%{http_code}`n" -H "Authorization: Bearer $Token" $HealthUrl
+```
+
+Validaciones:
+
+```text
+Cuenta activa: jkrivera1521@gmail.com.
+Proyecto activo: project-fbb34cd7-0b82-43e1-867.
+Artifact digest document-service:dev: sha256:d87c7df18dc91dc5f9db3f7c2a09f5df16182c96c22b4e8baaaec101b0abda18.
+Cloud Run Ready: True.
+Revision lista: document-service-00001-9lc.
+Trafico: 100%.
+URL: https://document-service-io7kxgn6yq-uc.a.run.app.
+Health: HTTP 200 OK.
+```
+
+Lectura ejecutiva:
+
+```text
+document-service ya esta operativo en Cloud Run dev.
+El servicio se mantiene privado y requiere token de identidad para health.
+El siguiente paso natural es continuar con imagen nativa y despliegue de reporting-service o audit-service.
+```
