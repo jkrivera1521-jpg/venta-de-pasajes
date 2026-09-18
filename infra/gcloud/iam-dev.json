@@ -1,0 +1,275 @@
+{
+  "environment": "dev",
+  "project_id": "project-fbb34cd7-0b82-43e1-867",
+  "region": "us-central1",
+  "service_accounts": [
+    {
+      "account_id": "identity-service-run",
+      "component": "identity-service",
+      "type": "cloud_run_runtime",
+      "display_name": "identity-service runtime",
+      "description": "Runtime identity for identity-service in Cloud Run dev.",
+      "project_roles": [
+        "roles/cloudsql.client",
+        "roles/cloudsql.instanceUser",
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ],
+      "deferred_resource_roles": [
+        {
+          "role": "roles/secretmanager.secretAccessor",
+          "scope": "per secret",
+          "planned_day": 15
+        },
+        {
+          "role": "roles/pubsub.publisher",
+          "scope": "identity topic",
+          "planned_day": 55
+        }
+      ]
+    },
+    {
+      "account_id": "dispatch-service-run",
+      "component": "dispatch-service",
+      "type": "cloud_run_runtime",
+      "display_name": "dispatch-service runtime",
+      "description": "Runtime identity for dispatch-service in Cloud Run dev.",
+      "project_roles": [
+        "roles/cloudsql.client",
+        "roles/cloudsql.instanceUser",
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ],
+      "deferred_resource_roles": [
+        {
+          "role": "roles/secretmanager.secretAccessor",
+          "scope": "per secret",
+          "planned_day": 15
+        },
+        {
+          "role": "roles/pubsub.publisher",
+          "scope": "dispatch topic",
+          "planned_day": 55
+        }
+      ]
+    },
+    {
+      "account_id": "ticketing-service-run",
+      "component": "ticketing-service",
+      "type": "cloud_run_runtime",
+      "display_name": "ticketing-service runtime",
+      "description": "Runtime identity for ticketing-service in Cloud Run dev.",
+      "project_roles": [
+        "roles/cloudsql.client",
+        "roles/cloudsql.instanceUser",
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ],
+      "deferred_resource_roles": [
+        {
+          "role": "roles/secretmanager.secretAccessor",
+          "scope": "per secret",
+          "planned_day": 15
+        },
+        {
+          "role": "roles/pubsub.publisher",
+          "scope": "ticketing topic",
+          "planned_day": 55
+        }
+      ]
+    },
+    {
+      "account_id": "document-service-run",
+      "component": "document-service",
+      "type": "cloud_run_runtime",
+      "display_name": "document-service runtime",
+      "description": "Runtime identity for document-service in Cloud Run dev.",
+      "project_roles": [
+        "roles/cloudsql.client",
+        "roles/cloudsql.instanceUser",
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ],
+      "deferred_resource_roles": [
+        {
+          "role": "roles/secretmanager.secretAccessor",
+          "scope": "per secret",
+          "planned_day": 15
+        },
+        {
+          "role": "roles/pubsub.publisher",
+          "scope": "document topic",
+          "planned_day": 55
+        },
+        {
+          "role": "roles/storage.objectAdmin",
+          "scope": "documents bucket",
+          "planned_day": 56
+        }
+      ]
+    },
+    {
+      "account_id": "reporting-service-run",
+      "component": "reporting-service",
+      "type": "cloud_run_runtime",
+      "display_name": "reporting-service runtime",
+      "description": "Runtime identity for reporting-service in Cloud Run dev.",
+      "project_roles": [
+        "roles/cloudsql.client",
+        "roles/cloudsql.instanceUser",
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ],
+      "deferred_resource_roles": [
+        {
+          "role": "roles/secretmanager.secretAccessor",
+          "scope": "per secret",
+          "planned_day": 15
+        },
+        {
+          "role": "roles/pubsub.subscriber",
+          "scope": "reporting subscriptions",
+          "planned_day": 55
+        }
+      ]
+    },
+    {
+      "account_id": "audit-service-run",
+      "component": "audit-service",
+      "type": "cloud_run_runtime",
+      "display_name": "audit-service runtime",
+      "description": "Runtime identity for audit-service in Cloud Run dev.",
+      "project_roles": [
+        "roles/cloudsql.client",
+        "roles/cloudsql.instanceUser",
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ],
+      "deferred_resource_roles": [
+        {
+          "role": "roles/secretmanager.secretAccessor",
+          "scope": "per secret",
+          "planned_day": 15
+        },
+        {
+          "role": "roles/pubsub.publisher",
+          "scope": "audit topic",
+          "planned_day": 55
+        },
+        {
+          "role": "roles/pubsub.subscriber",
+          "scope": "audit subscriptions",
+          "planned_day": 55
+        }
+      ]
+    },
+    {
+      "account_id": "frontend-shell-run",
+      "component": "frontend-shell",
+      "type": "cloud_run_frontend_runtime",
+      "display_name": "frontend-shell runtime",
+      "description": "Runtime identity for frontend-shell in Cloud Run dev.",
+      "project_roles": [
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ],
+      "deferred_resource_roles": [
+        {
+          "role": "roles/secretmanager.secretAccessor",
+          "scope": "frontend session secret",
+          "planned_day": 15
+        }
+      ]
+    },
+    {
+      "account_id": "cloudbuild-deployer",
+      "component": "cloud-build",
+      "type": "ci_cd_deployer",
+      "display_name": "Cloud Build deployer",
+      "description": "Custom Cloud Build service account for build and Cloud Run deployment in dev.",
+      "project_roles": [
+        "roles/artifactregistry.writer",
+        "roles/cloudbuild.builds.editor",
+        "roles/logging.logWriter",
+        "roles/run.admin",
+        "roles/storage.admin"
+      ],
+      "deferred_resource_roles": [
+        {
+          "role": "roles/secretmanager.secretAccessor",
+          "scope": "only build-time secrets required by pipelines",
+          "planned_day": 52
+        }
+      ]
+    }
+  ],
+  "service_account_bindings": [
+    {
+      "target_account_id": "identity-service-run",
+      "member_account_id": "cloudbuild-deployer",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow Cloud Build deployer to attach identity-service runtime identity to Cloud Run."
+    },
+    {
+      "target_account_id": "dispatch-service-run",
+      "member_account_id": "cloudbuild-deployer",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow Cloud Build deployer to attach dispatch-service runtime identity to Cloud Run."
+    },
+    {
+      "target_account_id": "ticketing-service-run",
+      "member_account_id": "cloudbuild-deployer",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow Cloud Build deployer to attach ticketing-service runtime identity to Cloud Run."
+    },
+    {
+      "target_account_id": "document-service-run",
+      "member_account_id": "cloudbuild-deployer",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow Cloud Build deployer to attach document-service runtime identity to Cloud Run."
+    },
+    {
+      "target_account_id": "reporting-service-run",
+      "member_account_id": "cloudbuild-deployer",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow Cloud Build deployer to attach reporting-service runtime identity to Cloud Run."
+    },
+    {
+      "target_account_id": "audit-service-run",
+      "member_account_id": "cloudbuild-deployer",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow Cloud Build deployer to attach audit-service runtime identity to Cloud Run."
+    },
+    {
+      "target_account_id": "frontend-shell-run",
+      "member_account_id": "cloudbuild-deployer",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow Cloud Build deployer to attach frontend-shell runtime identity to Cloud Run."
+    }
+  ],
+  "admin_groups": [
+    {
+      "name": "gcp-venta-pasajes-admins",
+      "email": "pending-google-workspace-or-cloud-identity",
+      "purpose": "Project administrators with MFA enforced.",
+      "status": "pending"
+    },
+    {
+      "name": "gcp-venta-pasajes-developers",
+      "email": "pending-google-workspace-or-cloud-identity",
+      "purpose": "Developers with limited dev access.",
+      "status": "pending"
+    },
+    {
+      "name": "gcp-venta-pasajes-auditors",
+      "email": "pending-google-workspace-or-cloud-identity",
+      "purpose": "Read-only audit and billing review.",
+      "status": "pending"
+    }
+  ],
+  "mfa_controls": [
+    "Personal Google accounts must enable 2-Step Verification before receiving administrator access.",
+    "If Google Workspace or Cloud Identity is adopted, enforce MFA from the identity provider for administrator groups.",
+    "Do not use shared administrator accounts; use named accounts plus audited role grants."
+  ]
+}

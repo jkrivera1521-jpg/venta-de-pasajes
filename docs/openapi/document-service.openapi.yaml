@@ -1,0 +1,374 @@
+openapi: 3.0.3
+info:
+  title: Document Service API
+  version: 0.1.0
+  description: API inicial para plantillas, generacion de documentos PDF y URLs seguras de descarga.
+servers:
+  - url: https://document-service-dev.example.com/api/v1
+    description: Dev placeholder
+security:
+  - bearerAuth: []
+tags:
+  - name: templates
+  - name: documents
+paths:
+  /health:
+    get:
+      tags: [documents]
+      summary: Estado basico del servicio.
+      security: []
+      responses:
+        "200":
+          description: Servicio disponible.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /templates:
+    get:
+      tags: [templates]
+      summary: Listar plantillas.
+      parameters:
+        - name: type
+          in: query
+          schema:
+            $ref: "#/components/schemas/TemplateType"
+      responses:
+        "200":
+          description: Plantillas disponibles.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Template"
+    post:
+      tags: [templates]
+      summary: Crear plantilla.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTemplateRequest"
+      responses:
+        "201":
+          description: Plantilla creada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Template"
+  /documents/tickets/{ticketId}:
+    post:
+      tags: [documents]
+      summary: Generar PDF de boleto.
+      parameters:
+        - name: ticketId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 16
+            maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateTicketDocumentRequest"
+      responses:
+        "201":
+          description: Documento generado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+  /documents:
+    get:
+      tags: [documents]
+      summary: Listar documentos generados.
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - name: owner_type
+          in: query
+          schema:
+            type: string
+            enum: [TICKET, REPORT]
+        - name: owner_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Documentos paginados.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentPage"
+  /documents/{documentId}:
+    get:
+      tags: [documents]
+      summary: Obtener metadata de documento.
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: Documento encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /documents/{documentId}/download:
+    get:
+      tags: [documents]
+      summary: Descargar PDF generado.
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: PDF generado.
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /documents/{documentId}/signed-url:
+    post:
+      tags: [documents]
+      summary: Crear URL temporal de descarga.
+      parameters:
+        - $ref: "#/components/parameters/DocumentId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ttl_seconds:
+                  type: integer
+                  minimum: 60
+                  maximum: 3600
+                  default: 900
+      responses:
+        "200":
+          description: URL temporal creada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignedUrlResponse"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: page_size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    DocumentId:
+      name: documentId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    NotFound:
+      description: Recurso no encontrado.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: UP
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+    ErrorDetail:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        correlation_id:
+          type: string
+          format: uuid
+    PageMeta:
+      type: object
+      required: [page, page_size, total_items, total_pages]
+      properties:
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total_items:
+          type: integer
+        total_pages:
+          type: integer
+    TemplateType:
+      type: string
+      enum: [TICKET, REPORT]
+    Template:
+      type: object
+      required: [id, type, code, name, active]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          $ref: "#/components/schemas/TemplateType"
+        code:
+          type: string
+          example: DEFAULT_TICKET
+        name:
+          type: string
+        version:
+          type: integer
+        active:
+          type: boolean
+    CreateTemplateRequest:
+      type: object
+      required: [type, code, name, content]
+      properties:
+        type:
+          $ref: "#/components/schemas/TemplateType"
+        code:
+          type: string
+        name:
+          type: string
+        content:
+          type: string
+          description: HTML, handlebars u otro formato elegido.
+    GenerateTicketDocumentRequest:
+      type: object
+      required: [ticket]
+      properties:
+        template_code:
+          type: string
+          default: DEFAULT_TICKET
+        ticket:
+          $ref: "#/components/schemas/TicketDocumentData"
+    TicketDocumentData:
+      type: object
+      required: [ticket_number, passenger_name, document_number, price, currency, bus_code, origin, destination, departure_at, seat_number]
+      properties:
+        ticket_number:
+          type: string
+        passenger_name:
+          type: string
+        document_number:
+          type: string
+        price:
+          type: number
+          format: double
+        currency:
+          type: string
+        bus_code:
+          type: string
+        bus_type:
+          type: string
+        origin:
+          type: string
+        destination:
+          type: string
+        departure_at:
+          type: string
+          format: date-time
+        seat_number:
+          type: integer
+        seat_position:
+          type: string
+        sold_at:
+          type: string
+          format: date-time
+    DocumentStatus:
+      type: string
+      enum: [PENDING, GENERATED, FAILED]
+    Document:
+      type: object
+      required: [id, owner_type, owner_id, type, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        owner_type:
+          type: string
+          enum: [TICKET, REPORT]
+        owner_id:
+          type: string
+          format: uuid
+        type:
+          $ref: "#/components/schemas/TemplateType"
+        status:
+          $ref: "#/components/schemas/DocumentStatus"
+        storage_uri:
+          type: string
+          example: gs://venta-pasajes-dev-documents/tickets/000001.pdf
+        content_type:
+          type: string
+          example: application/pdf
+        created_at:
+          type: string
+          format: date-time
+        generated_at:
+          type: string
+          format: date-time
+        failure_reason:
+          type: string
+    DocumentPage:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Document"
+        meta:
+          $ref: "#/components/schemas/PageMeta"
+    SignedUrlResponse:
+      type: object
+      required: [url, expires_at]
+      properties:
+        url:
+          type: string
+          format: uri
+        expires_at:
+          type: string
+          format: date-time

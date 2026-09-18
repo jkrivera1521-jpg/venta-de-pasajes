@@ -1,0 +1,20 @@
+# Bootstrap and governance APIs
+cloudresourcemanager.googleapis.com
+serviceusage.googleapis.com
+cloudbilling.googleapis.com
+billingbudgets.googleapis.com
+
+# Runtime platform APIs
+run.googleapis.com
+sqladmin.googleapis.com
+cloudbuild.googleapis.com
+artifactregistry.googleapis.com
+secretmanager.googleapis.com
+storage.googleapis.com
+pubsub.googleapis.com
+logging.googleapis.com
+monitoring.googleapis.com
+
+# Identity and service account APIs
+iam.googleapis.com
+iamcredentials.googleapis.com

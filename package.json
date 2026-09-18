@@ -1,0 +1,37 @@
+{
+  "name": "venta-de-pasajes",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@11.6.2",
+  "workspaces": [
+    "apps/frontend-shell",
+    "apps/mfe-admin",
+    "apps/mfe-dispatch",
+    "apps/mfe-identity",
+    "apps/mfe-reporting",
+    "apps/mfe-ticketing",
+    "packages/shared-types"
+  ],
+  "scripts": {
+    "dev:frontend": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-frontend-dev.ps1",
+    "dev:shell": "npm run dev -w @venta-pasajes/frontend-shell -- --hostname 127.0.0.1 -p 3000",
+    "dev:mfe-admin": "npm run dev -w @venta-pasajes/mfe-admin -- --hostname 127.0.0.1 -p 3005",
+    "dev:mfe-identity": "npm run dev -w @venta-pasajes/mfe-identity -- --hostname 127.0.0.1 -p 3001",
+    "dev:mfe-dispatch": "npm run dev -w @venta-pasajes/mfe-dispatch -- --hostname 127.0.0.1 -p 3002",
+    "dev:mfe-ticketing": "npm run dev -w @venta-pasajes/mfe-ticketing -- --hostname 127.0.0.1 -p 3003",
+    "dev:mfe-reporting": "npm run dev -w @venta-pasajes/mfe-reporting -- --hostname 127.0.0.1 -p 3004",
+    "stop:frontend": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/stop-frontend-dev.ps1",
+    "build:frontend": "npm run build -w @venta-pasajes/shared-types && npm run build -w @venta-pasajes/mfe-identity && npm run build -w @venta-pasajes/mfe-dispatch && npm run build -w @venta-pasajes/mfe-ticketing && npm run build -w @venta-pasajes/mfe-reporting && npm run build -w @venta-pasajes/mfe-admin && npm run build -w @venta-pasajes/frontend-shell",
+    "typecheck:frontend": "npm run typecheck -w @venta-pasajes/shared-types && npm run typecheck -w @venta-pasajes/mfe-identity && npm run typecheck -w @venta-pasajes/mfe-dispatch && npm run typecheck -w @venta-pasajes/mfe-ticketing && npm run typecheck -w @venta-pasajes/mfe-reporting && npm run typecheck -w @venta-pasajes/mfe-admin && npm run typecheck -w @venta-pasajes/frontend-shell"
+  },
+  "engines": {
+    "node": ">=24.0.0",
+    "npm": ">=11.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.4.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "typescript": "7.0.2"
+  }
+}

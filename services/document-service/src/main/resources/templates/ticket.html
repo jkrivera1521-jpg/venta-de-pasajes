@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Boleto {{ticket_number}}</title>
+  <style>
+    body {
+      color: #172033;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 24px;
+    }
+    .ticket {
+      border: 2px solid #172033;
+      border-radius: 10px;
+      padding: 20px;
+      width: 720px;
+    }
+    .header {
+      border-bottom: 1px solid #ccd6e4;
+      display: flex;
+      justify-content: space-between;
+      padding-bottom: 12px;
+    }
+    .brand {
+      font-size: 24px;
+      font-weight: 700;
+    }
+    .number {
+      color: #0f766e;
+      font-size: 20px;
+      font-weight: 700;
+    }
+    .grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(2, 1fr);
+      margin-top: 18px;
+    }
+    .label {
+      color: #475569;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .value {
+      font-size: 16px;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <section class="ticket">
+    <div class="header">
+      <div>
+        <div class="brand">Venta Pasajes</div>
+        <div>Comprobante imprimible de boleto</div>
+      </div>
+      <div class="number">{{ticket_number}}</div>
+    </div>
+    <div class="grid">
+      <div><div class="label">Ruta</div><div class="value">{{route_name}}</div></div>
+      <div><div class="label">Salida</div><div class="value">{{departure_at}}</div></div>
+      <div><div class="label">Pasajero</div><div class="value">{{passenger_name}}</div></div>
+      <div><div class="label">Documento</div><div class="value">{{document_number}}</div></div>
+      <div><div class="label">Bus</div><div class="value">{{bus_code}}</div></div>
+      <div><div class="label">Asiento</div><div class="value">{{seat_number}}</div></div>
+      <div><div class="label">Tarifa</div><div class="value">{{price}} {{currency}}</div></div>
+      <div><div class="label">Emitido</div><div class="value">{{sold_at}}</div></div>
+    </div>
+  </section>
+</body>
+</html>
