@@ -8,9 +8,11 @@ param(
   [string]$GcloudPath = "",
   [string]$CloudSdkPython = "",
   [string]$OutputPath = "logs\cloudrun-dev\deploy-cloudrun-dev.commands.ps1",
+  [string[]]$ServiceIds = @(),
   [switch]$BackendOnly,
   [switch]$FrontendOnly,
   [switch]$Execute,
+  [switch]$CheckImagesOnly,
   [switch]$AllowUnresolved,
   [switch]$SkipImageCheck
 )
@@ -264,7 +266,7 @@ function Build-DeployArguments {
   }
 }
 
-function Assert-ArtifactImageExists {
+function Test-ArtifactImageExists {
   param(
     [string]$ImageUri,
     [string]$ServiceId
@@ -283,8 +285,23 @@ function Assert-ArtifactImageExists {
   )
 
   $Result = Invoke-NativeCommand -FilePath $GcloudPath -Arguments $ImageDescribeArguments
-  if ($Result.ExitCode -ne 0) {
-    throw "No existe la imagen requerida para $ServiceId`: $ImageUri. Publique la imagen en Artifact Registry o use un -ImageTag existente. Detalle: $($Result.Output -join ' ')"
+  return [pscustomobject]@{
+    service_id = $ServiceId
+    image = $ImageUri
+    exists = $Result.ExitCode -eq 0
+    detail = ($Result.Output -join ' ')
+  }
+}
+
+function Assert-ArtifactImageExists {
+  param(
+    [string]$ImageUri,
+    [string]$ServiceId
+  )
+
+  $Check = Test-ArtifactImageExists -ImageUri $ImageUri -ServiceId $ServiceId
+  if (-not $Check.exists) {
+    throw "No existe la imagen requerida para $ServiceId`: $ImageUri. Publique la imagen en Artifact Registry o use un -ImageTag existente. Detalle: $($Check.detail)"
   }
 }
 
@@ -323,10 +340,22 @@ if ($BackendOnly) {
 if ($FrontendOnly) {
   $Services = $Services | Where-Object { $_.group -eq "frontend" }
 }
+if ($ServiceIds.Count -gt 0) {
+  $Requested = @($ServiceIds | ForEach-Object { $_ -split "," } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+  $Known = @($Services | ForEach-Object { [string]$_.id })
+  $Unknown = @($Requested | Where-Object { $Known -notcontains $_ })
+  if ($Unknown.Count -gt 0) {
+    Write-Host "ERROR: ServiceIds no encontrados en el filtro actual: $($Unknown -join ', ')"
+    exit 1
+  }
+
+  $Services = $Services | Where-Object { $Requested -contains [string]$_.id }
+}
 
 $ServiceUrls = @{}
 $Deployments = New-Object System.Collections.Generic.List[object]
 $Commands = New-Object System.Collections.Generic.List[string]
+$ImageChecks = New-Object System.Collections.Generic.List[object]
 
 $OutputFullPath = if ([System.IO.Path]::IsPathRooted($OutputPath)) { $OutputPath } else { Join-Path $ProjectRoot $OutputPath }
 $OutputDir = Split-Path -Parent $OutputFullPath
@@ -353,6 +382,11 @@ foreach ($Service in $Services) {
 
   $CommandLine = Format-CommandLine -Executable $GcloudPath -Arguments $Deployment.Arguments
   $Commands.Add($CommandLine) | Out-Null
+
+  if ($CheckImagesOnly) {
+    $ImageCheck = Test-ArtifactImageExists -ImageUri $Deployment.ImageUri -ServiceId $Deployment.Id
+    $ImageChecks.Add($ImageCheck) | Out-Null
+  }
 
   if ($Execute) {
     if (-not $SkipImageCheck) {
@@ -394,6 +428,7 @@ foreach ($Service in $Services) {
     allow_unauthenticated = [bool]$Service.allow_unauthenticated
     cloud_sql = [bool]$Service.cloud_sql
     health_url = $Deployment.HealthUrl
+    image_exists = if ($CheckImagesOnly) { ($ImageChecks | Where-Object service_id -eq $Deployment.Id | Select-Object -First 1).exists } else { $null }
     unresolved = $Unresolved
   }) | Out-Null
 }
@@ -420,6 +455,8 @@ $Plan = [ordered]@{
   cloud_sdk_python = $ResolvedCloudSdkPython
   cloud_sql_connection_name = $CloudSqlConnectionName
   command_file = $OutputFullPath
+  check_images_only = [bool]$CheckImagesOnly
+  image_checks = $ImageChecks
   services = $Deployments
 }
 $Plan | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $PlanPath -Encoding UTF8
@@ -427,4 +464,13 @@ $Plan | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $PlanPath -Encoding U
 Write-Host "Cloud Run dev plan generated."
 Write-Host "Commands: $OutputFullPath"
 Write-Host "Plan: $PlanPath"
-$Deployments | Format-Table id,group,service_name,port,allow_unauthenticated,cloud_sql -AutoSize
+if ($CheckImagesOnly) {
+  $ImageChecks | Format-Table service_id,exists,image -AutoSize
+  $MissingImages = @($ImageChecks | Where-Object { -not $_.exists })
+  if ($MissingImages.Count -gt 0) {
+    Write-Host "ERROR: Faltan imagenes en Artifact Registry: $($MissingImages.service_id -join ', ')"
+    exit 1
+  }
+} else {
+  $Deployments | Format-Table id,group,service_name,port,allow_unauthenticated,cloud_sql -AutoSize
+}

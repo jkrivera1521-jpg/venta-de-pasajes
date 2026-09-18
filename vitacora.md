@@ -7590,6 +7590,10 @@ Se documento limpieza del servicio identity-service si un deploy fallido dejo el
 Se agrego soporte -CloudSdkPython y autodeteccion de C:\Python312\python.exe para evitar el alias python3.exe de Microsoft Store.
 Se cambio la resolucion de gcloud para preferir gcloud.cmd y evitar NativeCommandError de gcloud.ps1.
 Se encapsularon llamadas nativas a gcloud para devolver mensajes controlados cuando una imagen no existe.
+Se agrego -CheckImagesOnly para probar existencia de imagenes antes de desplegar.
+Se agrego -ServiceIds para validar o desplegar subconjuntos concretos de servicios.
+Preflight probado: tag dev no tiene imagenes backend publicadas.
+Preflight probado: tag 0.1.0-native existe para identity-service, dispatch-service y ticketing-service.
 ```
 
 Lectura ejecutiva:

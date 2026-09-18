@@ -224,6 +224,40 @@ Advertencia: este paso si modifica Google Cloud.
 
 El script valida primero que la imagen exista en Artifact Registry. Si la imagen no existe, detiene el despliegue antes de llamar a Cloud Run.
 
+Antes de desplegar, ejecutar preflight de imagenes:
+
+```powershell
+$ImageTag = "dev"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
+  -ImageTag $ImageTag `
+  -BackendOnly `
+  -CheckImagesOnly
+```
+
+Resultado observado con `dev`:
+
+```text
+ERROR: Faltan imagenes en Artifact Registry: identity-service, dispatch-service, document-service, reporting-service, audit-service, ticketing-service
+```
+
+Resultado observado con `0.1.0-native` para servicios publicados:
+
+```powershell
+$ImageTag = "0.1.0-native"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
+  -ImageTag $ImageTag `
+  -ServiceIds identity-service,dispatch-service,ticketing-service `
+  -CheckImagesOnly
+```
+
+```text
+identity-service: True
+dispatch-service: True
+ticketing-service: True
+```
+
 Primero definir el tag real. No usar signos `<` ni `>` en PowerShell:
 
 ```powershell
@@ -238,6 +272,7 @@ Cambiar `"dev"` por el tag que exista realmente en Artifact Registry. Ejemplos v
 
 ```powershell
 $ImageTag = "dev"
+$ImageTag = "0.1.0-native"
 $ImageTag = "dia54-local-test"
 $ImageTag = "main-20260918"
 ```
