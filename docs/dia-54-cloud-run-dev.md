@@ -126,6 +126,7 @@ False
 ## Guia manual desde cero
 
 > Importante: ejecutar desde PowerShell. Si la consola esta en `C:\Windows\system32`, primero ejecutar el Paso 1.
+> Estado verificado: en Artifact Registry existen imagenes para `identity-service`, `dispatch-service` y `ticketing-service` con tag `0.1.0-native`. No usar `dev` en el despliegue real mientras ese tag no exista publicado.
 
 ### Paso 1 - Ubicarse en el proyecto
 
@@ -152,7 +153,7 @@ True
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
-  -ImageTag dia54-local-test
+  -ImageTag 0.1.0-native
 ```
 
 Resultado esperado:
@@ -202,21 +203,35 @@ Resultado esperado:
 
 ### Paso 6 - Verificar imagenes antes de ejecutar despliegue real
 
-El plan asume que existen imagenes en Artifact Registry con esta forma:
+El despliegue real solo funciona si Artifact Registry contiene la imagen y el tag exacto que se envia en `-ImageTag`.
+
+Forma de una imagen valida:
 
 ```text
-us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/identity-service:dev
+us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/identity-service:0.1.0-native
 ```
 
-Ejemplo:
+Listar imagenes y tags publicados:
 
 ```powershell
-gcloud artifacts docker images list `
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+$GcloudPath = "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+
+& $GcloudPath artifacts docker images list `
   "us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev" `
-  --project "project-fbb34cd7-0b82-43e1-867"
+  --project "project-fbb34cd7-0b82-43e1-867" `
+  --include-tags
 ```
 
-Si la imagen no existe, Cloud Run no podra desplegar ese servicio.
+Resultado esperado actualmente:
+
+```text
+dispatch-service   0.1.0-native
+identity-service   0.1.0-native
+ticketing-service  0.1.0-native
+```
+
+Si se usa el tag `dev`, el despliegue falla porque ese tag no esta publicado.
 
 ### Paso 7 - Ejecutar despliegue real
 
@@ -224,24 +239,7 @@ Advertencia: este paso si modifica Google Cloud.
 
 El script valida primero que la imagen exista en Artifact Registry. Si la imagen no existe, detiene el despliegue antes de llamar a Cloud Run.
 
-Antes de desplegar, ejecutar preflight de imagenes:
-
-```powershell
-$ImageTag = "dev"
-
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
-  -ImageTag $ImageTag `
-  -BackendOnly `
-  -CheckImagesOnly
-```
-
-Resultado observado con `dev`:
-
-```text
-ERROR: Faltan imagenes en Artifact Registry: identity-service, dispatch-service, document-service, reporting-service, audit-service, ticketing-service
-```
-
-Resultado observado con `0.1.0-native` para servicios publicados:
+Con el estado actual, desplegar solo los tres servicios que ya tienen imagen publicada:
 
 ```powershell
 $ImageTag = "0.1.0-native"
@@ -252,49 +250,74 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-de
   -CheckImagesOnly
 ```
 
+Resultado esperado:
+
 ```text
 identity-service: True
 dispatch-service: True
 ticketing-service: True
+Cloud Run dev plan generated.
 ```
 
-Primero definir el tag real. No usar signos `<` ni `>` en PowerShell:
+Si el preflight anterior sale correcto, ejecutar el despliegue real de esos tres servicios:
 
 ```powershell
-$ImageTag = "dev"
+$ImageTag = "0.1.0-native"
 
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
   -ImageTag $ImageTag `
+  -ServiceIds identity-service,dispatch-service,ticketing-service `
   -Execute
 ```
 
-Cambiar `"dev"` por el tag que exista realmente en Artifact Registry. Ejemplos validos:
+No ejecutar el despliegue completo de 12 servicios todavia. Faltan imagenes para:
 
-```powershell
-$ImageTag = "dev"
-$ImageTag = "0.1.0-native"
-$ImageTag = "dia54-local-test"
-$ImageTag = "main-20260918"
+```text
+document-service
+reporting-service
+audit-service
+mfe-identity
+mfe-dispatch
+mfe-ticketing
+mfe-reporting
+mfe-admin
+frontend-shell
 ```
 
-Si hay URLs no resueltas entre servicios, primero revisar el archivo generado en modo plan y definir las URLs requeridas. Para diagnostico controlado se puede permitir placeholders:
+Cuando todas las imagenes existan con un mismo tag real, repetir primero el preflight `-CheckImagesOnly` con ese tag y despues ejecutar `-Execute`.
+
+### Paso 8 - Que significa el error con `dev`
+
+El tag `dev` no existe actualmente en Artifact Registry. Por eso cualquier despliegue que apunte a `identity-service:dev`, `dispatch-service:dev` o `ticketing-service:dev` falla antes de desplegar.
+
+Resultado observado:
+
+```text
+ERROR: Faltan imagenes en Artifact Registry: identity-service, dispatch-service, document-service, reporting-service, audit-service, ticketing-service
+```
+
+Este error no significa que `identity-service` no exista. Significa que no existe la combinacion `identity-service:dev`.
+
+Si hay URLs no resueltas entre servicios, primero revisar el archivo generado en modo plan y definir las URLs requeridas. Para diagnostico controlado se pueden permitir URLs temporales, pero solo con un tag existente:
 
 ```powershell
-$ImageTag = "dev"
+$ImageTag = "0.1.0-native"
 
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
   -ImageTag $ImageTag `
+  -ServiceIds identity-service,dispatch-service,ticketing-service `
   -Execute `
   -AllowUnresolved
 ```
 
-Si se necesita saltar la validacion de imagenes para diagnostico avanzado:
+Si se necesita saltar la validacion de imagenes para diagnostico avanzado, hacerlo solo sabiendo que Cloud Run fallara si la imagen no existe:
 
 ```powershell
-$ImageTag = "dev"
+$ImageTag = "0.1.0-native"
 
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
   -ImageTag $ImageTag `
+  -ServiceIds identity-service,dispatch-service,ticketing-service `
   -Execute `
   -SkipImageCheck
 ```
@@ -331,7 +354,7 @@ curl.exe -s "$ShellUrl/api/health"
 ```powershell
 Test-Path -LiteralPath .\infra\cloudrun\dev-services.json
 Test-Path -LiteralPath .\scripts\deploy-cloudrun-dev.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dia54-local-test
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag 0.1.0-native
 Get-Content -LiteralPath .\logs\cloudrun-dev\deploy-cloudrun-dev.commands.plan.json -Raw | ConvertFrom-Json
 Select-String -Path .\logs\cloudrun-dev\deploy-cloudrun-dev.commands.ps1 -Pattern "gcloud|run|deploy|frontend-shell|identity-service"
 ```
@@ -361,7 +384,7 @@ Significa que una variable depende de una URL que Cloud Run entrega despues del 
 Ejemplo del error:
 
 ```text
-Image 'us-central1-docker.pkg.dev/<project>/<repo>/identity-service:dev' not found.
+Image 'us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/identity-service:tag-no-publicado' not found.
 ```
 
 Esto significa que Cloud Run recibio el comando, pero Artifact Registry no tiene esa imagen con ese tag. Publicar primero la imagen en Artifact Registry con el mismo tag usado en `-ImageTag`.
@@ -369,15 +392,15 @@ Esto significa que Cloud Run recibio el comando, pero Artifact Registry no tiene
 La version corregida del script valida la imagen antes del despliegue y debe mostrar un mensaje controlado parecido a:
 
 ```text
-No existe la imagen requerida para identity-service: us-central1-docker.pkg.dev/.../identity-service:dev.
+No existe la imagen requerida para identity-service: us-central1-docker.pkg.dev/.../identity-service:tag-no-publicado.
 Publique la imagen en Artifact Registry o use un -ImageTag existente.
 ```
 
-Verificar si existe:
+Verificar el tag que si existe actualmente:
 
 ```powershell
-gcloud artifacts docker images describe `
-  "us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/identity-service:dev" `
+& "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd" artifacts docker images describe `
+  "us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/identity-service:0.1.0-native" `
   --project "project-fbb34cd7-0b82-43e1-867"
 ```
 
@@ -421,7 +444,8 @@ usar `gcloud.cmd`:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
-  -ImageTag dev `
+  -ImageTag 0.1.0-native `
+  -ServiceIds identity-service,dispatch-service,ticketing-service `
   -GcloudPath "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
 ```
 
@@ -468,7 +492,8 @@ Tambien se puede pasar la ruta directamente al script:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
-  -ImageTag dev `
+  -ImageTag 0.1.0-native `
+  -ServiceIds identity-service,dispatch-service,ticketing-service `
   -CloudSdkPython "C:\Python312\python.exe"
 ```
 
