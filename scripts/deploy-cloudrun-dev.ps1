@@ -6,6 +6,7 @@ param(
   [string]$ImageTag = "",
   [string]$CloudSqlConnectionName = "",
   [string]$GcloudPath = "",
+  [string]$CloudSdkPython = "",
   [string]$OutputPath = "logs\cloudrun-dev\deploy-cloudrun-dev.commands.ps1",
   [switch]$BackendOnly,
   [switch]$FrontendOnly,
@@ -40,6 +41,26 @@ function First-Value {
   }
 
   return ""
+}
+
+function Initialize-CloudSdkPython {
+  param([string]$ConfiguredPython)
+
+  $PythonPath = First-Value @(
+    $ConfiguredPython,
+    $env:CLOUDSDK_PYTHON,
+    "C:\Python312\python.exe",
+    "C:\Python313\python.exe",
+    "C:\Program Files\Python312\python.exe",
+    "C:\Program Files\Python313\python.exe"
+  )
+
+  if (-not [string]::IsNullOrWhiteSpace($PythonPath) -and (Test-Path -LiteralPath $PythonPath)) {
+    $env:CLOUDSDK_PYTHON = $PythonPath
+    return $PythonPath
+  }
+
+  return $env:CLOUDSDK_PYTHON
 }
 
 function Quote-Argument {
@@ -232,6 +253,7 @@ $Repository = First-Value @($Repository, $env:ARTIFACT_REGISTRY_REPOSITORY, [str
 $ImageTag = First-Value @($ImageTag, $env:IMAGE_TAG, $env:GITHUB_SHA, [string]$Config.default_image_tag)
 $CloudSqlConnectionName = First-Value @($CloudSqlConnectionName, $env:CLOUD_SQL_CONNECTION_NAME, [string]$Config.default_cloud_sql_connection_name)
 $GcloudPath = First-Value @($GcloudPath, $env:GCLOUD_PATH, "gcloud")
+$ResolvedCloudSdkPython = Initialize-CloudSdkPython -ConfiguredPython $CloudSdkPython
 
 if ([string]::IsNullOrWhiteSpace($ProjectId)) { throw "ProjectId es requerido." }
 if ([string]::IsNullOrWhiteSpace($Region)) { throw "Region es requerida." }
@@ -350,6 +372,7 @@ $Plan = [ordered]@{
   region = $Region
   repository = $Repository
   image_tag = $ImageTag
+  cloud_sdk_python = $ResolvedCloudSdkPython
   cloud_sql_connection_name = $CloudSqlConnectionName
   command_file = $OutputFullPath
   services = $Deployments

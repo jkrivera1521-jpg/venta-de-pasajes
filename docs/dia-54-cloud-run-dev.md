@@ -398,7 +398,21 @@ $env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
 gcloud version
 ```
 
-Si ese archivo no existe, instalar Python o usar la ruta real donde este instalado.
+En esta maquina se verifico que existe:
+
+```text
+C:\Python312\python.exe
+```
+
+Tambien se puede pasar la ruta directamente al script:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
+  -ImageTag dev `
+  -CloudSdkPython "C:\Python312\python.exe"
+```
+
+Si ese archivo no existe, instalar Python o usar la ruta real donde este instalado. El script intenta usar `C:\Python312\python.exe` automaticamente cuando existe.
 
 ### Backends privados no responden desde curl local
 

@@ -7587,6 +7587,7 @@ El error corregido era: Invalid choice 'run deploy identity-service ...'.
 Se agrego troubleshooting en docs\dia-54-cloud-run-dev.md para gcloud/Python.
 Se agrego validacion previa de imagenes en Artifact Registry antes de ejecutar Cloud Run deploy.
 Se documento limpieza del servicio identity-service si un deploy fallido dejo el servicio creado sin revision util.
+Se agrego soporte -CloudSdkPython y autodeteccion de C:\Python312\python.exe para evitar el alias python3.exe de Microsoft Store.
 ```
 
 Lectura ejecutiva:
