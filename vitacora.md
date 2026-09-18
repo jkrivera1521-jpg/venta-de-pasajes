@@ -7713,13 +7713,30 @@ Dockerfile.native existe.
 build-document-service-native.ps1 existe.
 Maven test: BUILD SUCCESS.
 Tests run: 5, Failures: 0, Errors: 0, Skipped: 0.
-No se ejecuto compilacion nativa pesada ni publicacion a Artifact Registry en esta validacion ligera.
+Compilacion nativa: BUILD SUCCESS.
+Imagen Docker local creada: document-service:0.1.0-native.
+No se publico a Artifact Registry en esta validacion.
 ```
 
 Lectura ejecutiva:
 
 ```text
 document-service ya tiene ruta reproducible para generar y publicar imagen nativa.
-El siguiente paso operativo es ejecutar build nativo real y push cuando Docker este listo.
+El build nativo real ya fue ejecutado correctamente en local.
+El siguiente paso operativo es ejecutar push y crear el tag dev cuando se quiera publicar document-service.
 Luego se puede crear el tag dev de document-service y avanzar con reporting-service o audit-service.
+```
+
+Ajuste posterior:
+
+```text
+Se corrigio la compatibilidad native-image de document-service.
+Se excluyo commons-logging clasico de PDFBox y Google Cloud Storage.
+Se agrego commons-logging-jboss-logging para JBoss Logging.
+Se agregaron BouncyCastle bcpkix-jdk15to18 y bcprov-jdk15to18 version 1.77 para las clases opcionales de PDFBox.
+Se agrego log4j-api gestionado por Quarkus y log4j-over-slf4j 2.0.6 como APIs/puentes para gRPC shaded Netty.
+No se agrego log4j:log4j ni log4j-core.
+Se agrego quarkus.native.additional-build-args para inicializar PublicKeySecurityHandler en runtime.
+Se valido mvn test y se ejecuto build-document-service-native.ps1 -UseCleanWorkspace con BUILD SUCCESS.
+Imagen local creada: document-service:0.1.0-native.
 ```
