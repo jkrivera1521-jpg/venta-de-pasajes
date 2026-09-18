@@ -7529,3 +7529,60 @@ Lectura ejecutiva:
 El frontend ya tiene una forma reproducible de generar artefactos versionados por shell y MFE.
 Esto prepara el camino para despliegues controlados, aunque todavia falta conectar estos artefactos con Cloud Run o el hosting definitivo.
 ```
+
+## Dia 54 - Plan de despliegue Cloud Run dev
+
+Resumen:
+
+```text
+Se creo infra\cloudrun\dev-services.json con 12 servicios Cloud Run dev.
+Se creo scripts\deploy-cloudrun-dev.ps1 para generar comandos gcloud run deploy.
+El script opera en modo plan por defecto y solo despliega si se usa -Execute.
+Los 6 backends quedan planificados como privados con Cloud SQL.
+Los 6 frontends quedan planificados como publicos para acceso web dev.
+Se actualizo infra\README.md con comandos de uso.
+README.md fue actualizado a Dias 1 a 54.
+Se creo docs\dia-54-cloud-run-dev.md con Reversa primero y Guia manual desde cero.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\infra\cloudrun\dev-services.json
+C:\VENTA-DE-PASAJES\scripts\deploy-cloudrun-dev.ps1
+C:\VENTA-DE-PASAJES\docs\dia-54-cloud-run-dev.md
+C:\VENTA-DE-PASAJES\infra\README.md
+C:\VENTA-DE-PASAJES\README.md
+```
+
+Comandos ejecutados:
+
+```powershell
+Test-Path -LiteralPath .\infra\cloudrun\dev-services.json
+Test-Path -LiteralPath .\scripts\deploy-cloudrun-dev.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dia54-local-test
+Get-Content -LiteralPath .\logs\cloudrun-dev\deploy-cloudrun-dev.commands.plan.json -Raw | ConvertFrom-Json
+Select-String -Path .\logs\cloudrun-dev\deploy-cloudrun-dev.commands.ps1 -Pattern "gcloud|run|deploy|frontend-shell|identity-service"
+```
+
+Validaciones:
+
+```text
+dev-services.json existe.
+deploy-cloudrun-dev.ps1 existe.
+El descriptor Cloud Run dev contiene 12 servicios.
+El plan generado contiene 6 backends y 6 frontends.
+Los 6 backends estan marcados como privados.
+Los 6 backends tienen cloud_sql=true.
+Se genero logs\cloudrun-dev\deploy-cloudrun-dev.commands.ps1.
+Se genero logs\cloudrun-dev\deploy-cloudrun-dev.commands.plan.json.
+logs/ esta ignorado por Git, por lo que el plan local no se versiona accidentalmente.
+```
+
+Lectura ejecutiva:
+
+```text
+El proyecto ya tiene plan reproducible para Cloud Run dev.
+No se ejecuto despliegue real porque requiere imagenes existentes en Artifact Registry y credenciales gcloud activas.
+El siguiente paso natural es publicar imagenes backend/frontend o ejecutar el primer despliegue dev cuando los tags existan.
+```

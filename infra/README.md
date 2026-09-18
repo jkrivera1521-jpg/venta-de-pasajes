@@ -42,3 +42,30 @@ Google Cloud CLI is required before creating cloud resources:
 .\infra\gcloud\bootstrap-dev.ps1
 .\infra\gcloud\verify-dev.ps1
 ```
+
+## Dia 54 Cloud Run dev
+
+Cloud Run dev service descriptors:
+
+```text
+C:\VENTA-DE-PASAJES\infra\cloudrun\dev-services.json
+```
+
+Generate deploy commands without changing Google Cloud:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev
+```
+
+Generated files:
+
+```text
+C:\VENTA-DE-PASAJES\logs\cloudrun-dev\deploy-cloudrun-dev.commands.ps1
+C:\VENTA-DE-PASAJES\logs\cloudrun-dev\deploy-cloudrun-dev.commands.plan.json
+```
+
+Execute real deployment only after confirming the referenced images exist in Artifact Registry:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag <tag> -Execute
+```
