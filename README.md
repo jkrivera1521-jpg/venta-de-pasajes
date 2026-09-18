@@ -8,7 +8,7 @@ Fecha de inicio: 2026-09-01
 
 Avance documentado:
 
-- Dias 1 a 54 documentados en `docs`.
+- Dias 1 a 55 documentados en `docs`.
 - Monorepo base preparado para desarrollo multi-modulo.
 - Toolchain backend Quarkus validada con servicio demo JVM y nativo.
 - Toolchain frontend Next.js/MFE validada con shell y MFE Identity demo.
@@ -16,6 +16,7 @@ Avance documentado:
 - CI base agregado en `.github/workflows/ci.yml` para frontends, servicios backend y guardrails del workspace.
 - Pipeline de artefactos frontend agregado en `.github/workflows/frontend-artifacts.yml`.
 - Plan de despliegue Cloud Run dev agregado en `infra/cloudrun/dev-services.json` y `scripts/deploy-cloudrun-dev.ps1`.
+- Promocion controlada de tags Artifact Registry agregada en `scripts/promote-artifact-image-tags.ps1`.
 - El sistema legacy se conserva en `legacy`.
 - Los respaldos iniciales se guardan en `backups`.
 - La bitacora operativa vive en `vitacora.md`.
@@ -103,4 +104,4 @@ backups/
 
 - Integrar emision de boleto con generacion/descarga de comprobante.
 - Conectar outbox de eventos a Pub/Sub.
-- Continuar despliegues Cloud Run y validaciones por ambiente.
+- Crear imagenes faltantes para servicios/documentos/reportes/auditoria y frontends antes del despliegue Cloud Run completo.

@@ -7603,3 +7603,59 @@ El proyecto ya tiene plan reproducible para Cloud Run dev.
 No se ejecuto despliegue real porque requiere imagenes existentes en Artifact Registry y credenciales gcloud activas.
 El siguiente paso natural es publicar imagenes backend/frontend o ejecutar el primer despliegue dev cuando los tags existan.
 ```
+
+## Dia 55 - Promocion de tags en Artifact Registry
+
+Resumen:
+
+```text
+Se creo scripts\promote-artifact-image-tags.ps1.
+El script promueve tags existentes en Artifact Registry sin reconstruir imagenes.
+El modo por defecto genera plan y comandos, sin modificar Google Cloud.
+La ejecucion real requiere -Execute.
+Se documento docs\dia-55-promocion-tags-artifact-registry.md con Reversa primero y Guia manual desde cero.
+Se actualizo infra\README.md para no recomendar -ImageTag dev antes de crear ese tag.
+README.md fue actualizado a Dias 1 a 55.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\promote-artifact-image-tags.ps1
+C:\VENTA-DE-PASAJES\docs\dia-55-promocion-tags-artifact-registry.md
+C:\VENTA-DE-PASAJES\infra\README.md
+C:\VENTA-DE-PASAJES\README.md
+```
+
+Comandos ejecutados:
+
+```powershell
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+& "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd" artifacts docker tags add --help
+& "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd" artifacts docker tags delete --help
+& "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd" artifacts docker images describe "us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/identity-service:0.1.0-native" --project "project-fbb34cd7-0b82-43e1-867" --format=json
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1
+```
+
+Validaciones:
+
+```text
+gcloud artifacts docker tags add existe.
+gcloud artifacts docker tags delete existe.
+identity-service:0.1.0-native existe.
+dispatch-service:0.1.0-native existe.
+ticketing-service:0.1.0-native existe.
+identity-service:dev no existe aun.
+dispatch-service:dev no existe aun.
+ticketing-service:dev no existe aun.
+El plan local se genero correctamente en logs\artifact-registry.
+No se ejecuto -Execute; no se modifico Artifact Registry.
+```
+
+Lectura ejecutiva:
+
+```text
+El bloqueo del tag dev queda tratado con una promocion controlada y reversible.
+Cuando se ejecute -Execute, Cloud Run podra encontrar dev para los tres backends ya publicados.
+El despliegue completo de 12 servicios sigue pendiente hasta construir imagenes para document-service, reporting-service, audit-service y frontends.
+```

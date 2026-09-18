@@ -54,7 +54,7 @@ C:\VENTA-DE-PASAJES\infra\cloudrun\dev-services.json
 Generate deploy commands without changing Google Cloud:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag 0.1.0-native -ServiceIds identity-service,dispatch-service,ticketing-service
 ```
 
 Generated files:
@@ -67,5 +67,19 @@ C:\VENTA-DE-PASAJES\logs\cloudrun-dev\deploy-cloudrun-dev.commands.plan.json
 Execute real deployment only after confirming the referenced images exist in Artifact Registry:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag <tag> -Execute
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag 0.1.0-native -ServiceIds identity-service,dispatch-service,ticketing-service -Execute
+```
+
+## Dia 55 Artifact Registry tags
+
+Promote already published backend images from `0.1.0-native` to `dev`:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 -SourceTag 0.1.0-native -TargetTag dev
+```
+
+The command above is plan-only. Execute the real tag promotion only after reviewing the generated plan:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 -SourceTag 0.1.0-native -TargetTag dev -Execute
 ```
