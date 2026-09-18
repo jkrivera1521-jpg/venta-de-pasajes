@@ -1,0 +1,71 @@
+name: venta-pasajes-frontend-artifacts
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "apps/**"
+      - "packages/shared-types/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.base.json"
+      - "scripts/build-frontend-artifacts.ps1"
+      - ".github/workflows/frontend-artifacts.yml"
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - "apps/**"
+      - "packages/shared-types/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.base.json"
+      - "scripts/build-frontend-artifacts.ps1"
+      - ".github/workflows/frontend-artifacts.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-artifact:
+    name: Build artifact - ${{ matrix.app }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app:
+          - frontend-shell
+          - mfe-identity
+          - mfe-dispatch
+          - mfe-ticketing
+          - mfe-reporting
+          - mfe-admin
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend artifact
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-frontend-artifacts.ps1 `
+            -Apps "${{ matrix.app }}" `
+            -Version "${{ github.sha }}"
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-${{ matrix.app }}-${{ github.sha }}
+          path: |
+            artifacts/frontend/${{ github.sha }}/${{ matrix.app }}-${{ github.sha }}.zip
+            artifacts/frontend/${{ github.sha }}/frontend-artifacts-summary.json
+          retention-days: 14

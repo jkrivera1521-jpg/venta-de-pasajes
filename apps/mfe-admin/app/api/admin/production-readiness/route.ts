@@ -193,6 +193,8 @@ async function buildReadiness(projectRoot: string): Promise<ReadinessItem[]> {
   const cloudBuildFiles = await countMeaningfulFiles(projectRoot, "infra/cloudbuild");
   const terraformFiles = await countMeaningfulFiles(projectRoot, "infra/terraform");
   const githubWorkflows = await countMeaningfulFiles(projectRoot, ".github/workflows");
+  const frontendArtifactWorkflow = await exists(projectRoot, path.join(".github", "workflows", "frontend-artifacts.yml"));
+  const frontendArtifactScript = await exists(projectRoot, path.join("scripts", "build-frontend-artifacts.ps1"));
   const gitlabCi = await exists(projectRoot, ".gitlab-ci.yml");
   const scriptsReady = await Promise.all(
     [...frontendScripts, ...verificationScripts].map((script) => exists(projectRoot, path.join("scripts", script)))
@@ -286,10 +288,13 @@ async function buildReadiness(projectRoot: string): Promise<ReadinessItem[]> {
     },
     {
       category: "infraestructura",
-      evidence: githubWorkflows || gitlabCi ? ["Pipeline CI/CD detectado"] : [],
+      evidence: [
+        ...(githubWorkflows || gitlabCi ? [`Workflows CI/CD detectados: ${githubWorkflows}`] : []),
+        ...(frontendArtifactWorkflow ? ["Pipeline de artefactos frontend detectado"] : [])
+      ],
       id: "ci-cd",
-      missing: githubWorkflows || gitlabCi ? [] : ["Pipeline CI/CD versionado"],
-      recommendation: "Agregar pipeline con typecheck, tests, build, imagenes, seguridad y despliegue controlado.",
+      missing: githubWorkflows || gitlabCi ? (frontendArtifactWorkflow ? [] : ["Pipeline frontend dedicado"]) : ["Pipeline CI/CD versionado"],
+      recommendation: "Agregar pipeline con typecheck, tests, build, artefactos, imagenes, seguridad y despliegue controlado.",
       status: githubWorkflows || gitlabCi ? "warning" : "missing",
       title: "CI/CD"
     },
@@ -322,10 +327,15 @@ async function buildReadiness(projectRoot: string): Promise<ReadinessItem[]> {
     },
     {
       category: "infraestructura",
-      evidence: nativeReady.filter(Boolean).length ? [`Builds nativos disponibles: ${nativeReady.filter(Boolean).length}`] : [],
+      evidence: [
+        ...(nativeReady.filter(Boolean).length ? [`Builds nativos disponibles: ${nativeReady.filter(Boolean).length}`] : []),
+        ...(frontendArtifactScript ? ["Script de artefactos frontend disponible"] : [])
+      ],
       id: "artifact-images",
-      missing: nativeReady.every(Boolean) ? ["Imagenes para todos los servicios y publicacion automatizada"] : ["Build nativo/imagen para todos los servicios"],
-      recommendation: "Completar imagenes versionadas para todos los servicios y publicarlas por pipeline.",
+      missing: nativeReady.every(Boolean) && frontendArtifactScript
+        ? ["Imagenes para todos los servicios y publicacion automatizada"]
+        : ["Build nativo/imagen para todos los servicios", "Artefactos frontend versionados"],
+      recommendation: "Completar imagenes versionadas para todos los servicios, artefactos frontend y publicarlos por pipeline.",
       status: nativeReady.every(Boolean) ? "warning" : "missing",
       title: "Imagenes y artefactos"
     }

@@ -21,6 +21,7 @@
     "dev:mfe-ticketing": "npm run dev -w @venta-pasajes/mfe-ticketing -- --hostname 127.0.0.1 -p 3003",
     "dev:mfe-reporting": "npm run dev -w @venta-pasajes/mfe-reporting -- --hostname 127.0.0.1 -p 3004",
     "stop:frontend": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/stop-frontend-dev.ps1",
+    "build:frontend-artifacts": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-frontend-artifacts.ps1",
     "build:frontend": "npm run build -w @venta-pasajes/shared-types && npm run build -w @venta-pasajes/mfe-identity && npm run build -w @venta-pasajes/mfe-dispatch && npm run build -w @venta-pasajes/mfe-ticketing && npm run build -w @venta-pasajes/mfe-reporting && npm run build -w @venta-pasajes/mfe-admin && npm run build -w @venta-pasajes/frontend-shell",
     "typecheck:frontend": "npm run typecheck -w @venta-pasajes/shared-types && npm run typecheck -w @venta-pasajes/mfe-identity && npm run typecheck -w @venta-pasajes/mfe-dispatch && npm run typecheck -w @venta-pasajes/mfe-ticketing && npm run typecheck -w @venta-pasajes/mfe-reporting && npm run typecheck -w @venta-pasajes/mfe-admin && npm run typecheck -w @venta-pasajes/frontend-shell"
   },

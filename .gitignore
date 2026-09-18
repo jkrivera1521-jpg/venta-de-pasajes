@@ -36,6 +36,7 @@ Desktop.ini
 coverage/
 playwright-report/
 test-results/
+artifacts/
 
 # Local database dumps
 *.dump
