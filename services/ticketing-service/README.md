@@ -52,6 +52,8 @@ POST /api/v1/ticketing/documents/process-pending
 
 Cuando `APP_DOCUMENT_INTEGRATION_ENABLED=true`, el servicio puede procesar eventos locales `TicketSold`, llamar a `document-service`, guardar la referencia del PDF en `ticket_document_refs` y permitir reimpresion.
 
+En perfil `gcp`, la integracion documental queda apagada por defecto para que `ticketing-service` pueda desplegarse de forma independiente. La generacion documental se reactiva cuando exista el flujo asincrono/event-driven o cuando se habilite explicitamente una integracion operacional.
+
 Variables principales:
 
 ```text

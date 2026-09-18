@@ -7659,3 +7659,13 @@ El bloqueo del tag dev queda tratado con una promocion controlada y reversible.
 Cuando se ejecute -Execute, Cloud Run podra encontrar dev para los tres backends ya publicados.
 El despliegue completo de 12 servicios sigue pendiente hasta construir imagenes para document-service, reporting-service, audit-service y frontends.
 ```
+
+Ajuste posterior:
+
+```text
+Se corrigio nuevamente el Paso 8 del Dia 55 para respetar el desacoplamiento de microservicios.
+ticketing-service no debe depender de document-service para desplegar.
+Se retiro APP_DOCUMENT_SERVICE_BASE_URL del descriptor Cloud Run dev de ticketing-service.
+En perfil gcp, la integracion documental de ticketing-service queda apagada por defecto con APP_DOCUMENT_INTEGRATION_ENABLED=false y APP_DOCUMENT_WORKER_ENABLED=false.
+El despliegue real parcial vuelve a incluir identity-service, dispatch-service y ticketing-service.
+```

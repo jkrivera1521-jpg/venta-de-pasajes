@@ -239,7 +239,7 @@ Advertencia: este paso si modifica Google Cloud.
 
 El script valida primero que la imagen exista en Artifact Registry. Si la imagen no existe, detiene el despliegue antes de llamar a Cloud Run.
 
-Con el estado actual, desplegar solo los tres servicios que ya tienen imagen publicada:
+Con el estado actual, validar los tres servicios que ya tienen imagen publicada:
 
 ```powershell
 $ImageTag = "0.1.0-native"
@@ -259,7 +259,7 @@ ticketing-service: True
 Cloud Run dev plan generated.
 ```
 
-Si el preflight anterior sale correcto, ejecutar el despliegue real de esos tres servicios:
+Si el preflight anterior sale correcto, ejecutar el despliegue real de los tres backends publicados:
 
 ```powershell
 $ImageTag = "0.1.0-native"
@@ -269,6 +269,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-de
   -ServiceIds identity-service,dispatch-service,ticketing-service `
   -Execute
 ```
+
+`ticketing-service` se despliega desacoplado de `document-service`: en Cloud Run dev la integracion documental queda apagada con `APP_DOCUMENT_INTEGRATION_ENABLED=false` y `APP_DOCUMENT_WORKER_ENABLED=false`.
 
 No ejecutar el despliegue completo de 12 servicios todavia. Faltan imagenes para:
 
@@ -298,7 +300,7 @@ ERROR: Faltan imagenes en Artifact Registry: identity-service, dispatch-service,
 
 Este error no significa que `identity-service` no exista. Significa que no existe la combinacion `identity-service:dev`.
 
-Si hay URLs no resueltas entre servicios, primero revisar el archivo generado en modo plan y definir las URLs requeridas. Para diagnostico controlado se pueden permitir URLs temporales, pero solo con un tag existente:
+Si hay URLs no resueltas entre servicios, primero revisar el archivo generado en modo plan y definir las URLs requeridas. Para diagnostico controlado se pueden permitir URLs temporales, pero solo con un tag existente. No usar este modo para produccion:
 
 ```powershell
 $ImageTag = "0.1.0-native"

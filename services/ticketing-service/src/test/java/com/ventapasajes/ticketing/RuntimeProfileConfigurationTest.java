@@ -21,6 +21,8 @@ class RuntimeProfileConfigurationTest {
         assertContains(properties, "%onprem.app.secrets.provider=${APP_SECRETS_PROVIDER:env}");
         assertContains(properties, "%onprem.quarkus.datasource.jdbc.url=${APP_DB_JDBC_URL:jdbc:postgresql://localhost:5432/ticketing_db}");
         assertContains(properties, "app.documents.integration.enabled=${APP_DOCUMENT_INTEGRATION_ENABLED:true}");
+        assertContains(properties, "%gcp.app.documents.integration.enabled=${APP_DOCUMENT_INTEGRATION_ENABLED:false}");
+        assertContains(properties, "%gcp.app.documents.worker.enabled=${APP_DOCUMENT_WORKER_ENABLED:false}");
         assertContains(properties, "app.documents.service-base-url=${APP_DOCUMENT_SERVICE_BASE_URL:http://localhost:8084/api/v1/document}");
         assertContains(properties, "%test.app.documents.worker.enabled=false");
     }

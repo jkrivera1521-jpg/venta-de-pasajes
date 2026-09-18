@@ -293,9 +293,11 @@ dispatch-service    True
 ticketing-service   True
 ```
 
-### Paso 8 - Desplegar solo los tres backends publicados
+### Paso 8 - Desplegar los tres backends publicados
 
 Advertencia: este paso si modifica Cloud Run. Ejecutarlo solo despues de validar el Paso 7.
+
+`ticketing-service` se despliega desacoplado de `document-service`. En Cloud Run dev la integracion documental queda apagada por defecto con `APP_DOCUMENT_INTEGRATION_ENABLED=false` y `APP_DOCUMENT_WORKER_ENABLED=false`.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
@@ -303,6 +305,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-de
   -ServiceIds identity-service,dispatch-service,ticketing-service `
   -Execute
 ```
+
+La generacion documental se reactiva despues, cuando exista una estrategia desacoplada lista:
+
+```text
+document-service consumiendo eventos TicketSold desde Pub/Sub/outbox.
+O integracion operacional explicita habilitada por variables, sin bloquear el arranque de ticketing-service.
+```
+
+No usar `APP_DOCUMENT_SERVICE_BASE_URL` como requisito de despliegue de `ticketing-service`.
 
 ## Comandos de validacion ejecutados
 

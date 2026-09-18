@@ -171,7 +171,8 @@
         "CLOUD_SQL_CONNECTION_NAME": "${CLOUD_SQL_CONNECTION_NAME}",
         "APP_DATABASE_SECRET_NAME": "ticketing-service__db-connection",
         "APP_DB_USERNAME": "ticketing-service-run@${PROJECT_ID}.iam",
-        "APP_DOCUMENT_SERVICE_BASE_URL": "${SERVICE_URL:document-service}/api/v1/document"
+        "APP_DOCUMENT_INTEGRATION_ENABLED": "false",
+        "APP_DOCUMENT_WORKER_ENABLED": "false"
       }
     },
     {
