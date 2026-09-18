@@ -205,7 +205,7 @@ Resultado esperado:
 El plan asume que existen imagenes en Artifact Registry con esta forma:
 
 ```text
-us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/<image-name>:<tag>
+us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/identity-service:dev
 ```
 
 Ejemplo:
@@ -222,17 +222,31 @@ Si la imagen no existe, Cloud Run no podra desplegar ese servicio.
 
 Advertencia: este paso si modifica Google Cloud.
 
+Primero definir el tag real. No usar signos `<` ni `>` en PowerShell:
+
 ```powershell
+$ImageTag = "dev"
+
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
-  -ImageTag <tag-existente-en-artifact-registry> `
+  -ImageTag $ImageTag `
   -Execute
+```
+
+Cambiar `"dev"` por el tag que exista realmente en Artifact Registry. Ejemplos validos:
+
+```powershell
+$ImageTag = "dev"
+$ImageTag = "dia54-local-test"
+$ImageTag = "main-20260918"
 ```
 
 Si hay URLs no resueltas entre servicios, primero revisar el archivo generado en modo plan y definir las URLs requeridas. Para diagnostico controlado se puede permitir placeholders:
 
 ```powershell
+$ImageTag = "dev"
+
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
-  -ImageTag <tag-existente-en-artifact-registry> `
+  -ImageTag $ImageTag `
   -Execute `
   -AllowUnresolved
 ```
