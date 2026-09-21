@@ -13,6 +13,7 @@ param(
   [switch]$FrontendOnly,
   [switch]$Execute,
   [switch]$CheckImagesOnly,
+  [switch]$ResolveExistingServiceUrls,
   [switch]$AllowUnresolved,
   [switch]$SkipImageCheck
 )
@@ -155,7 +156,7 @@ function Resolve-Template {
     $EnvName = $Match.Groups[1].Value
     $EnvValue = [Environment]::GetEnvironmentVariable($EnvName)
     if ([string]::IsNullOrWhiteSpace($EnvValue)) {
-      return "<$EnvName>"
+      return "UNRESOLVED_ENV_$EnvName"
     }
     return $EnvValue
   })
@@ -166,7 +167,7 @@ function Resolve-Template {
     if ($ServiceUrls.ContainsKey($ServiceId)) {
       return [string]$ServiceUrls[$ServiceId]
     }
-    return "<$ServiceId-url>"
+    return "UNRESOLVED_SERVICE_URL_$ServiceId"
   })
 
   return $Result
@@ -179,7 +180,7 @@ function Test-Unresolved {
     return $false
   }
 
-  return $Value.Contains("<") -or $Value.Contains('${')
+  return $Value.Contains("UNRESOLVED_") -or $Value.Contains("<") -or $Value.Contains('${')
 }
 
 function Convert-EnvObjectToPairs {
@@ -195,6 +196,10 @@ function Convert-EnvObjectToPairs {
   }
 
   foreach ($Property in $EnvObject.PSObject.Properties) {
+    if ($Property.Name -eq "PORT") {
+      continue
+    }
+
     $ResolvedValue = Resolve-Template -Value ([string]$Property.Value) -Context $Context -ServiceUrls $ServiceUrls
     $Pairs += "$($Property.Name)=$ResolvedValue"
   }
@@ -305,6 +310,42 @@ function Assert-ArtifactImageExists {
   }
 }
 
+function Get-ExistingCloudRunServiceUrls {
+  param(
+    [object[]]$AllServices,
+    [hashtable]$Context
+  )
+
+  $Urls = @{}
+  foreach ($Service in $AllServices) {
+    $ServiceName = Resolve-Template -Value ([string]$Service.service_name) -Context $Context -ServiceUrls @{}
+    if (Test-Unresolved -Value $ServiceName) {
+      continue
+    }
+
+    $DescribeArguments = [string[]]@(
+      "run",
+      "services",
+      "describe",
+      $ServiceName,
+      "--project",
+      $Context.PROJECT_ID,
+      "--region",
+      $Context.REGION,
+      "--format",
+      "value(status.url)"
+    )
+
+    $DescribeResult = Invoke-NativeCommand -FilePath $GcloudPath -Arguments $DescribeArguments
+    $Url = ($DescribeResult.Output -join [Environment]::NewLine).Trim()
+    if ($DescribeResult.ExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($Url)) {
+      $Urls[[string]$Service.id] = $Url
+    }
+  }
+
+  return $Urls
+}
+
 $ConfigFullPath = if ([System.IO.Path]::IsPathRooted($ConfigPath)) { $ConfigPath } else { Join-Path $ProjectRoot $ConfigPath }
 $Config = Read-JsonFile -Path $ConfigFullPath
 
@@ -330,7 +371,8 @@ $Context = @{
   CLOUD_SQL_CONNECTION_NAME = $CloudSqlConnectionName
 }
 
-$Services = @($Config.services)
+$AllServices = @($Config.services)
+$Services = @($AllServices)
 if ($BackendOnly -and $FrontendOnly) {
   throw "Usar BackendOnly o FrontendOnly, no ambos."
 }
@@ -353,6 +395,9 @@ if ($ServiceIds.Count -gt 0) {
 }
 
 $ServiceUrls = @{}
+if ($ResolveExistingServiceUrls) {
+  $ServiceUrls = Get-ExistingCloudRunServiceUrls -AllServices $AllServices -Context $Context
+}
 $Deployments = New-Object System.Collections.Generic.List[object]
 $Commands = New-Object System.Collections.Generic.List[string]
 $ImageChecks = New-Object System.Collections.Generic.List[object]
@@ -455,6 +500,8 @@ $Plan = [ordered]@{
   cloud_sdk_python = $ResolvedCloudSdkPython
   cloud_sql_connection_name = $CloudSqlConnectionName
   command_file = $OutputFullPath
+  resolve_existing_service_urls = [bool]$ResolveExistingServiceUrls
+  resolved_service_urls = $ServiceUrls
   check_images_only = [bool]$CheckImagesOnly
   image_checks = $ImageChecks
   services = $Deployments

@@ -8124,12 +8124,12 @@ No se desplego Cloud Run frontend todavia.
 Digests:
 
 ```text
-frontend-shell  sha256:3e4090952e5dbc87d58394750629496dbd822da3802550fddf31e528dbc5fa3d
-mfe-identity    sha256:709b9331da5860ad9d5f6b77ae2647af3627f06f07845fc4f6543276f4bad7ab
-mfe-dispatch    sha256:bb36e124592af17ce10aa1738679beb940bdc5c5ca2e5a43400adaffb0b9105d
-mfe-ticketing   sha256:2e01380c5e51dc68b66ce3fee6096eea89f9671efe692c0ad8eb5af7bd120fb8
-mfe-reporting   sha256:f7293fac10f7c0ef50da4b8df263f915ca63a26d400df4403c55cc39377f4d52
-mfe-admin       sha256:3ee3df00d486821d7fd7c3263b2cf968f6c6b882739d4c438fd1752f8bf005de
+frontend-shell  sha256:e9e4796f2acc71e8f18b4224f534e575e50f39ccf82b94df7ccc3516267a6b4b
+mfe-identity    sha256:8b6f7e73bb10e175677afe3b7efaccdcd2bdb1b90c9b8a4f21190b4dff4e04dc
+mfe-dispatch    sha256:bf65f2dd44a918c3bba323381a42bb2bd02a2e5b3047ec658e453ea798df426b
+mfe-ticketing   sha256:5e85adcbbd9fb2fc81fce66c85a0321b9c8daee81cc89ab076eacea159934238
+mfe-reporting   sha256:ef82dd206606cc05c8d71a21078947bb7233c836f46fae79e2699081c5552111
+mfe-admin       sha256:2caa5502178fbd40cca8b23d2c0e81b9d0e9ee74eca6fc1ab6e7950c0fb870e9
 ```
 
 Lectura ejecutiva:
@@ -8138,4 +8138,73 @@ Lectura ejecutiva:
 La capa frontend ya tiene imagenes Docker reproducibles y publicadas.
 El tag usado hoy es 0.1.0-frontend, no dev.
 El siguiente paso natural es promover estas imagenes a dev y desplegar los frontends en Cloud Run resolviendo URLs reales de backends y MFEs.
+```
+
+## Dia 63 - Despliegue Cloud Run frontends
+
+Resumen:
+
+```text
+Se promovieron las seis imagenes frontend de 0.1.0-frontend a dev.
+Se agrego -ResolveExistingServiceUrls a scripts\deploy-cloudrun-dev.ps1.
+Se cambio la generacion de placeholders pendientes para evitar caracteres < > en comandos Windows.
+Se omitio PORT dentro de --set-env-vars porque Cloud Run lo reserva automaticamente.
+Se ejecuto preflight Cloud Run frontend con imagenes dev existentes.
+Se ejecuto bootstrap inicial con -AllowUnresolved para crear servicios frontend por primera vez.
+Se ejecuto segunda pasada definitiva sin -AllowUnresolved para dejar URLs reales.
+Se validaron Ready, revisiones, /api/health, /mfe/manifest y rutas embedded.
+Se confirmo que no quedaron variables UNRESOLVED_ en Cloud Run.
+Se documento docs\dia-63-despliegue-cloud-run-frontends.md con Reversa primero y Guia manual desde cero.
+README.md fue actualizado a Dias 1 a 63.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\deploy-cloudrun-dev.ps1
+C:\VENTA-DE-PASAJES\docs\dia-63-despliegue-cloud-run-frontends.md
+C:\VENTA-DE-PASAJES\docs\dia-62-imagenes-docker-frontends.md
+C:\VENTA-DE-PASAJES\infra\README.md
+C:\VENTA-DE-PASAJES\README.md
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 -ServiceIds frontend-shell,mfe-identity,mfe-dispatch,mfe-ticketing,mfe-reporting,mfe-admin -SourceTag 0.1.0-frontend -TargetTag dev
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 -ServiceIds frontend-shell,mfe-identity,mfe-dispatch,mfe-ticketing,mfe-reporting,mfe-admin -SourceTag 0.1.0-frontend -TargetTag dev -Execute
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev -FrontendOnly -ResolveExistingServiceUrls -CheckImagesOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev -FrontendOnly -ResolveExistingServiceUrls -Execute -AllowUnresolved
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev -FrontendOnly -ResolveExistingServiceUrls -Execute
+```
+
+Validaciones:
+
+```text
+frontend-shell Ready=True, /api/health HTTP 200.
+mfe-identity Ready=True, /api/health HTTP 200, /mfe/manifest HTTP 200, /identity/embedded HTTP 200.
+mfe-dispatch Ready=True, /api/health HTTP 200, /mfe/manifest HTTP 200, /dispatch/embedded HTTP 200.
+mfe-ticketing Ready=True, /api/health HTTP 200, /mfe/manifest HTTP 200, /ticketing/embedded HTTP 200.
+mfe-reporting Ready=True, /api/health HTTP 200, /mfe/manifest HTTP 200, /reporting/embedded HTTP 200.
+mfe-admin Ready=True, /api/health HTTP 200, /mfe/manifest HTTP 200, /admin/embedded HTTP 200.
+Cloud Run no contiene variables UNRESOLVED_ en los seis frontends.
+```
+
+URLs:
+
+```text
+frontend-shell https://frontend-shell-io7kxgn6yq-uc.a.run.app
+mfe-identity   https://mfe-identity-io7kxgn6yq-uc.a.run.app
+mfe-dispatch   https://mfe-dispatch-io7kxgn6yq-uc.a.run.app
+mfe-ticketing  https://mfe-ticketing-io7kxgn6yq-uc.a.run.app
+mfe-reporting  https://mfe-reporting-io7kxgn6yq-uc.a.run.app
+mfe-admin      https://mfe-admin-io7kxgn6yq-uc.a.run.app
+```
+
+Lectura ejecutiva:
+
+```text
+La capa frontend ya esta publicada y operativa en Cloud Run dev.
+El shell publico carga desde https://frontend-shell-io7kxgn6yq-uc.a.run.app.
+El siguiente paso natural es validar flujo funcional end-to-end desde navegador contra backends Cloud Run.
 ```

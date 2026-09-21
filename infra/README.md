@@ -379,3 +379,63 @@ $GcloudPath = "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bi
   --project "project-fbb34cd7-0b82-43e1-867" `
   --format "value(image_summary.fully_qualified_digest)"
 ```
+
+## Dia 63 frontend Cloud Run dev
+
+Promote frontend images from `0.1.0-frontend` to `dev`:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 `
+  -ServiceIds frontend-shell,mfe-identity,mfe-dispatch,mfe-ticketing,mfe-reporting,mfe-admin `
+  -SourceTag 0.1.0-frontend `
+  -TargetTag dev `
+  -Execute
+```
+
+Preflight frontend images before deployment:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
+  -ImageTag dev `
+  -FrontendOnly `
+  -ResolveExistingServiceUrls `
+  -CheckImagesOnly
+```
+
+Bootstrap frontend services when they do not exist yet:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
+  -ImageTag dev `
+  -FrontendOnly `
+  -ResolveExistingServiceUrls `
+  -Execute `
+  -AllowUnresolved
+```
+
+Run the definitive deployment after Cloud Run assigned frontend URLs:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
+  -ImageTag dev `
+  -FrontendOnly `
+  -ResolveExistingServiceUrls `
+  -Execute
+```
+
+Validate public health endpoints:
+
+```powershell
+$FrontendUrls = @(
+  "https://mfe-identity-io7kxgn6yq-uc.a.run.app/api/health",
+  "https://mfe-dispatch-io7kxgn6yq-uc.a.run.app/api/health",
+  "https://mfe-ticketing-io7kxgn6yq-uc.a.run.app/api/health",
+  "https://mfe-reporting-io7kxgn6yq-uc.a.run.app/api/health",
+  "https://mfe-admin-io7kxgn6yq-uc.a.run.app/api/health",
+  "https://frontend-shell-io7kxgn6yq-uc.a.run.app/api/health"
+)
+
+$FrontendUrls | ForEach-Object {
+  curl.exe --ssl-no-revoke -s -o NUL -w "$_ %{http_code}`n" $_
+}
+```

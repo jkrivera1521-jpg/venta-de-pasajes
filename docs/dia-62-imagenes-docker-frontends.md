@@ -45,12 +45,12 @@ Script build/push: C:\VENTA-DE-PASAJES\scripts\build-frontend-images.ps1
 Digests confirmados en Artifact Registry:
 
 ```text
-frontend-shell  sha256:3e4090952e5dbc87d58394750629496dbd822da3802550fddf31e528dbc5fa3d
-mfe-identity    sha256:709b9331da5860ad9d5f6b77ae2647af3627f06f07845fc4f6543276f4bad7ab
-mfe-dispatch    sha256:bb36e124592af17ce10aa1738679beb940bdc5c5ca2e5a43400adaffb0b9105d
-mfe-ticketing   sha256:2e01380c5e51dc68b66ce3fee6096eea89f9671efe692c0ad8eb5af7bd120fb8
-mfe-reporting   sha256:f7293fac10f7c0ef50da4b8df263f915ca63a26d400df4403c55cc39377f4d52
-mfe-admin       sha256:3ee3df00d486821d7fd7c3263b2cf968f6c6b882739d4c438fd1752f8bf005de
+frontend-shell  sha256:e9e4796f2acc71e8f18b4224f534e575e50f39ccf82b94df7ccc3516267a6b4b
+mfe-identity    sha256:8b6f7e73bb10e175677afe3b7efaccdcd2bdb1b90c9b8a4f21190b4dff4e04dc
+mfe-dispatch    sha256:bf65f2dd44a918c3bba323381a42bb2bd02a2e5b3047ec658e453ea798df426b
+mfe-ticketing   sha256:5e85adcbbd9fb2fc81fce66c85a0321b9c8daee81cc89ab076eacea159934238
+mfe-reporting   sha256:ef82dd206606cc05c8d71a21078947bb7233c836f46fae79e2699081c5552111
+mfe-admin       sha256:2caa5502178fbd40cca8b23d2c0e81b9d0e9ee74eca6fc1ab6e7950c0fb870e9
 ```
 
 ## Archivos creados

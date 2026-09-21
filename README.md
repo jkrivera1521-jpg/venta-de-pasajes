@@ -8,7 +8,7 @@ Fecha de inicio: 2026-09-01
 
 Avance documentado:
 
-- Dias 1 a 62 documentados en `docs`.
+- Dias 1 a 63 documentados en `docs`.
 - Monorepo base preparado para desarrollo multi-modulo.
 - Toolchain backend Quarkus validada con servicio demo JVM y nativo.
 - Toolchain frontend Next.js/MFE validada con shell y MFE Identity demo.
@@ -27,6 +27,7 @@ Avance documentado:
 - `audit-service` desplegado en Cloud Run dev con health autenticado validado.
 - Ruta de imagenes Docker frontend agregada en `scripts/build-frontend-images.ps1`.
 - Seis imagenes frontend Next.js publicadas en Artifact Registry con tag `0.1.0-frontend`.
+- Frontends desplegados en Cloud Run dev con health, manifiestos MFE y rutas embedded validadas.
 - El sistema legacy se conserva en `legacy`.
 - Los respaldos iniciales se guardan en `backups`.
 - La bitacora operativa vive en `vitacora.md`.
@@ -101,6 +102,7 @@ backups/
 - `docs/dia-60-compilacion-nativa-audit-service.md`: compilacion nativa local de `audit-service`.
 - `docs/dia-61-despliegue-cloud-run-audit-service.md`: publicacion y despliegue Cloud Run dev de `audit-service`.
 - `docs/dia-62-imagenes-docker-frontends.md`: construccion, validacion local y publicacion de imagenes Docker frontend.
+- `docs/dia-63-despliegue-cloud-run-frontends.md`: promocion a `dev` y despliegue Cloud Run dev de frontends.
 - `docs/onpremise-offline-runbook.md`: guia para correr servicios sin dependencia de Google Cloud.
 - `docs/api-conventions.md`: convenciones REST.
 - `docs/naming-standards.md`: estandar de nombres.
@@ -120,4 +122,4 @@ backups/
 
 - Integrar emision de boleto con generacion/descarga de comprobante.
 - Conectar outbox de eventos a Pub/Sub.
-- Promover imagenes frontend `0.1.0-frontend` a `dev` y desplegar frontends en Cloud Run dev.
+- Validar flujo funcional end-to-end desde el shell publico en Cloud Run.
