@@ -7797,3 +7797,65 @@ document-service ya esta operativo en Cloud Run dev.
 El servicio se mantiene privado y requiere token de identidad para health.
 El siguiente paso natural es continuar con imagen nativa y despliegue de reporting-service o audit-service.
 ```
+
+## Dia 58 - Compilacion nativa reporting-service
+
+Resumen:
+
+```text
+Se creo services\reporting-service\src\main\docker\Dockerfile.native.
+Se creo scripts\build-reporting-service-native.ps1.
+El script prepara la imagen local reporting-service:0.1.0-native.
+El script etiqueta la imagen remota us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/reporting-service:0.1.0-native.
+Se agrego -PlanOnly para validar rutas sin compilar.
+Se agrego validacion temprana de Docker Desktop para evitar fallos largos de native-image.
+Se documento docs\dia-58-compilacion-nativa-reporting-service.md con Reversa primero y Guia manual desde cero.
+README.md fue actualizado a Dias 1 a 58.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\services\reporting-service\src\main\docker\Dockerfile.native
+C:\VENTA-DE-PASAJES\scripts\build-reporting-service-native.ps1
+C:\VENTA-DE-PASAJES\docs\dia-58-compilacion-nativa-reporting-service.md
+C:\VENTA-DE-PASAJES\infra\README.md
+C:\VENTA-DE-PASAJES\README.md
+```
+
+Comandos ejecutados:
+
+```powershell
+Test-Path -LiteralPath .\services\reporting-service\src\main\docker\Dockerfile.native
+Test-Path -LiteralPath .\scripts\build-reporting-service-native.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-reporting-service-native.ps1 -PlanOnly
+docker info --format "{{json .ServerVersion}}"
+mvn -f .\services\reporting-service\pom.xml test
+Start-Process -FilePath "C:\Program Files\Docker\Docker\Docker Desktop.exe" -WindowStyle Hidden
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-reporting-service-native.ps1 -UseCleanWorkspace
+docker image inspect reporting-service:0.1.0-native --format "{{.Id}} {{.Size}} {{.Architecture}}/{{.Os}}"
+curl.exe -s "http://localhost:18085/api/v1/reporting/health"
+```
+
+Validaciones:
+
+```text
+PlanOnly devolvio ready=true y requires_docker=true.
+Docker inicialmente no estaba activo; se abrio Docker Desktop y luego docker info respondio.
+Maven test: BUILD SUCCESS.
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0.
+Compilacion nativa: BUILD SUCCESS.
+Imagen Docker local creada: reporting-service:0.1.0-native.
+Image ID local: sha256:045e5a825307f6b3d584a8c152da07a0615cb87730536f9e1454f55518abe270.
+Image size local: 108744655 bytes.
+Health contenedor nativo: HTTP 200.
+No se ejecuto -Push; no se modifico Artifact Registry.
+```
+
+Lectura ejecutiva:
+
+```text
+reporting-service ya tiene ruta reproducible para generar imagen nativa local.
+La imagen nativa local fue validada con health real de contenedor.
+El siguiente paso operativo es publicar reporting-service:0.1.0-native, promoverlo a dev si aplica y desplegar reporting-service en Cloud Run dev.
+```
