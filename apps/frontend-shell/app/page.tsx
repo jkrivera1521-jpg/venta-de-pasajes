@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Ticket
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { RemoteMfeFrame } from "./components/RemoteMfeFrame";
 
@@ -35,7 +36,34 @@ const shellDateFormatter = new Intl.DateTimeFormat("es-EC", {
   year: "numeric"
 });
 
+type ShellRuntimeConfig = {
+  manifests: {
+    admin: string;
+    dispatch: string;
+    identity: string;
+    reporting: string;
+    ticketing: string;
+  };
+};
+
+async function fetchShellRuntimeConfig() {
+  const response = await fetch("/api/shell/runtime-config", { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  return response.json() as Promise<ShellRuntimeConfig>;
+}
+
 export default function Home() {
+  const runtimeConfigQuery = useQuery({
+    queryFn: fetchShellRuntimeConfig,
+    queryKey: ["frontend-shell", "runtime-config"],
+    retry: 2,
+    staleTime: 30 * 1000
+  });
+  const manifestUrls = runtimeConfigQuery.data?.manifests;
   const modules = useMemo(
     () => [
       { key: "panel" as const, label: "Panel", icon: LayoutDashboard, enabled: false },
@@ -46,7 +74,7 @@ export default function Home() {
         enabled: true,
         fallbackName: "mfe-identity",
         fallbackTitle: "Identidad y accesos",
-        manifestUrl: process.env.NEXT_PUBLIC_MFE_IDENTITY_MANIFEST_URL || "http://localhost:3001/mfe/manifest"
+        manifestUrl: manifestUrls?.identity ?? ""
       },
       {
         key: "dispatch" as const,
@@ -55,7 +83,7 @@ export default function Home() {
         enabled: true,
         fallbackName: "mfe-dispatch",
         fallbackTitle: "Despacho operativo",
-        manifestUrl: process.env.NEXT_PUBLIC_MFE_DISPATCH_MANIFEST_URL || "http://localhost:3002/mfe/manifest"
+        manifestUrl: manifestUrls?.dispatch ?? ""
       },
       {
         key: "ticketing" as const,
@@ -64,7 +92,7 @@ export default function Home() {
         enabled: true,
         fallbackName: "mfe-ticketing",
         fallbackTitle: "Boleteria",
-        manifestUrl: process.env.NEXT_PUBLIC_MFE_TICKETING_MANIFEST_URL || "http://localhost:3003/mfe/manifest"
+        manifestUrl: manifestUrls?.ticketing ?? ""
       },
       {
         key: "reporting" as const,
@@ -73,7 +101,7 @@ export default function Home() {
         enabled: true,
         fallbackName: "mfe-reporting",
         fallbackTitle: "Reportes",
-        manifestUrl: process.env.NEXT_PUBLIC_MFE_REPORTING_MANIFEST_URL || "http://localhost:3004/mfe/manifest"
+        manifestUrl: manifestUrls?.reporting ?? ""
       },
       {
         key: "admin" as const,
@@ -82,10 +110,10 @@ export default function Home() {
         enabled: true,
         fallbackName: "mfe-admin",
         fallbackTitle: "Administracion",
-        manifestUrl: process.env.NEXT_PUBLIC_MFE_ADMIN_MANIFEST_URL || "http://localhost:3005/mfe/manifest"
+        manifestUrl: manifestUrls?.admin ?? ""
       }
     ],
-    []
+    [manifestUrls]
   );
   const [activeModuleKey, setActiveModuleKey] = useState<ModuleKey>("ticketing");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);

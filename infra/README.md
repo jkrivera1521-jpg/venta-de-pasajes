@@ -439,3 +439,64 @@ $FrontendUrls | ForEach-Object {
   curl.exe --ssl-no-revoke -s -o NUL -w "$_ %{http_code}`n" $_
 }
 ```
+
+## Dia 64 frontend-shell runtime config
+
+Build and publish only the updated `frontend-shell` image:
+
+```powershell
+npm run typecheck -w @venta-pasajes/frontend-shell
+npm run build -w @venta-pasajes/frontend-shell
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-frontend-images.ps1 `
+  -Apps frontend-shell `
+  -ImageTag 0.1.1-frontend `
+  -SkipSharedTypesBuild
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-frontend-images.ps1 `
+  -Apps frontend-shell `
+  -ImageTag 0.1.1-frontend `
+  -SkipNextBuild `
+  -SkipDockerBuild `
+  -Push
+```
+
+Promote and deploy only `frontend-shell`:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 `
+  -ServiceIds frontend-shell `
+  -SourceTag 0.1.1-frontend `
+  -TargetTag dev `
+  -Execute
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
+  -ImageTag dev `
+  -ServiceIds frontend-shell `
+  -ResolveExistingServiceUrls `
+  -Execute
+```
+
+Validate the public runtime config and ensure browser bundles do not contain `localhost`:
+
+```powershell
+$ShellUrl = "https://frontend-shell-io7kxgn6yq-uc.a.run.app"
+curl.exe --ssl-no-revoke -s "$ShellUrl/api/shell/runtime-config"
+
+$Html = curl.exe --ssl-no-revoke -s "$ShellUrl/"
+$Scripts = [regex]::Matches($Html, 'src="([^"]+\.js[^"]*)"') |
+  ForEach-Object { $_.Groups[1].Value } |
+  Sort-Object -Unique
+
+$Results = foreach ($Script in $Scripts) {
+  $ScriptUrl = if ($Script.StartsWith("http")) { $Script } else { "$ShellUrl$Script" }
+  $Body = curl.exe --ssl-no-revoke -s $ScriptUrl
+  [pscustomobject]@{
+    Script = $Script
+    ContainsLocalhost = $Body.Contains("localhost:")
+    ContainsRuntimeConfig = $Body.Contains("/api/shell/runtime-config")
+  }
+}
+
+$Results | Format-Table -AutoSize
+```

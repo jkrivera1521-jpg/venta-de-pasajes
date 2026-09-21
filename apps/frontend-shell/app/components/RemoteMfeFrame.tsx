@@ -28,11 +28,12 @@ export function RemoteMfeFrame({ fallbackName, fallbackTitle, manifestUrl, shell
   const [frameHeight, setFrameHeight] = useState(720);
   const [reloadToken, setReloadToken] = useState(0);
   const manifestQuery = useQuery({
+    enabled: Boolean(manifestUrl),
     queryKey: ["frontend-shell", "mfe-manifest", manifestUrl, reloadToken],
     queryFn: () => fetchManifest(manifestUrl)
   });
   const manifest = manifestQuery.data ?? null;
-  const status: LoadStatus = manifestQuery.isPending ? "loading" : manifestQuery.isError ? "error" : "ready";
+  const status: LoadStatus = !manifestUrl || manifestQuery.isPending ? "loading" : manifestQuery.isError ? "error" : "ready";
   const error = manifestQuery.error instanceof Error ? manifestQuery.error.message : "No se pudo cargar el MFE";
 
   const frameSrc = useMemo(() => {

@@ -8208,3 +8208,77 @@ La capa frontend ya esta publicada y operativa en Cloud Run dev.
 El shell publico carga desde https://frontend-shell-io7kxgn6yq-uc.a.run.app.
 El siguiente paso natural es validar flujo funcional end-to-end desde navegador contra backends Cloud Run.
 ```
+
+## Dia 64 - Runtime config del shell en Cloud Run
+
+Resumen:
+
+```text
+Se detecto que el bundle publico de frontend-shell contenia referencias localhost para manifests MFE.
+Se creo apps\frontend-shell\app\api\shell\runtime-config\route.ts.
+Se actualizo frontend-shell para leer manifests MFE en runtime mediante TanStack Query.
+Se ajusto RemoteMfeFrame para no consultar manifests hasta recibir una URL real.
+Se valido typecheck y build del frontend-shell.
+Se construyo la imagen local frontend-shell:0.1.1-frontend.
+Se valido localmente /api/health y /api/shell/runtime-config con URLs Cloud Run.
+Se publico frontend-shell:0.1.1-frontend en Artifact Registry.
+Se promovio frontend-shell:0.1.1-frontend a frontend-shell:dev.
+Se desplego solo frontend-shell en Cloud Run dev.
+Se valido que los bundles publicos ya no contienen localhost.
+Se documento docs\dia-64-runtime-config-shell-cloud-run.md con Reversa primero y Guia manual desde cero.
+README.md fue actualizado a Dias 1 a 64.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\apps\frontend-shell\app\api\shell\runtime-config\route.ts
+C:\VENTA-DE-PASAJES\apps\frontend-shell\app\page.tsx
+C:\VENTA-DE-PASAJES\apps\frontend-shell\app\components\RemoteMfeFrame.tsx
+C:\VENTA-DE-PASAJES\docs\dia-64-runtime-config-shell-cloud-run.md
+C:\VENTA-DE-PASAJES\README.md
+C:\VENTA-DE-PASAJES\infra\README.md
+```
+
+Comandos ejecutados:
+
+```powershell
+npm run typecheck -w @venta-pasajes/frontend-shell
+npm run build -w @venta-pasajes/frontend-shell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-frontend-images.ps1 -Apps frontend-shell -ImageTag 0.1.1-frontend -SkipSharedTypesBuild
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-frontend-images.ps1 -Apps frontend-shell -ImageTag 0.1.1-frontend -SkipNextBuild -SkipDockerBuild -Push
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 -ServiceIds frontend-shell -SourceTag 0.1.1-frontend -TargetTag dev
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 -ServiceIds frontend-shell -SourceTag 0.1.1-frontend -TargetTag dev -Execute
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev -ServiceIds frontend-shell -ResolveExistingServiceUrls -CheckImagesOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev -ServiceIds frontend-shell -ResolveExistingServiceUrls -Execute
+```
+
+Validaciones:
+
+```text
+typecheck frontend-shell OK.
+build frontend-shell OK.
+Imagen local frontend-shell:0.1.1-frontend creada.
+Contenedor local /api/health HTTP 200.
+Contenedor local /api/shell/runtime-config devuelve URLs Cloud Run.
+Artifact digest frontend-shell:0.1.1-frontend: sha256:7095b7a74f02dba6d927c713590895265439d1a969dd4b4e5226b8e0858f7a79.
+Artifact digest frontend-shell:dev: sha256:7095b7a74f02dba6d927c713590895265439d1a969dd4b4e5226b8e0858f7a79.
+Cloud Run Ready: True.
+Revision lista: frontend-shell-00003-rbv.
+Trafico: 100%.
+URL: https://frontend-shell-io7kxgn6yq-uc.a.run.app.
+Home publico HTTP 200.
+Runtime config publico HTTP 200.
+Manifests remotos admin, dispatch, identity, reporting y ticketing HTTP 200.
+Bundles publicos descargados: 8.
+Coincidencias localhost en bundles publicos: 0.
+Coincidencias /api/shell/runtime-config en bundles publicos: 1.
+```
+
+Lectura ejecutiva:
+
+```text
+El shell publico ya puede resolver MFEs con variables de entorno de Cloud Run en tiempo de ejecucion.
+Ya no depende de URLs localhost embebidas durante el build.
+El siguiente paso natural es validar navegacion end-to-end desde navegador y documentar ajustes CORS/autenticacion/API restantes.
+```
