@@ -7931,3 +7931,62 @@ reporting-service ya esta operativo en Cloud Run dev.
 El servicio se mantiene privado y requiere token de identidad para health.
 El siguiente paso natural es continuar con audit-service o iniciar la publicacion de frontends/MFEs.
 ```
+
+## Dia 60 - Compilacion nativa audit-service
+
+Resumen:
+
+```text
+Se creo services\audit-service\src\main\docker\Dockerfile.native.
+Se creo scripts\build-audit-service-native.ps1.
+El script prepara la imagen local audit-service:0.1.0-native.
+El script etiqueta la imagen remota us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/audit-service:0.1.0-native.
+Se agrego -PlanOnly para validar rutas sin compilar.
+Se agrego validacion temprana de Docker Desktop para evitar fallos largos de native-image.
+Se documento docs\dia-60-compilacion-nativa-audit-service.md con Reversa primero y Guia manual desde cero.
+README.md fue actualizado a Dias 1 a 60.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\services\audit-service\src\main\docker\Dockerfile.native
+C:\VENTA-DE-PASAJES\scripts\build-audit-service-native.ps1
+C:\VENTA-DE-PASAJES\docs\dia-60-compilacion-nativa-audit-service.md
+C:\VENTA-DE-PASAJES\infra\README.md
+C:\VENTA-DE-PASAJES\README.md
+```
+
+Comandos ejecutados:
+
+```powershell
+mvn -f .\services\audit-service\pom.xml test
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-audit-service-native.ps1 -PlanOnly
+docker info --format "{{json .ServerVersion}}"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-audit-service-native.ps1 -UseCleanWorkspace
+docker image inspect audit-service:0.1.0-native --format "{{.Id}} {{.Size}} {{.Architecture}}/{{.Os}}"
+curl.exe -s "http://localhost:18086/api/v1/audit/health"
+```
+
+Validaciones:
+
+```text
+Maven test: BUILD SUCCESS.
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0.
+PlanOnly devolvio ready=true y requires_docker=true.
+Docker activo: 28.3.2.
+Compilacion nativa: BUILD SUCCESS.
+Imagen Docker local creada: audit-service:0.1.0-native.
+Image ID local: sha256:3b93203879bfb6349fb0ebb09f6756129d53c40a31602403545e2634c6f3e785.
+Image size local: 108693924 bytes.
+Health contenedor nativo: HTTP 200.
+No se ejecuto -Push; no se modifico Artifact Registry.
+```
+
+Lectura ejecutiva:
+
+```text
+audit-service ya tiene ruta reproducible para generar imagen nativa local.
+La imagen nativa local fue validada con health real de contenedor.
+El siguiente paso operativo es publicar audit-service:0.1.0-native, promoverlo a dev si aplica y desplegar audit-service en Cloud Run dev.
+```

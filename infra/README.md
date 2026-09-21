@@ -225,3 +225,58 @@ $Url = (& $GcloudPath run services describe reporting-service --project project-
 $Token = (& $GcloudPath auth print-identity-token).Trim()
 curl.exe --ssl-no-revoke -i -sS -H "Authorization: Bearer $Token" "$Url/api/v1/reporting/health"
 ```
+
+## Dia 60 audit-service native image
+
+Validate the `audit-service` native image plan without compiling:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-audit-service-native.ps1 -PlanOnly
+```
+
+Run JVM tests before native compilation:
+
+```powershell
+mvn -f .\services\audit-service\pom.xml test
+```
+
+Docker Desktop must be running before compiling the native image:
+
+```powershell
+docker info
+```
+
+Build and tag the local native image:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-audit-service-native.ps1 -UseCleanWorkspace
+```
+
+Inspect the local image:
+
+```powershell
+docker image inspect audit-service:0.1.0-native --format "{{.Id}} {{.Size}} {{.Architecture}}/{{.Os}}"
+```
+
+Run a temporary local health validation:
+
+```powershell
+$ContainerName = "venta-pasajes-audit-native-test"
+$Port = 18086
+$Existing = docker ps -a --filter "name=$ContainerName" --format "{{.Names}}"
+if ($Existing -contains $ContainerName) { docker rm -f $ContainerName | Out-Null }
+$ContainerId = docker run -d --name $ContainerName -p ${Port}:8086 -e QUARKUS_DATASOURCE_HEALTH_ENABLED=false audit-service:0.1.0-native
+try {
+  Start-Sleep -Seconds 3
+  curl.exe -s -i "http://localhost:$Port/api/v1/audit/health"
+}
+finally {
+  docker rm -f $ContainerName | Out-Null
+}
+```
+
+Publish after the local image exists:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-audit-service-native.ps1 -SkipNativeBuild -SkipDockerBuild -Push
+```
