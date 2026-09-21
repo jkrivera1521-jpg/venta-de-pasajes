@@ -7859,3 +7859,75 @@ reporting-service ya tiene ruta reproducible para generar imagen nativa local.
 La imagen nativa local fue validada con health real de contenedor.
 El siguiente paso operativo es publicar reporting-service:0.1.0-native, promoverlo a dev si aplica y desplegar reporting-service en Cloud Run dev.
 ```
+
+## Dia 59 - Despliegue Cloud Run reporting-service
+
+Resumen:
+
+```text
+Se valido el estado inicial del workspace.
+Se valido que la imagen local de reporting-service tiene etiqueta local y etiqueta remota.
+Se validaron prerequisitos cloud: repositorio Artifact Registry, service account y secreto de base.
+Se publico reporting-service:0.1.0-native en Artifact Registry.
+Se promovio reporting-service:0.1.0-native a reporting-service:dev.
+Se ejecuto preflight Cloud Run para reporting-service con -CheckImagesOnly.
+Se desplego reporting-service en Cloud Run dev con -Execute.
+Se valido estado Ready, revision activa y trafico 100%.
+Se valido /api/v1/reporting/health con token de identidad.
+Se creo docs\dia-59-despliegue-cloud-run-reporting-service.md con Reversa primero y Guia manual desde cero.
+README.md fue actualizado a Dias 1 a 59.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-59-despliegue-cloud-run-reporting-service.md
+C:\VENTA-DE-PASAJES\infra\README.md
+C:\VENTA-DE-PASAJES\README.md
+C:\VENTA-DE-PASAJES\vitacora.md
+```
+
+Comandos ejecutados:
+
+```powershell
+git status --short
+docker images --format "{{.Repository}}:{{.Tag}} {{.ID}} {{.Size}}" | Select-String -Pattern "reporting-service|venta-pasajes-dev/reporting-service"
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+& "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd" auth list --filter=status:ACTIVE --format "value(account)"
+& "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd" config get-value project
+& "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd" artifacts repositories describe venta-pasajes-dev --project project-fbb34cd7-0b82-43e1-867 --location us-central1 --format "value(name)"
+& "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd" iam service-accounts describe "reporting-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com" --project project-fbb34cd7-0b82-43e1-867 --format "value(email)"
+& "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd" secrets describe "reporting-service__db-connection" --project project-fbb34cd7-0b82-43e1-867 --format "value(name)"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-reporting-service-native.ps1 -SkipNativeBuild -SkipDockerBuild -Push
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 -ServiceIds reporting-service -SourceTag 0.1.0-native -TargetTag dev
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 -ServiceIds reporting-service -SourceTag 0.1.0-native -TargetTag dev -Execute
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev -ServiceIds reporting-service -CheckImagesOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev -ServiceIds reporting-service -Execute
+curl.exe --ssl-no-revoke -i -sS -w "`nHTTP_STATUS:%{http_code}`n" -H "Authorization: Bearer $Token" $HealthUrl
+```
+
+Validaciones:
+
+```text
+Worktree limpio antes de iniciar.
+Cuenta activa: jkrivera1521@gmail.com.
+Proyecto activo: project-fbb34cd7-0b82-43e1-867.
+Repositorio Artifact Registry existe.
+Service account reporting-service-run existe.
+Secret reporting-service__db-connection existe.
+Artifact digest reporting-service:0.1.0-native: sha256:00e576bf5c3c42196e7b0cce24ed9b60939666777d4d403b2fc34945b44f1c17.
+Artifact digest reporting-service:dev: sha256:00e576bf5c3c42196e7b0cce24ed9b60939666777d4d403b2fc34945b44f1c17.
+Cloud Run Ready: True.
+Revision lista: reporting-service-00001-fls.
+Trafico: 100%.
+URL: https://reporting-service-io7kxgn6yq-uc.a.run.app.
+Health: HTTP 200 OK.
+```
+
+Lectura ejecutiva:
+
+```text
+reporting-service ya esta operativo en Cloud Run dev.
+El servicio se mantiene privado y requiere token de identidad para health.
+El siguiente paso natural es continuar con audit-service o iniciar la publicacion de frontends/MFEs.
+```
