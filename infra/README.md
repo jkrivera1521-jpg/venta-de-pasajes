@@ -317,3 +317,65 @@ $Url = (& $GcloudPath run services describe audit-service --project project-fbb3
 $Token = (& $GcloudPath auth print-identity-token).Trim()
 curl.exe --ssl-no-revoke -i -sS -H "Authorization: Bearer $Token" "$Url/api/v1/audit/health"
 ```
+
+## Dia 62 frontend Docker images
+
+Validate the frontend image plan without building:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-frontend-images.ps1 -PlanOnly
+```
+
+Build the six local Next.js standalone images:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-frontend-images.ps1 -ImageTag 0.1.0-frontend
+```
+
+Validate all local frontend containers:
+
+```powershell
+$Checks = @(
+  @{ App = "frontend-shell"; Image = "frontend-shell:0.1.0-frontend"; ContainerPort = 3000; HostPort = 13000 },
+  @{ App = "mfe-identity"; Image = "mfe-identity:0.1.0-frontend"; ContainerPort = 3001; HostPort = 13001 },
+  @{ App = "mfe-dispatch"; Image = "mfe-dispatch:0.1.0-frontend"; ContainerPort = 3002; HostPort = 13002 },
+  @{ App = "mfe-ticketing"; Image = "mfe-ticketing:0.1.0-frontend"; ContainerPort = 3003; HostPort = 13003 },
+  @{ App = "mfe-reporting"; Image = "mfe-reporting:0.1.0-frontend"; ContainerPort = 3004; HostPort = 13004 },
+  @{ App = "mfe-admin"; Image = "mfe-admin:0.1.0-frontend"; ContainerPort = 3005; HostPort = 13005 }
+)
+
+$Checks | ForEach-Object {
+  $ContainerName = "venta-pasajes-$($_.App)-frontend-test"
+  $Existing = docker ps -a --filter "name=$ContainerName" --format "{{.Names}}"
+  if ($Existing -contains $ContainerName) { docker rm -f $ContainerName | Out-Null }
+  docker run -d --name $ContainerName -p "$($_.HostPort):$($_.ContainerPort)" $_.Image | Out-Null
+  try {
+    Start-Sleep -Seconds 3
+    curl.exe -s -o NUL -w "$($_.App) %{http_code}`n" "http://localhost:$($_.HostPort)/api/health"
+  }
+  finally {
+    docker rm -f $ContainerName | Out-Null
+  }
+}
+```
+
+Publish the already-built images to Artifact Registry:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-frontend-images.ps1 `
+  -ImageTag 0.1.0-frontend `
+  -SkipNextBuild `
+  -SkipDockerBuild `
+  -Push
+```
+
+Validate one remote image:
+
+```powershell
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+$GcloudPath = "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+& $GcloudPath artifacts docker images describe `
+  "us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/frontend-shell:0.1.0-frontend" `
+  --project "project-fbb34cd7-0b82-43e1-867" `
+  --format "value(image_summary.fully_qualified_digest)"
+```

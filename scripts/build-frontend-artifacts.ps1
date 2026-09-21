@@ -103,7 +103,7 @@ foreach ($App in $Apps) {
   $StandaloneAppRoot = Join-Path $StageRoot (Join-Path "standalone" (Join-Path "apps" $App))
   $StandaloneStaticRoot = Join-Path $StandaloneAppRoot (Join-Path ".next" "static")
   New-Item -ItemType Directory -Force -Path $StandaloneStaticRoot | Out-Null
-  Copy-Item -LiteralPath (Join-Path $StaticRoot "*") -Destination $StandaloneStaticRoot -Recurse -Force
+  Copy-Item -Path (Join-Path $StaticRoot "*") -Destination $StandaloneStaticRoot -Recurse -Force
 
   $PublicRoot = Join-Path $AppRoot "public"
   if (Test-Path -LiteralPath $PublicRoot) {

@@ -1,0 +1,23 @@
+FROM node:24-alpine
+
+ARG APP
+ARG PORT=3000
+
+ENV APP=${APP}
+ENV HOSTNAME=0.0.0.0
+ENV NODE_ENV=production
+ENV PORT=${PORT}
+
+WORKDIR /app
+
+COPY --chown=node:node standalone ./
+COPY --chown=node:node artifact-manifest.json ./artifact-manifest.json
+
+RUN test -n "$APP" && test -f "/app/apps/$APP/server.js"
+
+USER node
+WORKDIR /app/apps/${APP}
+
+EXPOSE ${PORT}
+
+CMD ["node", "server.js"]

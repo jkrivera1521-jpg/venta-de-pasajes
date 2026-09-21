@@ -8062,3 +8062,80 @@ audit-service ya esta operativo en Cloud Run dev.
 El servicio se mantiene privado y requiere token de identidad para health.
 El siguiente paso natural es iniciar empaquetado, publicacion y despliegue dev de frontends/MFEs.
 ```
+
+## Dia 62 - Imagenes Docker frontends Next.js
+
+Resumen:
+
+```text
+Se corrigio scripts\build-frontend-artifacts.ps1 para copiar .next\static usando -Path en lugar de -LiteralPath con wildcard.
+Se creo infra\docker\Dockerfile.next-standalone como Dockerfile reusable para los seis frontends Next.js standalone.
+Se creo scripts\build-frontend-images.ps1 con modo -PlanOnly, build local, tag remoto local y -Push opcional.
+Se agrego npm script build:frontend-images.
+Se construyeron los seis frontends con next build y salida standalone.
+Se construyeron seis imagenes locales con tag 0.1.0-frontend.
+Se valido /api/health local de los seis contenedores con HTTP 200.
+Se publicaron las seis imagenes en Artifact Registry con tag 0.1.0-frontend.
+Se validaron digests remotos en Artifact Registry.
+Se documento docs\dia-62-imagenes-docker-frontends.md con Reversa primero y Guia manual desde cero.
+README.md fue actualizado a Dias 1 a 62.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\infra\docker\Dockerfile.next-standalone
+C:\VENTA-DE-PASAJES\scripts\build-frontend-images.ps1
+C:\VENTA-DE-PASAJES\scripts\build-frontend-artifacts.ps1
+C:\VENTA-DE-PASAJES\docs\dia-62-imagenes-docker-frontends.md
+C:\VENTA-DE-PASAJES\package.json
+C:\VENTA-DE-PASAJES\README.md
+C:\VENTA-DE-PASAJES\infra\README.md
+```
+
+Comandos ejecutados:
+
+```powershell
+git status --short
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-frontend-images.ps1 -PlanOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-frontend-images.ps1 -Apps mfe-admin -ImageTag 0.1.0-frontend
+docker run -d --name venta-pasajes-mfe-admin-frontend-test -p 13005:3005 mfe-admin:0.1.0-frontend
+curl.exe -s -i "http://localhost:13005/api/health"
+docker rm -f venta-pasajes-mfe-admin-frontend-test
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-frontend-images.ps1 -ImageTag 0.1.0-frontend
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-frontend-images.ps1 -ImageTag 0.1.0-frontend -SkipNextBuild -SkipDockerBuild -Push
+```
+
+Validaciones:
+
+```text
+PlanOnly listo para los seis frontends.
+mfe-admin contenedor local: HTTP 200.
+frontend-shell contenedor local: HTTP 200.
+mfe-identity contenedor local: HTTP 200.
+mfe-dispatch contenedor local: HTTP 200.
+mfe-ticketing contenedor local: HTTP 200.
+mfe-reporting contenedor local: HTTP 200.
+mfe-admin contenedor local: HTTP 200.
+Artifact Registry devolvio digest para las seis imagenes 0.1.0-frontend.
+No se desplego Cloud Run frontend todavia.
+```
+
+Digests:
+
+```text
+frontend-shell  sha256:3e4090952e5dbc87d58394750629496dbd822da3802550fddf31e528dbc5fa3d
+mfe-identity    sha256:709b9331da5860ad9d5f6b77ae2647af3627f06f07845fc4f6543276f4bad7ab
+mfe-dispatch    sha256:bb36e124592af17ce10aa1738679beb940bdc5c5ca2e5a43400adaffb0b9105d
+mfe-ticketing   sha256:2e01380c5e51dc68b66ce3fee6096eea89f9671efe692c0ad8eb5af7bd120fb8
+mfe-reporting   sha256:f7293fac10f7c0ef50da4b8df263f915ca63a26d400df4403c55cc39377f4d52
+mfe-admin       sha256:3ee3df00d486821d7fd7c3263b2cf968f6c6b882739d4c438fd1752f8bf005de
+```
+
+Lectura ejecutiva:
+
+```text
+La capa frontend ya tiene imagenes Docker reproducibles y publicadas.
+El tag usado hoy es 0.1.0-frontend, no dev.
+El siguiente paso natural es promover estas imagenes a dev y desplegar los frontends en Cloud Run resolviendo URLs reales de backends y MFEs.
+```
