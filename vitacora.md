@@ -7990,3 +7990,75 @@ audit-service ya tiene ruta reproducible para generar imagen nativa local.
 La imagen nativa local fue validada con health real de contenedor.
 El siguiente paso operativo es publicar audit-service:0.1.0-native, promoverlo a dev si aplica y desplegar audit-service en Cloud Run dev.
 ```
+
+## Dia 61 - Despliegue Cloud Run audit-service
+
+Resumen:
+
+```text
+Se valido el estado inicial del workspace.
+Se valido que la imagen local de audit-service tiene etiqueta local y etiqueta remota.
+Se validaron prerequisitos cloud: repositorio Artifact Registry, service account y secreto de base.
+Se publico audit-service:0.1.0-native en Artifact Registry.
+Se promovio audit-service:0.1.0-native a audit-service:dev.
+Se ejecuto preflight Cloud Run para audit-service con -CheckImagesOnly.
+Se desplego audit-service en Cloud Run dev con -Execute.
+Se valido estado Ready, revision activa y trafico 100%.
+Se valido /api/v1/audit/health con token de identidad.
+Se creo docs\dia-61-despliegue-cloud-run-audit-service.md con Reversa primero y Guia manual desde cero.
+README.md fue actualizado a Dias 1 a 61.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-61-despliegue-cloud-run-audit-service.md
+C:\VENTA-DE-PASAJES\infra\README.md
+C:\VENTA-DE-PASAJES\README.md
+C:\VENTA-DE-PASAJES\vitacora.md
+```
+
+Comandos ejecutados:
+
+```powershell
+git status --short
+docker images --format "{{.Repository}}:{{.Tag}} {{.ID}} {{.Size}}" | Select-String -Pattern "audit-service|venta-pasajes-dev/audit-service"
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+& "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd" auth list --filter=status:ACTIVE --format "value(account)"
+& "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd" config get-value project
+& "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd" artifacts repositories describe venta-pasajes-dev --project project-fbb34cd7-0b82-43e1-867 --location us-central1 --format "value(name)"
+& "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd" iam service-accounts describe "audit-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com" --project project-fbb34cd7-0b82-43e1-867 --format "value(email)"
+& "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd" secrets describe "audit-service__db-connection" --project project-fbb34cd7-0b82-43e1-867 --format "value(name)"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-audit-service-native.ps1 -SkipNativeBuild -SkipDockerBuild -Push
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 -ServiceIds audit-service -SourceTag 0.1.0-native -TargetTag dev
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 -ServiceIds audit-service -SourceTag 0.1.0-native -TargetTag dev -Execute
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev -ServiceIds audit-service -CheckImagesOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev -ServiceIds audit-service -Execute
+curl.exe --ssl-no-revoke -i -sS -w "`nHTTP_STATUS:%{http_code}`n" -H "Authorization: Bearer $Token" $HealthUrl
+```
+
+Validaciones:
+
+```text
+Worktree limpio antes de iniciar.
+Cuenta activa: jkrivera1521@gmail.com.
+Proyecto activo: project-fbb34cd7-0b82-43e1-867.
+Repositorio Artifact Registry existe.
+Service account audit-service-run existe.
+Secret audit-service__db-connection existe.
+Artifact digest audit-service:0.1.0-native: sha256:496c5c2831738eaab25eb2005041a338c195c8ad26fb686dd4c63a5a0dc24787.
+Artifact digest audit-service:dev: sha256:496c5c2831738eaab25eb2005041a338c195c8ad26fb686dd4c63a5a0dc24787.
+Cloud Run Ready: True.
+Revision lista: audit-service-00001-7h9.
+Trafico: 100%.
+URL: https://audit-service-io7kxgn6yq-uc.a.run.app.
+Health: HTTP 200 OK.
+```
+
+Lectura ejecutiva:
+
+```text
+audit-service ya esta operativo en Cloud Run dev.
+El servicio se mantiene privado y requiere token de identidad para health.
+El siguiente paso natural es iniciar empaquetado, publicacion y despliegue dev de frontends/MFEs.
+```

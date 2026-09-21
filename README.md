@@ -8,7 +8,7 @@ Fecha de inicio: 2026-09-01
 
 Avance documentado:
 
-- Dias 1 a 60 documentados en `docs`.
+- Dias 1 a 61 documentados en `docs`.
 - Monorepo base preparado para desarrollo multi-modulo.
 - Toolchain backend Quarkus validada con servicio demo JVM y nativo.
 - Toolchain frontend Next.js/MFE validada con shell y MFE Identity demo.
@@ -24,6 +24,7 @@ Avance documentado:
 - `reporting-service` desplegado en Cloud Run dev con health autenticado validado.
 - Ruta de compilacion nativa de `audit-service` agregada en `scripts/build-audit-service-native.ps1`.
 - Imagen local nativa de `audit-service` validada con health de contenedor.
+- `audit-service` desplegado en Cloud Run dev con health autenticado validado.
 - El sistema legacy se conserva en `legacy`.
 - Los respaldos iniciales se guardan en `backups`.
 - La bitacora operativa vive en `vitacora.md`.
@@ -96,6 +97,7 @@ backups/
 - `docs/dia-58-compilacion-nativa-reporting-service.md`: compilacion nativa local de `reporting-service`.
 - `docs/dia-59-despliegue-cloud-run-reporting-service.md`: publicacion y despliegue Cloud Run dev de `reporting-service`.
 - `docs/dia-60-compilacion-nativa-audit-service.md`: compilacion nativa local de `audit-service`.
+- `docs/dia-61-despliegue-cloud-run-audit-service.md`: publicacion y despliegue Cloud Run dev de `audit-service`.
 - `docs/onpremise-offline-runbook.md`: guia para correr servicios sin dependencia de Google Cloud.
 - `docs/api-conventions.md`: convenciones REST.
 - `docs/naming-standards.md`: estandar de nombres.
@@ -115,5 +117,4 @@ backups/
 
 - Integrar emision de boleto con generacion/descarga de comprobante.
 - Conectar outbox de eventos a Pub/Sub.
-- Publicar y desplegar `audit-service` en Cloud Run dev.
 - Continuar con imagenes y despliegue dev de frontends.

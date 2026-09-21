@@ -280,3 +280,40 @@ Publish after the local image exists:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-audit-service-native.ps1 -SkipNativeBuild -SkipDockerBuild -Push
 ```
+
+## Dia 61 audit-service Cloud Run dev
+
+Publish the native image to Artifact Registry:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-audit-service-native.ps1 -SkipNativeBuild -SkipDockerBuild -Push
+```
+
+Promote `audit-service:0.1.0-native` to `audit-service:dev`:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 -ServiceIds audit-service -SourceTag 0.1.0-native -TargetTag dev
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 -ServiceIds audit-service -SourceTag 0.1.0-native -TargetTag dev -Execute
+```
+
+Validate the `audit-service` dev image before deployment:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev -ServiceIds audit-service -CheckImagesOnly
+```
+
+Deploy only `audit-service` to Cloud Run dev:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev -ServiceIds audit-service -Execute
+```
+
+Validate the private health endpoint with an identity token:
+
+```powershell
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+$GcloudPath = "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+$Url = (& $GcloudPath run services describe audit-service --project project-fbb34cd7-0b82-43e1-867 --region us-central1 --format "value(status.url)").Trim()
+$Token = (& $GcloudPath auth print-identity-token).Trim()
+curl.exe --ssl-no-revoke -i -sS -H "Authorization: Bearer $Token" "$Url/api/v1/audit/health"
+```
