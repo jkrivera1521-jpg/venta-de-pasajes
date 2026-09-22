@@ -617,3 +617,33 @@ Important note:
 The JVM path is the validated Cloud Run dev backend path.
 Native backend images with Cloud SQL Socket Factory remain a separate technical pending item.
 ```
+
+## Dia 67 Cloud Run dev stack verification
+
+Run the read-only full stack verifier:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-cloudrun-dev-stack.ps1
+```
+
+The expected result is:
+
+```text
+Verificacion Cloud Run dev OK: 34/34 checks.
+```
+
+To run only health, manifests, runtime config and embedded pages:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-cloudrun-dev-stack.ps1 -SkipFunctionalChecks
+```
+
+The JSON result is written to:
+
+```text
+C:\VENTA-DE-PASAJES\logs\cloudrun-dev\verify-cloudrun-dev-stack.result.json
+```

@@ -112,6 +112,7 @@ backups/
 - `docs/dia-64-runtime-config-shell-cloud-run.md`: runtime config del shell y validacion publica sin URLs `localhost`.
 - `docs/dia-65-cloud-run-mfe-backend-auth.md`: autenticacion de MFEs hacia backends privados en Cloud Run.
 - `docs/dia-66-backends-jvm-cloud-run-flyway.md`: backends JVM en Cloud Run, grants Cloud SQL y migraciones Flyway.
+- `docs/dia-67-verificacion-integral-cloud-run-dev.md`: verificacion integral de Cloud Run dev para backends, frontends, manifiestos y endpoints funcionales.
 - `docs/onpremise-offline-runbook.md`: guia para correr servicios sin dependencia de Google Cloud.
 - `docs/api-conventions.md`: convenciones REST.
 - `docs/naming-standards.md`: estandar de nombres.

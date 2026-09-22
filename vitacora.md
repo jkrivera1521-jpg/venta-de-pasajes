@@ -8430,3 +8430,56 @@ La ruta backend Cloud Run dev queda desbloqueada usando JVM.
 Los errores 500 por tablas inexistentes quedaron corregidos con Flyway y permisos de esquema.
 El pendiente tecnico nativo permanece separado: GraalVM/Mandrel + Cloud SQL Socket Factory.
 ```
+
+## Dia 67 - Verificacion integral Cloud Run dev
+
+Resumen:
+
+```text
+Se creo scripts\verify-cloudrun-dev-stack.ps1.
+El verificador lee infra\cloudrun\dev-services.json para evitar rutas o servicios escritos manualmente.
+Se validaron 12 servicios Cloud Run en estado Ready.
+Se validaron 34 checks HTTP con respuesta 200.
+Se incluyeron health checks, manifiestos MFE, paginas embebidas, runtime config del shell y consultas funcionales de lectura.
+Se genero logs\cloudrun-dev\verify-cloudrun-dev-stack.result.json.
+Se documento docs\dia-67-verificacion-integral-cloud-run-dev.md con Reversa primero y Guia manual desde cero.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\verify-cloudrun-dev-stack.ps1
+C:\VENTA-DE-PASAJES\docs\dia-67-verificacion-integral-cloud-run-dev.md
+C:\VENTA-DE-PASAJES\logs\cloudrun-dev\verify-cloudrun-dev-stack.result.json
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-cloudrun-dev-stack.ps1
+```
+
+Validaciones:
+
+```text
+identity-service health: 200.
+dispatch-service health: 200.
+document-service health: 200.
+reporting-service health: 200.
+audit-service health: 200.
+ticketing-service health: 200.
+Seis frontends health: 200.
+Cinco manifests MFE: 200.
+Seis rutas embedded/shell: 200.
+frontend-shell runtime config: 200.
+Diez consultas funcionales backend de lectura: 200.
+Resultado final: Verificacion Cloud Run dev OK: 34/34 checks.
+```
+
+Lectura ejecutiva:
+
+```text
+El entorno Cloud Run dev queda verificable con un solo comando.
+El verificador no modifica infraestructura ni datos.
+El siguiente dia puede enfocarse en observabilidad, gateway/dominio o cierre de brechas funcionales segun prioridad.
+```
