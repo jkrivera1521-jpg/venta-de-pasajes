@@ -101,6 +101,63 @@ cd C:\VENTA-DE-PASAJES
 Select-String -Path .\docs\dia-01-inicio-alcance-resguardo.md -Pattern "C:\\VENTA-DE-PASAJES|docker|gcloud|mvn|npm|Remove-Item|delete|rm|Cloud SQL|Artifact Registry|Secret Manager" -Context 0,2
 ```
 
+# Análisis del Comando PowerShell: `Select-String`
+
+## Comando
+
+```powershell
+Select-String -Path .\docs\dia-01-inicio-alcance-resguardo.md -Pattern "C:\\VENTA-DE-PASAJES|docker|gcloud|mvn|npm|Remove-Item|delete|rm|Cloud SQL|Artifact Registry|Secret Manager" -Context 0,2
+```
+
+---
+
+## Propósito General
+
+El comando realiza una búsqueda de texto estructurada mediante expresiones regulares dentro de un archivo de documentación Markdown (`.md`). Su objetivo principal es auditar el archivo para identificar referencias a herramientas de desarrollo, comandos potencialmente peligrosos, rutas locales hardcodeadas y servicios de Google Cloud Platform (GCP).
+
+---
+
+## Desglose de Parámetros
+
+| Parámetro | Valor / Expresión | Descripción |
+| :--- | :--- | :--- |
+| **Cmdlet** | `Select-String` | Cmdlet nativo de PowerShell equivalente a `grep` en sistemas Unix. Filtra texto mediante expresiones regulares. |
+| **`-Path`** | `.\docs\dia-01-inicio-alcance-resguardo.md` | Ruta relativa del archivo objetivo sobre el cual se ejecuta el análisis. |
+| **`-Pattern`** | `"C:\\VENTA-DE-PASAJES\|docker\|gcloud\|mvn\|npm\|Remove-Item\|delete\|rm\|Cloud SQL\|Artifact Registry\|Secret Manager"` | Patron de Expresión Regular (**Regex**). Utiliza el operador `\|` (OR) para hacer coincidir cualquiera de los términos. |
+| **`-Context`** | `0,2` | Define las líneas contextuales a mostrar: `0` líneas previas y `2` líneas posteriores a cada coincidencia. |
+
+---
+
+## Categorización de Patrones Buscados
+
+1. **Rutas Absolutas / Locales**
+   * `C:\\VENTA-DE-PASAJES`: Detecta referencias fijas a directorios locales (la doble barra `\\` escapa la barra invertida en Regex).
+
+2. **Herramientas de CLI y Gestores de Paquetes**
+   * `docker`: Comandos o menciones relativas a contenedores.
+   * `gcloud`: Comandos de la interfaz de línea de comandos de Google Cloud.
+   * `mvn`: Ejecuciones o configuraciones de Apache Maven.
+   * `npm`: Ejecuciones o scripts de Node Package Manager.
+
+3. **Comandos de Eliminación / Destructivos**
+   * `Remove-Item`: Cmdlet de PowerShell para borrar archivos/carpetas.
+   * `delete`: Palabras clave relacionadas con borrado.
+   * `rm`: Comando bash/shell para eliminación de recursos.
+
+4. **Servicios de Google Cloud Platform (GCP)**
+   * `Cloud SQL`: Menciones relativas a la base de datos administrada.
+   * `Artifact Registry`: Referencias al repositorio de artefactos/imágenes.
+   * `Secret Manager`: Menciones sobre gestión de credenciales y secretos.
+
+---
+
+## Casos de Uso Frecuentes
+
+* **Auditoría de Seguridad:** Identificación de comandos que eliminan recursos de forma permanente.
+* **Refactorización de Documentación:** Localización de rutas absolutas hardcodeadas que deben cambiarse por rutas relativas o variables de entorno.
+* **Mapeo de Arquitectura:** Verificación rápida de las tecnologías y servicios en la nube mencionados en la guía.
+
+
 ### Paso R3 - Detener procesos locales si este dia levanto herramientas
 
 ```powershell

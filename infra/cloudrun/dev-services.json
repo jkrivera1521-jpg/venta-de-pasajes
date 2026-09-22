@@ -31,6 +31,8 @@
         "CLOUD_SQL_CONNECTION_NAME": "${CLOUD_SQL_CONNECTION_NAME}",
         "APP_DATABASE_SECRET_NAME": "identity-service__db-connection",
         "APP_DB_USERNAME": "identity-service-run@${PROJECT_ID}.iam",
+        "QUARKUS_FLYWAY_MIGRATE_AT_START": "true",
+        "QUARKUS_FLYWAY_BASELINE_ON_MIGRATE": "true",
         "APP_JWT_SIGNING_SECRET_NAME": "identity-service__jwt-signing-secret",
         "APP_PASSWORD_PEPPER_SECRET_NAME": "identity-service__password-pepper",
         "APP_RECOVERY_TOKEN_PEPPER_SECRET_NAME": "identity-service__recovery-token-pepper",
@@ -61,7 +63,9 @@
         "QUARKUS_HTTP_PORT": "8082",
         "CLOUD_SQL_CONNECTION_NAME": "${CLOUD_SQL_CONNECTION_NAME}",
         "APP_DATABASE_SECRET_NAME": "dispatch-service__db-connection",
-        "APP_DB_USERNAME": "dispatch-service-run@${PROJECT_ID}.iam"
+        "APP_DB_USERNAME": "dispatch-service-run@${PROJECT_ID}.iam",
+        "QUARKUS_FLYWAY_MIGRATE_AT_START": "true",
+        "QUARKUS_FLYWAY_BASELINE_ON_MIGRATE": "true"
       }
     },
     {
@@ -89,6 +93,8 @@
         "CLOUD_SQL_CONNECTION_NAME": "${CLOUD_SQL_CONNECTION_NAME}",
         "APP_DATABASE_SECRET_NAME": "document-service__db-connection",
         "APP_DB_USERNAME": "document-service-run@${PROJECT_ID}.iam",
+        "QUARKUS_FLYWAY_MIGRATE_AT_START": "true",
+        "QUARKUS_FLYWAY_BASELINE_ON_MIGRATE": "true",
         "APP_DOCUMENT_BUCKET": "venta-pasajes-dev-documents"
       }
     },
@@ -116,7 +122,9 @@
         "QUARKUS_HTTP_PORT": "8085",
         "CLOUD_SQL_CONNECTION_NAME": "${CLOUD_SQL_CONNECTION_NAME}",
         "APP_DATABASE_SECRET_NAME": "reporting-service__db-connection",
-        "APP_DB_USERNAME": "reporting-service-run@${PROJECT_ID}.iam"
+        "APP_DB_USERNAME": "reporting-service-run@${PROJECT_ID}.iam",
+        "QUARKUS_FLYWAY_MIGRATE_AT_START": "true",
+        "QUARKUS_FLYWAY_BASELINE_ON_MIGRATE": "true"
       }
     },
     {
@@ -143,7 +151,9 @@
         "QUARKUS_HTTP_PORT": "8086",
         "CLOUD_SQL_CONNECTION_NAME": "${CLOUD_SQL_CONNECTION_NAME}",
         "APP_DATABASE_SECRET_NAME": "audit-service__db-connection",
-        "APP_DB_USERNAME": "audit-service-run@${PROJECT_ID}.iam"
+        "APP_DB_USERNAME": "audit-service-run@${PROJECT_ID}.iam",
+        "QUARKUS_FLYWAY_MIGRATE_AT_START": "true",
+        "QUARKUS_FLYWAY_BASELINE_ON_MIGRATE": "true"
       }
     },
     {
@@ -171,6 +181,8 @@
         "CLOUD_SQL_CONNECTION_NAME": "${CLOUD_SQL_CONNECTION_NAME}",
         "APP_DATABASE_SECRET_NAME": "ticketing-service__db-connection",
         "APP_DB_USERNAME": "ticketing-service-run@${PROJECT_ID}.iam",
+        "QUARKUS_FLYWAY_MIGRATE_AT_START": "true",
+        "QUARKUS_FLYWAY_BASELINE_ON_MIGRATE": "true",
         "APP_DOCUMENT_INTEGRATION_ENABLED": "false",
         "APP_DOCUMENT_WORKER_ENABLED": "false"
       }
