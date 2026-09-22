@@ -8484,3 +8484,58 @@ El entorno Cloud Run dev queda verificable con un solo comando.
 El verificador no modifica infraestructura ni datos.
 El siguiente dia puede enfocarse en observabilidad, gateway/dominio o cierre de brechas funcionales segun prioridad.
 ```
+
+## Dia 68 - Backups y restauracion staging
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 68 - Backups y restauracion staging.
+Se creo scripts\verify-backup-restore-readiness.ps1.
+El verificador es de solo lectura: no crea, restaura ni elimina recursos cloud.
+Se valido que no existe Cloud SQL staging: venta-pasajes-staging-sql.
+Se valido que no existe bucket documental staging: gs://venta-pasajes-staging-documents.
+Se ejecuto control tecnico contra dev.
+Cloud SQL dev existe, esta RUNNABLE, tiene backups habilitados y 7 backups exitosos.
+El bucket documental dev esperado gs://venta-pasajes-dev-documents tampoco existe.
+Se documento docs\dia-68-backups-restauracion-staging.md con Reversa primero y Guia manual desde cero.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\verify-backup-restore-readiness.ps1
+C:\VENTA-DE-PASAJES\docs\dia-68-backups-restauracion-staging.md
+C:\VENTA-DE-PASAJES\logs\backup-restore\verify-backup-restore-readiness-staging.json
+C:\VENTA-DE-PASAJES\logs\backup-restore\verify-backup-restore-readiness-dev.json
+```
+
+Comandos ejecutados:
+
+```powershell
+gcloud sql instances list --project project-fbb34cd7-0b82-43e1-867 --format="table(name,region,state,databaseVersion,settings.backupConfiguration.enabled)"
+gcloud sql backups list --instance venta-pasajes-dev-sql --project project-fbb34cd7-0b82-43e1-867 --format="table(id,status,type,startTime,endTime)" --limit=10
+gcloud storage buckets list --project project-fbb34cd7-0b82-43e1-867 --format="table(name,location,storageClass,uniformBucketLevelAccess.enabled)"
+gcloud sql instances describe venta-pasajes-staging-sql --project project-fbb34cd7-0b82-43e1-867 --format=json
+gcloud storage buckets describe gs://venta-pasajes-staging-documents --project project-fbb34cd7-0b82-43e1-867 --format=json
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-backup-restore-readiness.ps1 -Environment staging
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-backup-restore-readiness.ps1 -Environment dev
+```
+
+Validaciones:
+
+```text
+Staging no esta listo para prueba real de restauracion.
+Bloqueo 1: falta venta-pasajes-staging-sql.
+Bloqueo 2: falta gs://venta-pasajes-staging-documents.
+Dev Cloud SQL tiene 7 backups exitosos.
+Dev bucket documental esperado no existe.
+```
+
+Lectura ejecutiva:
+
+```text
+El procedimiento de backup/restore queda preparado.
+No se ejecuto restauracion real porque faltan prerequisitos de staging.
+Antes del Dia 69 conviene decidir si se crea staging completo o si se reordena el plan para completar infraestructura staging pendiente.
+```

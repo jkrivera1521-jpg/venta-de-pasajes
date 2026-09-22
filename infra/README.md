@@ -647,3 +647,37 @@ The JSON result is written to:
 ```text
 C:\VENTA-DE-PASAJES\logs\cloudrun-dev\verify-cloudrun-dev-stack.result.json
 ```
+
+## Dia 68 staging backup and restore readiness
+
+Run the read-only backup/restore readiness verifier for staging:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-backup-restore-readiness.ps1 `
+  -Environment staging
+```
+
+Current observed blockers:
+
+```text
+Cloud SQL source instance does not exist: venta-pasajes-staging-sql
+Document bucket does not exist: gs://venta-pasajes-staging-documents
+```
+
+Run the same verifier against dev as a control check:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-backup-restore-readiness.ps1 `
+  -Environment dev
+```
+
+Observed dev state:
+
+```text
+Cloud SQL dev backups are enabled and 7 successful backups were found.
+The document bucket gs://venta-pasajes-dev-documents does not exist.
+```

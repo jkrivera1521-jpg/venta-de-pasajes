@@ -113,6 +113,7 @@ backups/
 - `docs/dia-65-cloud-run-mfe-backend-auth.md`: autenticacion de MFEs hacia backends privados en Cloud Run.
 - `docs/dia-66-backends-jvm-cloud-run-flyway.md`: backends JVM en Cloud Run, grants Cloud SQL y migraciones Flyway.
 - `docs/dia-67-correcciones-uat.md`: correcciones UAT y verificacion integral del release candidate en Cloud Run dev.
+- `docs/dia-68-backups-restauracion-staging.md`: procedimiento y verificador de preparacion para backups y restauracion staging.
 - `docs/onpremise-offline-runbook.md`: guia para correr servicios sin dependencia de Google Cloud.
 - `docs/api-conventions.md`: convenciones REST.
 - `docs/naming-standards.md`: estandar de nombres.
