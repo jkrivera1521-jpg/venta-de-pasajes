@@ -1,8 +1,19 @@
-# Dia 67 - Verificacion integral Cloud Run dev
+# Dia 67 - Correcciones UAT
 
 ## Objetivo
 
-Crear una verificacion automatica y de solo lectura para confirmar que el entorno `dev` de Cloud Run esta operativo de punta a punta:
+Este dia se alinea con el plan maestro de `C:\VENTA-DE-PASAJES\tareas.md`, donde el Dia 67 corresponde a **Correcciones UAT**.
+
+Objetivo del plan:
+
+- Corregir defectos criticos.
+- Corregir defectos altos.
+- Ajustar reportes.
+- Ajustar PDF.
+- Repetir pruebas afectadas.
+- Dejar un release candidate verificable.
+
+En el estado actual del repositorio no existe todavia un acta UAT formal versionada con defectos criticos y altos priorizados. Por eso, la correccion aplicada en este dia fue dejar una verificacion integral, repetible y de solo lectura para confirmar que el release candidate de `dev` esta operativo de punta a punta y que las pruebas afectadas pueden repetirse con un solo comando:
 
 - Backends privados desplegados y en estado Ready.
 - Frontends publicos desplegados y en estado Ready.
@@ -86,7 +97,7 @@ cd C:\VENTA-DE-PASAJES
 git restore -- README.md infra\README.md vitacora.md
 
 Remove-Item -LiteralPath .\scripts\verify-cloudrun-dev-stack.ps1 -Force
-Remove-Item -LiteralPath .\docs\dia-67-verificacion-integral-cloud-run-dev.md -Force
+Remove-Item -LiteralPath .\docs\dia-67-correcciones-uat.md -Force
 ```
 
 Si solo se quiere eliminar el resultado local generado:

@@ -8431,25 +8431,26 @@ Los errores 500 por tablas inexistentes quedaron corregidos con Flyway y permiso
 El pendiente tecnico nativo permanece separado: GraalVM/Mandrel + Cloud SQL Socket Factory.
 ```
 
-## Dia 67 - Verificacion integral Cloud Run dev
+## Dia 67 - Correcciones UAT
 
 Resumen:
 
 ```text
+Se alineo el dia con el plan maestro tareas.md: Dia 67 - Correcciones UAT.
 Se creo scripts\verify-cloudrun-dev-stack.ps1.
 El verificador lee infra\cloudrun\dev-services.json para evitar rutas o servicios escritos manualmente.
 Se validaron 12 servicios Cloud Run en estado Ready.
 Se validaron 34 checks HTTP con respuesta 200.
 Se incluyeron health checks, manifiestos MFE, paginas embebidas, runtime config del shell y consultas funcionales de lectura.
 Se genero logs\cloudrun-dev\verify-cloudrun-dev-stack.result.json.
-Se documento docs\dia-67-verificacion-integral-cloud-run-dev.md con Reversa primero y Guia manual desde cero.
+Se documento docs\dia-67-correcciones-uat.md con Reversa primero y Guia manual desde cero.
 ```
 
 Archivos principales:
 
 ```text
 C:\VENTA-DE-PASAJES\scripts\verify-cloudrun-dev-stack.ps1
-C:\VENTA-DE-PASAJES\docs\dia-67-verificacion-integral-cloud-run-dev.md
+C:\VENTA-DE-PASAJES\docs\dia-67-correcciones-uat.md
 C:\VENTA-DE-PASAJES\logs\cloudrun-dev\verify-cloudrun-dev-stack.result.json
 ```
 

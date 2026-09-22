@@ -618,9 +618,9 @@ The JVM path is the validated Cloud Run dev backend path.
 Native backend images with Cloud SQL Socket Factory remain a separate technical pending item.
 ```
 
-## Dia 67 Cloud Run dev stack verification
+## Dia 67 UAT corrections and release candidate verification
 
-Run the read-only full stack verifier:
+Run the read-only full stack verifier used to repeat the affected UAT checks:
 
 ```powershell
 cd C:\VENTA-DE-PASAJES
