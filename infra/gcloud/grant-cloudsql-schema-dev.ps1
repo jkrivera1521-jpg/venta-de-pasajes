@@ -359,7 +359,7 @@ function Invoke-SqlImportGrants {
 
     foreach ($Grant in $Grants) {
         $Sql = @"
-GRANT CONNECT ON DATABASE $(Quote-PgIdentifier $Grant.database) TO $(Quote-PgIdentifier $Grant.grantee);
+GRANT CONNECT, CREATE ON DATABASE $(Quote-PgIdentifier $Grant.database) TO $(Quote-PgIdentifier $Grant.grantee);
 GRANT USAGE, CREATE ON SCHEMA public TO $(Quote-PgIdentifier $Grant.grantee);
 "@
         $SafeDatabaseName = $Grant.database -replace '[^A-Za-z0-9_-]', '-'
@@ -475,7 +475,7 @@ foreach ($Database in @($Config.databases)) {
         database = $Database.name
         schema = "public"
         grantee = $User
-        sql = "GRANT CONNECT ON DATABASE $(Quote-PgIdentifier $Database.name) TO $(Quote-PgIdentifier $User); GRANT USAGE, CREATE ON SCHEMA public TO $(Quote-PgIdentifier $User);"
+        sql = "GRANT CONNECT, CREATE ON DATABASE $(Quote-PgIdentifier $Database.name) TO $(Quote-PgIdentifier $User); GRANT USAGE, CREATE ON SCHEMA public TO $(Quote-PgIdentifier $User);"
     }
 }
 
@@ -539,7 +539,7 @@ if ($Execute) {
             foreach ($Grant in $GrantPlan) {
                 $Sql = @"
 \set ON_ERROR_STOP on
-GRANT CONNECT ON DATABASE $(Quote-PgIdentifier $Grant.database) TO $(Quote-PgIdentifier $Grant.grantee);
+GRANT CONNECT, CREATE ON DATABASE $(Quote-PgIdentifier $Grant.database) TO $(Quote-PgIdentifier $Grant.grantee);
 GRANT USAGE, CREATE ON SCHEMA public TO $(Quote-PgIdentifier $Grant.grantee);
 "@
                 Invoke-Psql -HostAddress $PrimaryIp -DatabaseName $Grant.database -Sql $Sql

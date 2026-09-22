@@ -8358,3 +8358,75 @@ El bloqueo de Forbidden entre MFEs y backends privados quedo resuelto.
 Los errores 500 restantes pertenecen a la capa backend nativa y Cloud SQL Socket Factory, no al shell ni al proxy MFE.
 El siguiente dia debe cerrar la estrategia backend: resolver native image con Cloud SQL o crear imagen JVM para Cloud Run.
 ```
+
+## Dia 66 - Backends JVM Cloud Run y Flyway dev
+
+Resumen:
+
+```text
+Se creo infra\docker\Dockerfile.quarkus-jvm.
+Se creo scripts\build-backend-jvm-images.ps1 para construir/publicar imagenes JVM backend.
+Se construyeron y publicaron seis imagenes backend con tag 0.1.1-jvm.
+Se valido que Artifact Registry contiene identity, dispatch, document, reporting, audit y ticketing con 0.1.1-jvm.
+Se desplegaron backends JVM en Cloud Run dev.
+Se confirmo que los health privados respondian 200.
+Se detecto que las consultas reales fallaban por tablas inexistentes en Cloud SQL.
+Se activo Flyway en infra\cloudrun\dev-services.json para los seis backends.
+Se detecto que Flyway necesitaba permisos CREATE/USAGE en public y CREATE/CONNECT en cada base.
+Se creo infra\gcloud\grant-cloudsql-schema-dev.ps1.
+Se aplicaron grants mediante gcloud sql import sql para seis bases.
+Se redesplegaron backends JVM con Flyway activo.
+Se validaron health y consultas reales con HTTP 200.
+Se documento docs\dia-66-backends-jvm-cloud-run-flyway.md con Reversa primero y Guia manual desde cero.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\infra\docker\Dockerfile.quarkus-jvm
+C:\VENTA-DE-PASAJES\scripts\build-backend-jvm-images.ps1
+C:\VENTA-DE-PASAJES\infra\gcloud\grant-cloudsql-schema-dev.ps1
+C:\VENTA-DE-PASAJES\infra\cloudrun\dev-services.json
+C:\VENTA-DE-PASAJES\docs\dia-66-backends-jvm-cloud-run-flyway.md
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-backend-jvm-images.ps1 -ImageTag 0.1.1-jvm -PlanOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-backend-jvm-images.ps1 -ImageTag 0.1.1-jvm -SkipPackage
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-backend-jvm-images.ps1 -ImageTag 0.1.1-jvm -SkipPackage -SkipDockerBuild -Push
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag 0.1.1-jvm -BackendOnly -CheckImagesOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag 0.1.1-jvm -BackendOnly -Execute
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\grant-cloudsql-schema-dev.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\grant-cloudsql-schema-dev.ps1 -Execute
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag 0.1.1-jvm -BackendOnly -Execute
+```
+
+Validaciones:
+
+```text
+Artifact Registry: seis imagenes 0.1.1-jvm existentes.
+Cloud SQL grants: seis imports SQL aplicados correctamente.
+Cloud Run deploy backend JVM: OK.
+identity-service health: 200.
+dispatch-service health: 200.
+document-service health: 200.
+reporting-service health: 200.
+audit-service health: 200.
+ticketing-service health: 200.
+dispatch terminals: 200.
+dispatch departures: 200.
+ticketing passengers: 200.
+ticketing availability departures: 200.
+reporting sales: 200.
+audit audit-events: 200.
+```
+
+Lectura ejecutiva:
+
+```text
+La ruta backend Cloud Run dev queda desbloqueada usando JVM.
+Los errores 500 por tablas inexistentes quedaron corregidos con Flyway y permisos de esquema.
+El pendiente tecnico nativo permanece separado: GraalVM/Mandrel + Cloud SQL Socket Factory.
+```

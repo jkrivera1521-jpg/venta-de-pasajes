@@ -8,7 +8,7 @@ Fecha de inicio: 2026-09-01
 
 Avance documentado:
 
-- Dias 1 a 65 documentados en `docs`.
+- Dias 1 a 66 documentados en `docs`.
 - Monorepo base preparado para desarrollo multi-modulo.
 - Toolchain backend Quarkus validada con servicio demo JVM y nativo.
 - Toolchain frontend Next.js/MFE validada con shell y MFE Identity demo.
@@ -30,6 +30,9 @@ Avance documentado:
 - Frontends desplegados en Cloud Run dev con health, manifiestos MFE y rutas embedded validadas.
 - `frontend-shell` actualizado para resolver manifiestos MFE en runtime y no servir URLs `localhost` en Cloud Run.
 - MFEs actualizados para invocar backends privados de Cloud Run con identity token service-to-service.
+- Ruta JVM backend agregada para Cloud Run dev con imagenes `0.1.1-jvm`.
+- Cloud SQL dev preparado con grants de esquema por microservicio y migraciones Flyway activas.
+- Backends JVM desplegados en Cloud Run dev con health y consultas funcionales validadas.
 - Pendiente tecnico identificado: recompilacion nativa backend con Cloud SQL Socket Factory y GraalVM/Mandrel.
 - El sistema legacy se conserva en `legacy`.
 - Los respaldos iniciales se guardan en `backups`.
@@ -108,6 +111,7 @@ backups/
 - `docs/dia-63-despliegue-cloud-run-frontends.md`: promocion a `dev` y despliegue Cloud Run dev de frontends.
 - `docs/dia-64-runtime-config-shell-cloud-run.md`: runtime config del shell y validacion publica sin URLs `localhost`.
 - `docs/dia-65-cloud-run-mfe-backend-auth.md`: autenticacion de MFEs hacia backends privados en Cloud Run.
+- `docs/dia-66-backends-jvm-cloud-run-flyway.md`: backends JVM en Cloud Run, grants Cloud SQL y migraciones Flyway.
 - `docs/onpremise-offline-runbook.md`: guia para correr servicios sin dependencia de Google Cloud.
 - `docs/api-conventions.md`: convenciones REST.
 - `docs/naming-standards.md`: estandar de nombres.
@@ -127,4 +131,4 @@ backups/
 
 - Integrar emision de boleto con generacion/descarga de comprobante.
 - Conectar outbox de eventos a Pub/Sub.
-- Resolver compilacion nativa backend con Cloud SQL Socket Factory o definir imagen JVM backend para Cloud Run.
+- Decidir si la ruta JVM queda como runtime cloud definitivo o si se resuelve compilacion nativa con Cloud SQL Socket Factory.

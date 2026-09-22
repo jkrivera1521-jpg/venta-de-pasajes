@@ -562,3 +562,58 @@ Important backend note:
 Dia 65 solved MFE -> private backend authentication.
 Some functional backend queries can still return HTTP 500 until native backend images include a Cloud SQL Socket Factory solution compatible with GraalVM/Mandrel.
 ```
+
+## Dia 66 Backend JVM Cloud Run and Flyway
+
+Build, publish and deploy JVM backend images for Cloud Run dev:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-backend-jvm-images.ps1 `
+  -ImageTag 0.1.1-jvm `
+  -PlanOnly
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-backend-jvm-images.ps1 `
+  -ImageTag 0.1.1-jvm
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-backend-jvm-images.ps1 `
+  -ImageTag 0.1.1-jvm `
+  -SkipPackage `
+  -SkipDockerBuild `
+  -Push
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
+  -ImageTag 0.1.1-jvm `
+  -BackendOnly `
+  -CheckImagesOnly
+```
+
+Apply Cloud SQL schema grants before enabling Flyway migrations:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\grant-cloudsql-schema-dev.ps1
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\grant-cloudsql-schema-dev.ps1 `
+  -Execute
+```
+
+Deploy backends and validate:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
+  -ImageTag 0.1.1-jvm `
+  -BackendOnly `
+  -Execute
+```
+
+Important note:
+
+```text
+The JVM path is the validated Cloud Run dev backend path.
+Native backend images with Cloud SQL Socket Factory remain a separate technical pending item.
+```
