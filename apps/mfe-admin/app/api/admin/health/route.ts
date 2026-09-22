@@ -1,3 +1,5 @@
+import { applyCloudRunAuthorization } from "../../_lib/cloudRunAuth";
+
 type HealthGroup = "backend" | "frontend";
 type HealthStatus = "down" | "up";
 
@@ -122,8 +124,12 @@ async function probeTarget(target: HealthTarget, timeoutMs: number): Promise<Hea
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    const headers = new Headers();
+    await applyCloudRunAuthorization(headers, new URL(target.url));
+
     const response = await fetch(target.url, {
       cache: "no-store",
+      headers,
       signal: controller.signal
     });
     const text = await response.text();

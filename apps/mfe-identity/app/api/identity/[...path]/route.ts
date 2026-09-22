@@ -1,3 +1,5 @@
+import { applyCloudRunAuthorization } from "../../_lib/cloudRunAuth";
+
 const defaultIdentityApiUrl = "http://localhost:8081/api/v1/identity";
 
 type RouteContext = {
@@ -34,6 +36,8 @@ async function proxyIdentityRequest(request: Request, context: RouteContext) {
   if (contentType) {
     headers.set("content-type", contentType);
   }
+
+  await applyCloudRunAuthorization(headers, targetUrl);
 
   let body: BodyInit | undefined;
   if (!["GET", "HEAD"].includes(request.method)) {

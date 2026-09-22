@@ -8282,3 +8282,79 @@ El shell publico ya puede resolver MFEs con variables de entorno de Cloud Run en
 Ya no depende de URLs localhost embebidas durante el build.
 El siguiente paso natural es validar navegacion end-to-end desde navegador y documentar ajustes CORS/autenticacion/API restantes.
 ```
+
+## Dia 65 - Autenticacion MFE hacia backends privados en Cloud Run
+
+Resumen:
+
+```text
+Se valido que los backends Cloud Run privados devuelven 403 sin token y 200 con identity token.
+Se creo scripts\grant-cloudrun-invoker.ps1 para otorgar roles/run.invoker a la cuenta frontend.
+Se otorgo invoker a frontend-shell-run sobre identity, dispatch, ticketing, document, reporting y audit.
+Se agrego cloudRunAuth.ts en identity, dispatch, ticketing, reporting y admin MFEs.
+Los proxies MFE ahora obtienen identity token desde metadata server cuando corren en Cloud Run y apuntan a *.run.app.
+Se preserva Authorization original como x-forwarded-authorization antes de enviar el token service-to-service.
+Se validaron typecheck y build de los cinco MFEs afectados.
+Se publicaron imagenes 0.1.2-frontend y se promovieron a dev.
+Se desplegaron los cinco MFEs afectados en Cloud Run dev.
+Se valido que Admin muestra frontends 6/6 y backends 6/6.
+Se confirmo que el error Forbidden desaparece de los MFEs.
+Se agrego postgres-socket-factory 1.24.2 a los pom.xml de backends y plantilla por el diagnostico Cloud SQL.
+Se valido package JVM backend con esa dependencia.
+Se intento build nativo real de dispatch-service y fallo en GraalVM/Mandrel por clases jnr del Cloud SQL Socket Factory.
+Se documento docs\dia-65-cloud-run-mfe-backend-auth.md con Reversa primero y Guia manual desde cero.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\grant-cloudrun-invoker.ps1
+C:\VENTA-DE-PASAJES\apps\mfe-identity\app\api\_lib\cloudRunAuth.ts
+C:\VENTA-DE-PASAJES\apps\mfe-dispatch\app\api\_lib\cloudRunAuth.ts
+C:\VENTA-DE-PASAJES\apps\mfe-ticketing\app\api\_lib\cloudRunAuth.ts
+C:\VENTA-DE-PASAJES\apps\mfe-reporting\app\api\_lib\cloudRunAuth.ts
+C:\VENTA-DE-PASAJES\apps\mfe-admin\app\api\_lib\cloudRunAuth.ts
+C:\VENTA-DE-PASAJES\docs\dia-65-cloud-run-mfe-backend-auth.md
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\grant-cloudrun-invoker.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\grant-cloudrun-invoker.ps1 -Execute
+npm run typecheck -w @venta-pasajes/mfe-identity
+npm run typecheck -w @venta-pasajes/mfe-dispatch
+npm run typecheck -w @venta-pasajes/mfe-ticketing
+npm run typecheck -w @venta-pasajes/mfe-reporting
+npm run typecheck -w @venta-pasajes/mfe-admin
+npm run build -w @venta-pasajes/mfe-identity
+npm run build -w @venta-pasajes/mfe-dispatch
+npm run build -w @venta-pasajes/mfe-ticketing
+npm run build -w @venta-pasajes/mfe-reporting
+npm run build -w @venta-pasajes/mfe-admin
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-frontend-images.ps1 -Apps mfe-identity,mfe-dispatch,mfe-ticketing,mfe-reporting,mfe-admin -ImageTag 0.1.2-frontend -SkipSharedTypesBuild
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-frontend-images.ps1 -Apps mfe-identity,mfe-dispatch,mfe-ticketing,mfe-reporting,mfe-admin -ImageTag 0.1.2-frontend -SkipNextBuild -SkipDockerBuild -Push
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 -ServiceIds mfe-identity,mfe-dispatch,mfe-ticketing,mfe-reporting,mfe-admin -SourceTag 0.1.2-frontend -TargetTag dev
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 -ServiceIds mfe-identity,mfe-dispatch,mfe-ticketing,mfe-reporting,mfe-admin -SourceTag 0.1.2-frontend -TargetTag dev -Execute
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev -ServiceIds mfe-identity,mfe-dispatch,mfe-ticketing,mfe-reporting,mfe-admin -ResolveExistingServiceUrls -CheckImagesOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ImageTag dev -ServiceIds mfe-identity,mfe-dispatch,mfe-ticketing,mfe-reporting,mfe-admin -ResolveExistingServiceUrls -Execute
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-dispatch-service-native.ps1 -ImageTag 0.1.1-cloudsql-test -UseCleanWorkspace -SkipDockerBuild
+```
+
+Validaciones:
+
+```text
+Permisos invoker aplicados en seis backends.
+MFEs desplegados con auth service-to-service.
+Admin operativo despues del despliegue.
+Package JVM backend OK con Cloud SQL Socket Factory.
+Native build backend con Cloud SQL Socket Factory pendiente por error GraalVM/Mandrel jnr.
+```
+
+Lectura ejecutiva:
+
+```text
+El bloqueo de Forbidden entre MFEs y backends privados quedo resuelto.
+Los errores 500 restantes pertenecen a la capa backend nativa y Cloud SQL Socket Factory, no al shell ni al proxy MFE.
+El siguiente dia debe cerrar la estrategia backend: resolver native image con Cloud SQL o crear imagen JVM para Cloud Run.
+```

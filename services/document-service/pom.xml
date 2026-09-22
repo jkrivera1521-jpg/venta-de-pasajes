@@ -17,6 +17,7 @@
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
         <quarkus.platform.version>3.25.2</quarkus.platform.version>
         <bouncycastle.version>1.77</bouncycastle.version>
+        <cloud-sql-jdbc-socket-factory.version>1.24.2</cloud-sql-jdbc-socket-factory.version>
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.3</surefire-plugin.version>
     </properties>
@@ -45,6 +46,11 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-jdbc-postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.cloud.sql</groupId>
+            <artifactId>postgres-socket-factory</artifactId>
+            <version>${cloud-sql-jdbc-socket-factory.version}</version>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>

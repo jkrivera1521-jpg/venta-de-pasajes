@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { applyCloudRunAuthorization } from "../../_lib/cloudRunAuth";
 
 const defaultReportingApiUrl = "http://localhost:8085/api/v1/reporting";
 
@@ -39,6 +40,8 @@ async function proxyReportingRequest(request: Request, context: RouteContext) {
   }
 
   headers.set("x-correlation-id", correlationId);
+
+  await applyCloudRunAuthorization(headers, targetUrl);
 
   let body: BodyInit | undefined;
   if (!["GET", "HEAD"].includes(request.method)) {

@@ -500,3 +500,65 @@ $Results = foreach ($Script in $Scripts) {
 
 $Results | Format-Table -AutoSize
 ```
+
+## Dia 65 MFE to private backend auth
+
+Grant Cloud Run invoker from the frontend runtime service account to private backends.
+
+Generate and review the plan:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\grant-cloudrun-invoker.ps1
+Get-Content -LiteralPath .\logs\cloudrun-dev\grant-cloudrun-invoker.plan.json -Raw
+```
+
+Execute only after reviewing the plan:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\grant-cloudrun-invoker.ps1 -Execute
+```
+
+Build and publish the MFE images that include Cloud Run service-to-service auth:
+
+```powershell
+npm run typecheck -w @venta-pasajes/mfe-identity
+npm run typecheck -w @venta-pasajes/mfe-dispatch
+npm run typecheck -w @venta-pasajes/mfe-ticketing
+npm run typecheck -w @venta-pasajes/mfe-reporting
+npm run typecheck -w @venta-pasajes/mfe-admin
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-frontend-images.ps1 `
+  -Apps mfe-identity,mfe-dispatch,mfe-ticketing,mfe-reporting,mfe-admin `
+  -ImageTag 0.1.2-frontend `
+  -SkipSharedTypesBuild
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-frontend-images.ps1 `
+  -Apps mfe-identity,mfe-dispatch,mfe-ticketing,mfe-reporting,mfe-admin `
+  -ImageTag 0.1.2-frontend `
+  -SkipNextBuild `
+  -SkipDockerBuild `
+  -Push
+```
+
+Promote and deploy:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 `
+  -ServiceIds mfe-identity,mfe-dispatch,mfe-ticketing,mfe-reporting,mfe-admin `
+  -SourceTag 0.1.2-frontend `
+  -TargetTag dev `
+  -Execute
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
+  -ImageTag dev `
+  -ServiceIds mfe-identity,mfe-dispatch,mfe-ticketing,mfe-reporting,mfe-admin `
+  -ResolveExistingServiceUrls `
+  -Execute
+```
+
+Important backend note:
+
+```text
+Dia 65 solved MFE -> private backend authentication.
+Some functional backend queries can still return HTTP 500 until native backend images include a Cloud SQL Socket Factory solution compatible with GraalVM/Mandrel.
+```

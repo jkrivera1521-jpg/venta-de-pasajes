@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { applyCloudRunAuthorization } from "../../_lib/cloudRunAuth";
 
 const defaultDispatchApiUrl = "http://localhost:8082/api/v1/dispatch";
 const defaultActorUserId = "00000000-0000-0000-0000-000000000025";
@@ -42,6 +43,8 @@ async function proxyDispatchRequest(request: Request, context: RouteContext) {
 
   headers.set("x-actor-user-id", actorUserId);
   headers.set("x-correlation-id", correlationId);
+
+  await applyCloudRunAuthorization(headers, targetUrl);
 
   let body: BodyInit | undefined;
   if (!["GET", "HEAD"].includes(request.method)) {

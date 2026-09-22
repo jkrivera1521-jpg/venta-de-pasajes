@@ -8,7 +8,7 @@ Fecha de inicio: 2026-09-01
 
 Avance documentado:
 
-- Dias 1 a 64 documentados en `docs`.
+- Dias 1 a 65 documentados en `docs`.
 - Monorepo base preparado para desarrollo multi-modulo.
 - Toolchain backend Quarkus validada con servicio demo JVM y nativo.
 - Toolchain frontend Next.js/MFE validada con shell y MFE Identity demo.
@@ -29,6 +29,8 @@ Avance documentado:
 - Seis imagenes frontend Next.js publicadas en Artifact Registry con tag `0.1.0-frontend`.
 - Frontends desplegados en Cloud Run dev con health, manifiestos MFE y rutas embedded validadas.
 - `frontend-shell` actualizado para resolver manifiestos MFE en runtime y no servir URLs `localhost` en Cloud Run.
+- MFEs actualizados para invocar backends privados de Cloud Run con identity token service-to-service.
+- Pendiente tecnico identificado: recompilacion nativa backend con Cloud SQL Socket Factory y GraalVM/Mandrel.
 - El sistema legacy se conserva en `legacy`.
 - Los respaldos iniciales se guardan en `backups`.
 - La bitacora operativa vive en `vitacora.md`.
@@ -105,6 +107,7 @@ backups/
 - `docs/dia-62-imagenes-docker-frontends.md`: construccion, validacion local y publicacion de imagenes Docker frontend.
 - `docs/dia-63-despliegue-cloud-run-frontends.md`: promocion a `dev` y despliegue Cloud Run dev de frontends.
 - `docs/dia-64-runtime-config-shell-cloud-run.md`: runtime config del shell y validacion publica sin URLs `localhost`.
+- `docs/dia-65-cloud-run-mfe-backend-auth.md`: autenticacion de MFEs hacia backends privados en Cloud Run.
 - `docs/onpremise-offline-runbook.md`: guia para correr servicios sin dependencia de Google Cloud.
 - `docs/api-conventions.md`: convenciones REST.
 - `docs/naming-standards.md`: estandar de nombres.
@@ -124,4 +127,4 @@ backups/
 
 - Integrar emision de boleto con generacion/descarga de comprobante.
 - Conectar outbox de eventos a Pub/Sub.
-- Validar flujo funcional end-to-end desde el shell publico en Cloud Run contra APIs backend.
+- Resolver compilacion nativa backend con Cloud SQL Socket Factory o definir imagen JVM backend para Cloud Run.

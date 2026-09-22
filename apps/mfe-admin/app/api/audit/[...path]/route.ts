@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { applyCloudRunAuthorization } from "../../_lib/cloudRunAuth";
 
 const defaultAuditApiUrl = "http://localhost:8086/api/v1/audit";
 
@@ -44,6 +45,8 @@ async function proxyAuditRequest(request: Request, context: RouteContext) {
   }
 
   headers.set("x-correlation-id", correlationId);
+
+  await applyCloudRunAuthorization(headers, targetUrl);
 
   let body: BodyInit | undefined;
   if (!["GET", "HEAD"].includes(request.method)) {
