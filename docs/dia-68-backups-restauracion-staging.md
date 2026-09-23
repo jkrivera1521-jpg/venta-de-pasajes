@@ -14,93 +14,152 @@ Objetivo del plan:
 
 ## Resultado real de esta ejecucion
 
-Se creo un verificador de preparacion:
+El bloqueo inicial fue solventado: el ambiente staging y su bucket documental ya existen en Google Cloud, y la prueba real de restauracion fue ejecutada.
+
+Acciones reales ejecutadas:
+
+- Se creo la configuracion staging en `C:\VENTA-DE-PASAJES\infra\gcloud\cloudsql-staging.json`.
+- Se creo Cloud SQL staging `venta-pasajes-staging-sql`.
+- Se crearon las bases `identity_db`, `dispatch_db`, `ticketing_db`, `documents_db`, `reporting_db` y `audit_db`.
+- Se crearon usuarios IAM de base para los seis microservicios.
+- Se creo el bucket documental `gs://venta-pasajes-staging-documents`.
+- Se otorgo permiso `roles/storage.objectAdmin` al runtime de `document-service`.
+- Se subio un marcador documental a `gs://venta-pasajes-staging-documents/_restore-tests/dia68-marker.txt`.
+- Se creo un backup on demand de Cloud SQL staging.
+- Se restauro ese backup en la instancia temporal `venta-pasajes-staging-restore-test`.
+- Se valido que la instancia restaurada tenia las bases y usuarios esperados.
+- Se copio el marcador documental a un bucket temporal de restauracion.
+- Se eliminaron los recursos temporales de prueba.
+
+## Evidencia
+
+Cloud SQL staging:
 
 ```text
-C:\VENTA-DE-PASAJES\scripts\verify-backup-restore-readiness.ps1
+Instancia fuente: venta-pasajes-staging-sql
+Estado final: RUNNABLE
+Version: POSTGRES_16
+Tier: db-f1-micro
+Backups: habilitados
+Backup start time: 09:00
+Backups retenidos: 7
+Deletion protection: habilitado
 ```
 
-El verificador no crea recursos, no restaura bases y no borra nada. Solo revisa:
-
-- Si existe la instancia Cloud SQL del ambiente.
-- Si los backups Cloud SQL estan habilitados.
-- Si existen backups exitosos.
-- Si el nombre de instancia temporal de restauracion esta libre.
-- Si existe el bucket documental del ambiente.
-- Si el ambiente esta listo para ejecutar una prueba real de restauracion.
-
-Resultado contra `staging`:
+Backup usado para la prueba:
 
 ```text
-Cloud SQL source instance exists: False
-Cloud SQL backup enabled:         False
-Cloud SQL successful backups:     0
-Cloud SQL restore target free:    True
-Storage document bucket exists:   False
-Overall ready for restore test:   False
+Backup ID: 1790111529323
+Tipo: ON_DEMAND
+Estado: SUCCESSFUL
+Inicio: 2026-09-22T21:12:09.329Z
+Fin: 2026-09-22T21:13:20.354Z
+Descripcion: dia68-staging-restore-test
 ```
 
-Bloqueos reales:
+Restauracion Cloud SQL:
 
 ```text
-Cloud SQL source instance does not exist: venta-pasajes-staging-sql
-Document bucket does not exist: gs://venta-pasajes-staging-documents
+Instancia temporal: venta-pasajes-staging-restore-test
+Resultado: restauracion exitosa
+RTO medido: 1047.06 segundos
+RTO medido: 17.45 minutos
+Bases restauradas: postgres, identity_db, dispatch_db, ticketing_db, documents_db, reporting_db, audit_db
+Usuarios IAM restaurados: 6
+Estado final de la instancia temporal: eliminada
 ```
 
-Resultado contra `dev` como control tecnico:
+Restauracion Storage:
+
+```text
+Bucket fuente: gs://venta-pasajes-staging-documents
+Objeto fuente: gs://venta-pasajes-staging-documents/_restore-tests/dia68-marker.txt
+Bucket temporal: gs://venta-pasajes-staging-documents-restore-test
+Objeto restaurado: gs://venta-pasajes-staging-documents-restore-test/_restore-tests/dia68-marker.txt
+Estado final del bucket temporal: eliminado
+```
+
+Archivos de evidencia local:
+
+```text
+C:\VENTA-DE-PASAJES\logs\backup-restore\dia68-restore-evidence.json
+C:\VENTA-DE-PASAJES\logs\backup-restore\verify-backup-restore-readiness-staging.json
+```
+
+Resultado final del verificador:
 
 ```text
 Cloud SQL source instance exists: True
 Cloud SQL backup enabled:         True
-Cloud SQL successful backups:     7
+Cloud SQL successful backups:     1 o mas
 Cloud SQL restore target free:    True
-Storage document bucket exists:   False
-Overall ready for restore test:   False
+Storage document bucket exists:   True
+Overall ready for restore test:   True
 ```
-
-El backup Cloud SQL `dev` mas reciente observado:
-
-```text
-Backup ID: 1790064000000
-Fin:       2026-09-22T10:12:08.727Z
-RPO aproximado al momento de validacion: 10.5 horas
-```
-
-La prueba real de restauracion **no se ejecuto** porque el ambiente `staging` todavia no existe en Google Cloud y tampoco existe su bucket documental.
 
 ## Reversa primero
 
-Esta practica solo agrega documentacion y un verificador local de solo lectura. No hay reversa de infraestructura porque no se crearon, restauraron ni eliminaron recursos cloud.
+### Reversa de recursos temporales de prueba
 
-Para retirar los cambios locales de este dia:
-
-```powershell
-cd C:\VENTA-DE-PASAJES
-
-git restore -- README.md infra\README.md vitacora.md
-
-Remove-Item -LiteralPath .\scripts\verify-backup-restore-readiness.ps1 -Force
-Remove-Item -LiteralPath .\docs\dia-68-backups-restauracion-staging.md -Force
-```
-
-Para borrar los resultados JSON locales:
+Estos recursos ya fueron eliminados al cierre de la practica. Si se vuelven a crear, se eliminan asi:
 
 ```powershell
 cd C:\VENTA-DE-PASAJES
 
-Remove-Item -LiteralPath .\logs\backup-restore\verify-backup-restore-readiness-staging.json -Force
-Remove-Item -LiteralPath .\logs\backup-restore\verify-backup-restore-readiness-dev.json -Force
-```
+gcloud storage rm --recursive gs://venta-pasajes-staging-documents-restore-test `
+  --project project-fbb34cd7-0b82-43e1-867 `
+  --quiet
 
-Si en el futuro se crea una instancia temporal de restauracion, la reversa de esa prueba seria:
-
-```powershell
 gcloud sql instances delete venta-pasajes-staging-restore-test `
   --project project-fbb34cd7-0b82-43e1-867 `
   --quiet
 ```
 
-Nunca ejecutar ese comando contra la instancia fuente `venta-pasajes-staging-sql`.
+### Reversa del marcador documental
+
+Esto elimina solo el archivo de prueba, no el bucket staging:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+gcloud storage rm gs://venta-pasajes-staging-documents/_restore-tests/dia68-marker.txt `
+  --project project-fbb34cd7-0b82-43e1-867 `
+  --quiet
+```
+
+### Reversa completa del ambiente staging creado en este dia
+
+Ejecutar solo si se decide destruir staging completo. Este bloque elimina infraestructura real y puede afectar futuras practicas:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+gcloud storage rm --recursive gs://venta-pasajes-staging-documents `
+  --project project-fbb34cd7-0b82-43e1-867 `
+  --quiet
+
+gcloud sql instances patch venta-pasajes-staging-sql `
+  --project project-fbb34cd7-0b82-43e1-867 `
+  --no-deletion-protection `
+  --quiet
+
+gcloud sql instances delete venta-pasajes-staging-sql `
+  --project project-fbb34cd7-0b82-43e1-867 `
+  --quiet
+```
+
+### Reversa de cambios locales del repositorio
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+git restore -- README.md infra\README.md vitacora.md scripts\verify-backup-restore-readiness.ps1
+
+Remove-Item -LiteralPath .\infra\gcloud\cloudsql-staging.json -Force
+Remove-Item -LiteralPath .\docs\dia-68-backups-restauracion-staging.md -Force
+Remove-Item -LiteralPath .\logs\backup-restore\verify-backup-restore-readiness-staging.json -Force
+Remove-Item -LiteralPath .\logs\backup-restore\dia68-restore-evidence.json -Force
+```
 
 ## Guia manual desde cero
 
@@ -110,197 +169,322 @@ Nunca ejecutar ese comando contra la instancia fuente `venta-pasajes-staging-sql
 cd C:\VENTA-DE-PASAJES
 ```
 
-### Paso 2 - Validar que el script existe
+### Paso 2 - Validar archivos requeridos
 
 ```powershell
+Test-Path -LiteralPath .\infra\gcloud\cloudsql-staging.json
+Test-Path -LiteralPath .\infra\gcloud\bootstrap-cloudsql-dev.ps1
 Test-Path -LiteralPath .\scripts\verify-backup-restore-readiness.ps1
 ```
 
-Debe devolver:
+Los tres comandos deben devolver:
 
 ```text
 True
 ```
 
-### Paso 3 - Verificar staging
+### Paso 3 - Crear Cloud SQL staging
+
+El script se llama `bootstrap-cloudsql-dev.ps1` por origen historico, pero aqui se usa con configuracion staging:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\bootstrap-cloudsql-dev.ps1 `
+  -ConfigPath .\infra\gcloud\cloudsql-staging.json `
+  -ProjectId project-fbb34cd7-0b82-43e1-867
+```
+
+Validar:
+
+```powershell
+gcloud sql instances describe venta-pasajes-staging-sql `
+  --project project-fbb34cd7-0b82-43e1-867 `
+  --format="table(name,state,databaseVersion,region,settings.tier)"
+
+gcloud sql databases list `
+  --instance venta-pasajes-staging-sql `
+  --project project-fbb34cd7-0b82-43e1-867
+```
+
+### Paso 4 - Crear bucket documental staging
+
+```powershell
+gcloud storage buckets create gs://venta-pasajes-staging-documents `
+  --project project-fbb34cd7-0b82-43e1-867 `
+  --location us-central1 `
+  --uniform-bucket-level-access `
+  --public-access-prevention `
+  --default-storage-class STANDARD
+```
+
+Dar permisos al runtime de `document-service`:
+
+```powershell
+gcloud storage buckets add-iam-policy-binding gs://venta-pasajes-staging-documents `
+  --project project-fbb34cd7-0b82-43e1-867 `
+  --member serviceAccount:document-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com `
+  --role roles/storage.objectAdmin
+```
+
+### Paso 5 - Crear marcador documental de prueba
+
+```powershell
+New-Item -ItemType Directory -Force -Path .\logs\backup-restore | Out-Null
+
+"dia68 storage restore marker $(Get-Date -Format o)" |
+  Set-Content -LiteralPath .\logs\backup-restore\dia68-storage-restore-marker.txt -Encoding ASCII
+
+gcloud storage cp `
+  .\logs\backup-restore\dia68-storage-restore-marker.txt `
+  gs://venta-pasajes-staging-documents/_restore-tests/dia68-marker.txt `
+  --project project-fbb34cd7-0b82-43e1-867
+
+gcloud storage ls gs://venta-pasajes-staging-documents/_restore-tests/ `
+  --project project-fbb34cd7-0b82-43e1-867
+```
+
+### Paso 6 - Crear backup on demand
+
+```powershell
+gcloud sql backups create `
+  --instance venta-pasajes-staging-sql `
+  --project project-fbb34cd7-0b82-43e1-867 `
+  --description dia68-staging-restore-test
+```
+
+Validar el backup:
+
+```powershell
+gcloud sql backups list `
+  --instance venta-pasajes-staging-sql `
+  --project project-fbb34cd7-0b82-43e1-867 `
+  --format="table(id,status,type,startTime,endTime,description)" `
+  --limit=5
+```
+
+### Paso 7 - Verificar preparacion de restore
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-backup-restore-readiness.ps1 `
   -Environment staging
 ```
 
-Resultado actual:
+Debe devolver:
 
 ```text
-ready for restore test: False
+Overall ready for restore test: True
 ```
 
-Bloqueos actuales:
+### Paso 8 - Crear instancia temporal de restore
 
-```text
-Cloud SQL source instance does not exist: venta-pasajes-staging-sql
-Document bucket does not exist: gs://venta-pasajes-staging-documents
-```
-
-El resultado se guarda en:
-
-```text
-C:\VENTA-DE-PASAJES\logs\backup-restore\verify-backup-restore-readiness-staging.json
-```
-
-### Paso 4 - Verificar dev como control tecnico
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-backup-restore-readiness.ps1 `
-  -Environment dev
-```
-
-Resultado actual:
-
-```text
-Cloud SQL dev tiene backups habilitados y 7 backups exitosos.
-El bucket gs://venta-pasajes-dev-documents no existe.
-```
-
-El resultado se guarda en:
-
-```text
-C:\VENTA-DE-PASAJES\logs\backup-restore\verify-backup-restore-readiness-dev.json
-```
-
-### Paso 5 - Revisar el resumen JSON
-
-```powershell
-$Result = Get-Content -LiteralPath .\logs\backup-restore\verify-backup-restore-readiness-staging.json -Raw | ConvertFrom-Json
-$Result.readiness
-```
-
-### Paso 6 - Ejecutar restauracion real solo cuando staging exista
-
-No ejecutar este paso hasta que el verificador devuelva:
-
-```text
-ready_for_restore_test: True
-```
-
-Cuando staging exista y tenga al menos un backup exitoso:
+Obtener el ultimo backup exitoso desde el JSON del verificador:
 
 ```powershell
 $Result = Get-Content -LiteralPath .\logs\backup-restore\verify-backup-restore-readiness-staging.json -Raw | ConvertFrom-Json
 $BackupId = $Result.cloud_sql.latest_successful_backup_id
+$BackupId
+```
+
+Crear la instancia temporal:
+
+```powershell
+gcloud sql instances create venta-pasajes-staging-restore-test `
+  --project=project-fbb34cd7-0b82-43e1-867 `
+  --database-version=POSTGRES_16 `
+  --tier=db-f1-micro `
+  --region=us-central1 `
+  --availability-type=ZONAL `
+  --storage-type=SSD `
+  --storage-size=10 `
+  --no-backup `
+  --no-deletion-protection `
+  --storage-auto-increase `
+  --database-flags=cloudsql.iam_authentication=on
+```
+
+### Paso 9 - Restaurar el backup Cloud SQL
+
+```powershell
+$RestoreStart = Get-Date
 
 gcloud sql backups restore $BackupId `
   --backup-instance=venta-pasajes-staging-sql `
   --restore-instance=venta-pasajes-staging-restore-test `
   --project=project-fbb34cd7-0b82-43e1-867 `
-  --region=us-central1 `
-  --database-version=POSTGRES_16 `
-  --tier=db-f1-micro `
-  --storage-size=10 `
-  --storage-type=PD_SSD `
-  --availability-type=zonal `
-  --no-deletion-protection `
   --quiet
+
+$RestoreEnd = Get-Date
+$RestoreDuration = $RestoreEnd - $RestoreStart
+$RestoreDuration.TotalSeconds
+$RestoreDuration.TotalMinutes
 ```
 
-Validar la instancia restaurada:
+Validar instancia restaurada:
 
 ```powershell
-gcloud sql instances describe venta-pasajes-staging-restore-test `
-  --project project-fbb34cd7-0b82-43e1-867 `
-  --format="table(name,state,databaseVersion,region)"
-
 gcloud sql databases list `
+  --instance venta-pasajes-staging-restore-test `
+  --project project-fbb34cd7-0b82-43e1-867
+
+gcloud sql users list `
   --instance venta-pasajes-staging-restore-test `
   --project project-fbb34cd7-0b82-43e1-867
 ```
 
-### Paso 7 - Probar restauracion de Storage cuando exista bucket staging
-
-No ejecutar hasta que exista:
-
-```text
-gs://venta-pasajes-staging-documents
-```
-
-Crear bucket temporal:
+### Paso 10 - Probar restauracion de Storage
 
 ```powershell
 gcloud storage buckets create gs://venta-pasajes-staging-documents-restore-test `
   --project project-fbb34cd7-0b82-43e1-867 `
   --location us-central1 `
   --uniform-bucket-level-access `
-  --public-access-prevention
-```
+  --public-access-prevention `
+  --default-storage-class STANDARD
 
-Copiar objetos para prueba:
-
-```powershell
 gcloud storage cp -r `
-  gs://venta-pasajes-staging-documents/** `
-  gs://venta-pasajes-staging-documents-restore-test/
+  gs://venta-pasajes-staging-documents/_restore-tests `
+  gs://venta-pasajes-staging-documents-restore-test/ `
+  --project project-fbb34cd7-0b82-43e1-867
+
+gcloud storage ls gs://venta-pasajes-staging-documents-restore-test/_restore-tests/ `
+  --project project-fbb34cd7-0b82-43e1-867
 ```
 
-Validar objetos restaurados:
+Debe mostrarse:
 
-```powershell
-gcloud storage ls gs://venta-pasajes-staging-documents-restore-test --recursive
+```text
+gs://venta-pasajes-staging-documents-restore-test/_restore-tests/dia68-marker.txt
 ```
 
-Eliminar bucket temporal despues de la prueba:
+### Paso 11 - Guardar evidencia local
 
 ```powershell
-gcloud storage rm -r gs://venta-pasajes-staging-documents-restore-test/**
+$Evidence = [ordered]@{
+  generated_at = (Get-Date).ToString("o")
+  cloud_sql_source = "venta-pasajes-staging-sql"
+  cloud_sql_backup_id = $BackupId
+  cloud_sql_restore_instance = "venta-pasajes-staging-restore-test"
+  cloud_sql_restore_duration_seconds = [Math]::Round($RestoreDuration.TotalSeconds, 2)
+  cloud_sql_restore_duration_minutes = [Math]::Round($RestoreDuration.TotalMinutes, 2)
+  storage_source_bucket = "gs://venta-pasajes-staging-documents"
+  storage_restore_bucket = "gs://venta-pasajes-staging-documents-restore-test"
+  storage_restored_object = "gs://venta-pasajes-staging-documents-restore-test/_restore-tests/dia68-marker.txt"
+}
 
-gcloud storage buckets delete gs://venta-pasajes-staging-documents-restore-test `
+$Evidence |
+  ConvertTo-Json -Depth 8 |
+  Set-Content -LiteralPath .\logs\backup-restore\dia68-restore-evidence.json -Encoding UTF8
+```
+
+### Paso 12 - Eliminar recursos temporales
+
+No dejar activos los recursos temporales de restore:
+
+```powershell
+gcloud storage rm --recursive gs://venta-pasajes-staging-documents-restore-test `
+  --project project-fbb34cd7-0b82-43e1-867 `
   --quiet
+
+gcloud sql instances delete venta-pasajes-staging-restore-test `
+  --project project-fbb34cd7-0b82-43e1-867 `
+  --quiet
+```
+
+### Paso 13 - Verificacion final
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-backup-restore-readiness.ps1 `
+  -Environment staging
+```
+
+Resultado esperado:
+
+```text
+Cloud SQL source instance exists: True
+Cloud SQL backup enabled:         True
+Cloud SQL successful backups:     1 o mas
+Cloud SQL restore target free:    True
+Storage document bucket exists:   True
+Overall ready for restore test:   True
 ```
 
 ## RTO y RPO inicial
 
-Definicion operativa:
+RTO:
 
 ```text
-RPO: cuanto dato se podria perder. Para backups diarios, el RPO maximo esperado es cercano a 24 horas.
-RTO: cuanto tarda volver a levantar una copia util del sistema despues de restaurar.
+Tiempo medido de restauracion Cloud SQL a instancia temporal: 17.45 minutos.
 ```
 
-Estado actual:
+RPO:
 
 ```text
-Staging: no medible todavia porque no existe instancia ni bucket.
-Dev Cloud SQL: backups automaticos activos; ultimo backup exitoso observado el 2026-09-22T10:12:08.727Z.
-Dev Storage documental: bucket esperado no existe, por tanto la restauracion documental no es medible todavia.
+Backup on demand usado: 1790111529323.
+Fin del backup: 2026-09-22T21:13:20.354Z.
+Para este ensayo, el punto de recuperacion fue el backup on demand.
+Con backups automaticos diarios, el RPO operativo maximo esperado se acerca a 24 horas si no se agregan backups on demand o PITR.
+```
+
+Storage:
+
+```text
+La prueba documental valido copia de objeto desde bucket staging hacia bucket temporal de restauracion.
+Este ensayo valida la ruta basica, no reemplaza una politica formal de versionado, retencion o DR multi-region.
 ```
 
 ## Comandos ejecutados
 
 ```powershell
-gcloud sql instances list --project project-fbb34cd7-0b82-43e1-867 --format="table(name,region,state,databaseVersion,settings.backupConfiguration.enabled)"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\bootstrap-cloudsql-dev.ps1 -ConfigPath .\infra\gcloud\cloudsql-staging.json -ProjectId project-fbb34cd7-0b82-43e1-867
 
-gcloud sql backups list --instance venta-pasajes-dev-sql --project project-fbb34cd7-0b82-43e1-867 --format="table(id,status,type,startTime,endTime)" --limit=10
+gcloud storage buckets create gs://venta-pasajes-staging-documents --project project-fbb34cd7-0b82-43e1-867 --location us-central1 --uniform-bucket-level-access --public-access-prevention --default-storage-class STANDARD
 
-gcloud storage buckets list --project project-fbb34cd7-0b82-43e1-867 --format="table(name,location,storageClass,uniformBucketLevelAccess.enabled)"
+gcloud storage buckets add-iam-policy-binding gs://venta-pasajes-staging-documents --project project-fbb34cd7-0b82-43e1-867 --member serviceAccount:document-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com --role roles/storage.objectAdmin
 
-gcloud sql instances describe venta-pasajes-staging-sql --project project-fbb34cd7-0b82-43e1-867 --format=json
+gcloud storage cp .\logs\backup-restore\dia68-storage-restore-marker.txt gs://venta-pasajes-staging-documents/_restore-tests/dia68-marker.txt --project project-fbb34cd7-0b82-43e1-867
 
-gcloud storage buckets describe gs://venta-pasajes-staging-documents --project project-fbb34cd7-0b82-43e1-867 --format=json
+gcloud sql backups create --instance venta-pasajes-staging-sql --project project-fbb34cd7-0b82-43e1-867 --description dia68-staging-restore-test
 
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-backup-restore-readiness.ps1 -Environment staging
 
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-backup-restore-readiness.ps1 -Environment dev
+gcloud sql instances create venta-pasajes-staging-restore-test --project=project-fbb34cd7-0b82-43e1-867 --database-version=POSTGRES_16 --tier=db-f1-micro --region=us-central1 --availability-type=ZONAL --storage-type=SSD --storage-size=10 --no-backup --no-deletion-protection --storage-auto-increase --database-flags=cloudsql.iam_authentication=on
+
+gcloud sql backups restore 1790111529323 --backup-instance=venta-pasajes-staging-sql --restore-instance=venta-pasajes-staging-restore-test --project=project-fbb34cd7-0b82-43e1-867 --quiet
+
+gcloud sql databases list --instance venta-pasajes-staging-restore-test --project project-fbb34cd7-0b82-43e1-867
+
+gcloud sql users list --instance venta-pasajes-staging-restore-test --project project-fbb34cd7-0b82-43e1-867
+
+gcloud storage buckets create gs://venta-pasajes-staging-documents-restore-test --project project-fbb34cd7-0b82-43e1-867 --location us-central1 --uniform-bucket-level-access --public-access-prevention --default-storage-class STANDARD
+
+gcloud storage cp -r gs://venta-pasajes-staging-documents/_restore-tests gs://venta-pasajes-staging-documents-restore-test/ --project project-fbb34cd7-0b82-43e1-867
+
+gcloud storage ls gs://venta-pasajes-staging-documents-restore-test/_restore-tests/ --project project-fbb34cd7-0b82-43e1-867
+
+gcloud storage rm --recursive gs://venta-pasajes-staging-documents-restore-test --project project-fbb34cd7-0b82-43e1-867 --quiet
+
+gcloud sql instances delete venta-pasajes-staging-restore-test --project project-fbb34cd7-0b82-43e1-867 --quiet
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-backup-restore-readiness.ps1 -Environment staging
 ```
 
 ## Cierre del dia
 
-El procedimiento de backup/restore queda preparado y verificable.
+Dia 68 queda ejecutado con prueba real.
 
-La ejecucion real de restauracion staging queda bloqueada por prerequisitos faltantes:
+Estado final:
 
 ```text
-1. Crear Cloud SQL staging: venta-pasajes-staging-sql.
-2. Crear bucket documental staging: gs://venta-pasajes-staging-documents.
-3. Generar al menos un backup exitoso en staging.
-4. Reejecutar verify-backup-restore-readiness.ps1 -Environment staging.
-5. Ejecutar restauracion temporal y medir RTO real.
+Staging Cloud SQL existe y esta RUNNABLE.
+Bucket documental staging existe.
+Backup on demand existe y fue restaurado.
+RTO inicial documentado: 17.45 minutos.
+Prueba de Storage ejecutada y validada.
+Recursos temporales eliminados.
+Verificador final listo: True.
+```
+
+Nota operativa:
+
+```text
+La instancia venta-pasajes-staging-sql y el bucket gs://venta-pasajes-staging-documents son recursos reales de Google Cloud y pueden generar costo.
 ```

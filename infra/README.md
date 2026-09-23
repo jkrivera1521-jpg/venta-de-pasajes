@@ -648,9 +648,22 @@ The JSON result is written to:
 C:\VENTA-DE-PASAJES\logs\cloudrun-dev\verify-cloudrun-dev-stack.result.json
 ```
 
-## Dia 68 staging backup and restore readiness
+## Dia 68 staging backup and restore
 
-Run the read-only backup/restore readiness verifier for staging:
+Staging Cloud SQL and the staging document bucket now exist:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+gcloud sql instances describe venta-pasajes-staging-sql `
+  --project project-fbb34cd7-0b82-43e1-867 `
+  --format="table(name,state,databaseVersion,region,settings.tier)"
+
+gcloud storage buckets describe gs://venta-pasajes-staging-documents `
+  --project project-fbb34cd7-0b82-43e1-867
+```
+
+Run the backup/restore readiness verifier for staging:
 
 ```powershell
 cd C:\VENTA-DE-PASAJES
@@ -659,25 +672,37 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-backup-rest
   -Environment staging
 ```
 
-Current observed blockers:
+Expected final state:
 
 ```text
-Cloud SQL source instance does not exist: venta-pasajes-staging-sql
-Document bucket does not exist: gs://venta-pasajes-staging-documents
+Cloud SQL source instance exists: True
+Cloud SQL backup enabled: True
+Cloud SQL successful backups: 1 or more
+Cloud SQL restore target free: True
+Storage document bucket exists: True
+Overall ready for restore test: True
 ```
 
-Run the same verifier against dev as a control check:
+The first real restore test used backup `1790111529323` and measured an initial Cloud SQL RTO of `17.45` minutes.
+
+Temporary restore resources were removed after validation:
 
 ```powershell
 cd C:\VENTA-DE-PASAJES
 
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-backup-restore-readiness.ps1 `
-  -Environment dev
+gcloud storage rm --recursive gs://venta-pasajes-staging-documents-restore-test `
+  --project project-fbb34cd7-0b82-43e1-867 `
+  --quiet
+
+gcloud sql instances delete venta-pasajes-staging-restore-test `
+  --project project-fbb34cd7-0b82-43e1-867 `
+  --quiet
 ```
 
-Observed dev state:
+Evidence:
 
 ```text
-Cloud SQL dev backups are enabled and 7 successful backups were found.
-The document bucket gs://venta-pasajes-dev-documents does not exist.
+C:\VENTA-DE-PASAJES\docs\dia-68-backups-restauracion-staging.md
+C:\VENTA-DE-PASAJES\logs\backup-restore\dia68-restore-evidence.json
+C:\VENTA-DE-PASAJES\logs\backup-restore\verify-backup-restore-readiness-staging.json
 ```

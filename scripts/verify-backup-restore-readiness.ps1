@@ -231,7 +231,59 @@ $ReadyForRestoreTest = (
 
 $RestoreCommand = $null
 if ($LatestSuccessfulBackup) {
-  $RestoreCommand = "gcloud sql backups restore $($LatestSuccessfulBackup.id) --backup-instance=$CloudSqlInstanceName --restore-instance=$RestoreInstanceName --project=$ProjectId --region=$Region --database-version=$($Instance.databaseVersion) --tier=$($Instance.settings.tier) --storage-size=$($Instance.settings.dataDiskSizeGb) --storage-type=$($Instance.settings.dataDiskType) --availability-type=zonal --no-deletion-protection --quiet"
+  $StorageType = switch ([string]$Instance.settings.dataDiskType) {
+    "PD_HDD" { "HDD" }
+    "PD_SSD" { "SSD" }
+    default { "SSD" }
+  }
+  $DatabaseFlags = @(
+    $Instance.settings.databaseFlags |
+      ForEach-Object { "$($_.name)=$($_.value)" }
+  ) -join ","
+
+  $CreateRestoreInstanceCommand = @(
+    "gcloud sql instances create $RestoreInstanceName",
+    "--project=$ProjectId",
+    "--database-version=$($Instance.databaseVersion)",
+    "--tier=$($Instance.settings.tier)",
+    "--region=$Region",
+    "--availability-type=ZONAL",
+    "--storage-type=$StorageType",
+    "--storage-size=$($Instance.settings.dataDiskSizeGb)",
+    "--no-backup",
+    "--no-deletion-protection",
+    "--storage-auto-increase"
+  )
+
+  if (-not [string]::IsNullOrWhiteSpace($DatabaseFlags)) {
+    $CreateRestoreInstanceCommand += "--database-flags=$DatabaseFlags"
+  }
+
+  $RestoreBackupCommand = @(
+    "gcloud sql backups restore $($LatestSuccessfulBackup.id)",
+    "--backup-instance=$CloudSqlInstanceName",
+    "--restore-instance=$RestoreInstanceName",
+    "--project=$ProjectId",
+    "--quiet"
+  )
+
+  $RestoreCommand = (($CreateRestoreInstanceCommand -join " ") + [Environment]::NewLine + ($RestoreBackupCommand -join " "))
+}
+
+$StorageClass = $null
+$UniformBucketLevelAccess = $null
+$PublicAccessPrevention = $null
+if ($BucketExists) {
+  $StorageClass = First-Value @([string]$Bucket.storageClass, [string]$Bucket.default_storage_class)
+  if ($null -ne $Bucket.iamConfiguration -and $null -ne $Bucket.iamConfiguration.uniformBucketLevelAccess) {
+    $UniformBucketLevelAccess = [bool]$Bucket.iamConfiguration.uniformBucketLevelAccess.enabled
+  } elseif ($null -ne $Bucket.uniform_bucket_level_access) {
+    $UniformBucketLevelAccess = [bool]$Bucket.uniform_bucket_level_access
+  }
+  $PublicAccessPrevention = First-Value @(
+    [string]$Bucket.iamConfiguration.publicAccessPrevention,
+    [string]$Bucket.public_access_prevention
+  )
 }
 
 $Result = [pscustomobject]@{
@@ -259,9 +311,9 @@ $Result = [pscustomobject]@{
     document_bucket_name = $DocumentBucketName
     document_bucket_exists = $BucketExists
     location = if ($BucketExists) { [string]$Bucket.location } else { $null }
-    storage_class = if ($BucketExists) { [string]$Bucket.storageClass } else { $null }
-    uniform_bucket_level_access = if ($BucketExists) { [bool]$Bucket.iamConfiguration.uniformBucketLevelAccess.enabled } else { $null }
-    public_access_prevention = if ($BucketExists) { [string]$Bucket.iamConfiguration.publicAccessPrevention } else { $null }
+    storage_class = $StorageClass
+    uniform_bucket_level_access = $UniformBucketLevelAccess
+    public_access_prevention = $PublicAccessPrevention
   }
   readiness = [pscustomobject]@{
     ready_for_restore_test = $ReadyForRestoreTest
