@@ -749,3 +749,70 @@ Evidence:
 C:\VENTA-DE-PASAJES\docs\dia-69-infraestructura-produccion.md
 C:\VENTA-DE-PASAJES\logs\prod-infra\verify-prod-infra.json
 ```
+
+## Dia 70 production IAM and final security
+
+Production IAM now uses dedicated production service accounts and resource-level bindings:
+
+```text
+IAM matrix: C:\VENTA-DE-PASAJES\infra\gcloud\iam-prod.json
+Bootstrap:  C:\VENTA-DE-PASAJES\infra\gcloud\bootstrap-iam-prod.ps1
+Verifier:   C:\VENTA-DE-PASAJES\infra\gcloud\verify-iam-prod.ps1
+```
+
+Run from the repository root:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\bootstrap-iam-prod.ps1 `
+  -ProjectId project-fbb34cd7-0b82-43e1-867 `
+  -DryRun `
+  -RemoveLegacyBindings
+```
+
+Apply the real IAM change:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\bootstrap-iam-prod.ps1 `
+  -ProjectId project-fbb34cd7-0b82-43e1-867 `
+  -RemoveLegacyBindings
+```
+
+Verify:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-iam-prod.ps1 `
+  -FailOnNotReady
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-prod-infra.ps1 `
+  -FailOnNotReady
+```
+
+Expected final state:
+
+```text
+IAM prod service accounts exist: True
+IAM project roles complete: True
+IAM deployer can attach prod runtimes: True
+Cloud SQL prod IAM DB users complete: True
+Cloud SQL legacy prod IAM DB users removed: True
+Secrets prod secret accessors complete: True
+Secrets legacy secret accessors removed: True
+Storage prod bucket binding complete: True
+Storage legacy bucket binding removed: True
+Pub/Sub prod publisher bindings complete: True
+Pub/Sub legacy publisher bindings removed: True
+Pub/Sub prod subscriber bindings complete: True
+Pub/Sub legacy subscriber bindings removed: True
+Overall prod IAM ready: True
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-70-iam-produccion-seguridad-final.md
+C:\VENTA-DE-PASAJES\logs\prod-iam\verify-iam-prod.json
+```

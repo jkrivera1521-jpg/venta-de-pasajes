@@ -8636,3 +8636,79 @@ Los topicos DLQ existen, pero las politicas dead-letter quedan pendientes para e
 Cloud Run produccion aun no fue desplegado.
 Estos recursos reales pueden generar costo.
 ```
+
+## Dia 70 - IAM produccion y seguridad final
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 70 - IAM produccion y seguridad final.
+Se creo infra\gcloud\iam-prod.json como matriz IAM productiva.
+Se creo infra\gcloud\bootstrap-iam-prod.ps1 para aplicar identidades y bindings productivos.
+Se creo infra\gcloud\verify-iam-prod.ps1 para validar IAM productivo.
+Se reemplazaron las identidades productivas compartidas por cuentas dedicadas *-prod-run.
+Se crearon 13 service accounts productivas.
+Se aplicaron roles minimos para runtime backend, runtime frontend/MFE y deployer productivo.
+Se crearon seis usuarios IAM productivos de Cloud SQL.
+Se aplicaron accesos productivos a 15 secretos.
+Se aplico binding productivo del bucket documental a document-prod-run.
+Se aplicaron bindings productivos de Pub/Sub para topicos y suscripciones.
+Se removieron accesos legacy productivos de Cloud SQL, Secret Manager, Storage y Pub/Sub.
+Se dejo documentada la politica Cloud Run produccion como deferred_until_services_exist.
+Se documento docs\dia-70-iam-produccion-seguridad-final.md con Reversa primero y Guia manual desde cero.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\infra\gcloud\iam-prod.json
+C:\VENTA-DE-PASAJES\infra\gcloud\bootstrap-iam-prod.ps1
+C:\VENTA-DE-PASAJES\infra\gcloud\verify-iam-prod.ps1
+C:\VENTA-DE-PASAJES\docs\dia-70-iam-produccion-seguridad-final.md
+C:\VENTA-DE-PASAJES\logs\prod-iam\verify-iam-prod.json
+C:\VENTA-DE-PASAJES\logs\prod-infra\verify-prod-infra.json
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\bootstrap-iam-prod.ps1 -ProjectId project-fbb34cd7-0b82-43e1-867 -RemoveLegacyBindings
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-iam-prod.ps1 -FailOnNotReady
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-prod-infra.ps1 -FailOnNotReady
+```
+
+Validaciones:
+
+```text
+IAM prod service accounts exist: True.
+IAM project roles complete: True.
+IAM deployer can attach prod runtimes: True.
+Cloud SQL prod IAM DB users complete: True.
+Cloud SQL legacy prod IAM DB users removed: True.
+Secrets prod secret accessors complete: True.
+Secrets legacy secret accessors removed: True.
+Storage prod bucket binding complete: True.
+Storage legacy bucket binding removed: True.
+Pub/Sub prod publisher bindings complete: True.
+Pub/Sub legacy publisher bindings removed: True.
+Pub/Sub prod subscriber bindings complete: True.
+Pub/Sub legacy subscriber bindings removed: True.
+Overall prod IAM ready: True.
+Cloud SQL prod instance RUNNABLE: True.
+Cloud SQL backups enabled: True.
+Secrets prod secrets ready: True.
+Pub/Sub prod topics ready: True.
+Pub/Sub prod subscriptions ready: True.
+Overall prod infra ready: True.
+```
+
+Lectura ejecutiva:
+
+```text
+Produccion ya tiene identidades runtime dedicadas y separadas de dev/staging.
+Los secretos, bucket documental y Pub/Sub usan bindings productivos a nivel de recurso.
+Los accesos legacy productivos fueron retirados de los recursos principales.
+Cloud Run produccion aun no existe, por lo que la politica de invocacion queda preparada para aplicarse cuando se despliegue.
+Antes de trafico real falta la revision humana de administradores Owner/Editor, grupos y MFA.
+Estos recursos reales pueden generar costo.
+```
