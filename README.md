@@ -8,7 +8,7 @@ Fecha de inicio: 2026-09-01
 
 Avance documentado:
 
-- Dias 1 a 68 documentados en `docs`.
+- Dias 1 a 69 documentados en `docs`.
 - Monorepo base preparado para desarrollo multi-modulo.
 - Toolchain backend Quarkus validada con servicio demo JVM y nativo.
 - Toolchain frontend Next.js/MFE validada con shell y MFE Identity demo.
@@ -35,6 +35,7 @@ Avance documentado:
 - Backends JVM desplegados en Cloud Run dev con health y consultas funcionales validadas.
 - Correcciones UAT verificadas con chequeo integral de Cloud Run dev.
 - Staging base creado con Cloud SQL, bucket documental, prueba real de restauracion y RTO inicial documentado.
+- Produccion base creada con Cloud SQL, bases por servicio, bucket documental, secretos y Pub/Sub separados de staging.
 - Pendiente tecnico identificado: recompilacion nativa backend con Cloud SQL Socket Factory y GraalVM/Mandrel.
 - El sistema legacy se conserva en `legacy`.
 - Los respaldos iniciales se guardan en `backups`.
@@ -116,6 +117,7 @@ backups/
 - `docs/dia-66-backends-jvm-cloud-run-flyway.md`: backends JVM en Cloud Run, grants Cloud SQL y migraciones Flyway.
 - `docs/dia-67-correcciones-uat.md`: correcciones UAT y verificacion integral del release candidate en Cloud Run dev.
 - `docs/dia-68-backups-restauracion-staging.md`: backups, restauracion real staging, RTO inicial y reversa.
+- `docs/dia-69-infraestructura-produccion.md`: infraestructura produccion, separacion staging/prod, validacion y reversa.
 - `docs/onpremise-offline-runbook.md`: guia para correr servicios sin dependencia de Google Cloud.
 - `docs/api-conventions.md`: convenciones REST.
 - `docs/naming-standards.md`: estandar de nombres.

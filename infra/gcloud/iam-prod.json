@@ -1,0 +1,328 @@
+{
+  "environment": "prod",
+  "project_id": "project-fbb34cd7-0b82-43e1-867",
+  "region": "us-central1",
+  "cloud_sql_instance": "venta-pasajes-prod-sql",
+  "document_bucket": "venta-pasajes-prod-documents",
+  "service_accounts": [
+    {
+      "account_id": "identity-prod-run",
+      "component": "identity-service",
+      "type": "cloud_run_backend_runtime",
+      "display_name": "identity-service prod runtime",
+      "description": "Runtime identity for identity-service in production.",
+      "project_roles": [
+        "roles/cloudsql.client",
+        "roles/cloudsql.instanceUser",
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ]
+    },
+    {
+      "account_id": "dispatch-prod-run",
+      "component": "dispatch-service",
+      "type": "cloud_run_backend_runtime",
+      "display_name": "dispatch-service prod runtime",
+      "description": "Runtime identity for dispatch-service in production.",
+      "project_roles": [
+        "roles/cloudsql.client",
+        "roles/cloudsql.instanceUser",
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ]
+    },
+    {
+      "account_id": "ticketing-prod-run",
+      "component": "ticketing-service",
+      "type": "cloud_run_backend_runtime",
+      "display_name": "ticketing-service prod runtime",
+      "description": "Runtime identity for ticketing-service in production.",
+      "project_roles": [
+        "roles/cloudsql.client",
+        "roles/cloudsql.instanceUser",
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ]
+    },
+    {
+      "account_id": "document-prod-run",
+      "component": "document-service",
+      "type": "cloud_run_backend_runtime",
+      "display_name": "document-service prod runtime",
+      "description": "Runtime identity for document-service in production.",
+      "project_roles": [
+        "roles/cloudsql.client",
+        "roles/cloudsql.instanceUser",
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ]
+    },
+    {
+      "account_id": "reporting-prod-run",
+      "component": "reporting-service",
+      "type": "cloud_run_backend_runtime",
+      "display_name": "reporting-service prod runtime",
+      "description": "Runtime identity for reporting-service in production.",
+      "project_roles": [
+        "roles/cloudsql.client",
+        "roles/cloudsql.instanceUser",
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ]
+    },
+    {
+      "account_id": "audit-prod-run",
+      "component": "audit-service",
+      "type": "cloud_run_backend_runtime",
+      "display_name": "audit-service prod runtime",
+      "description": "Runtime identity for audit-service in production.",
+      "project_roles": [
+        "roles/cloudsql.client",
+        "roles/cloudsql.instanceUser",
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ]
+    },
+    {
+      "account_id": "frontend-prod-run",
+      "component": "frontend-shell",
+      "type": "cloud_run_frontend_runtime",
+      "display_name": "frontend-shell prod runtime",
+      "description": "Runtime identity for frontend-shell in production.",
+      "project_roles": [
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ]
+    },
+    {
+      "account_id": "mfe-identity-prod-run",
+      "component": "mfe-identity",
+      "type": "cloud_run_frontend_runtime",
+      "display_name": "mfe-identity prod runtime",
+      "description": "Runtime identity for mfe-identity in production.",
+      "project_roles": [
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ]
+    },
+    {
+      "account_id": "mfe-dispatch-prod-run",
+      "component": "mfe-dispatch",
+      "type": "cloud_run_frontend_runtime",
+      "display_name": "mfe-dispatch prod runtime",
+      "description": "Runtime identity for mfe-dispatch in production.",
+      "project_roles": [
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ]
+    },
+    {
+      "account_id": "mfe-ticketing-prod-run",
+      "component": "mfe-ticketing",
+      "type": "cloud_run_frontend_runtime",
+      "display_name": "mfe-ticketing prod runtime",
+      "description": "Runtime identity for mfe-ticketing in production.",
+      "project_roles": [
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ]
+    },
+    {
+      "account_id": "mfe-reporting-prod-run",
+      "component": "mfe-reporting",
+      "type": "cloud_run_frontend_runtime",
+      "display_name": "mfe-reporting prod runtime",
+      "description": "Runtime identity for mfe-reporting in production.",
+      "project_roles": [
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ]
+    },
+    {
+      "account_id": "mfe-admin-prod-run",
+      "component": "mfe-admin",
+      "type": "cloud_run_frontend_runtime",
+      "display_name": "mfe-admin prod runtime",
+      "description": "Runtime identity for mfe-admin in production.",
+      "project_roles": [
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ]
+    },
+    {
+      "account_id": "cloudbuild-prod-deploy",
+      "component": "cloud-build",
+      "type": "ci_cd_deployer",
+      "display_name": "Cloud Build production deployer",
+      "description": "Dedicated deployer identity for production Cloud Run deployments.",
+      "project_roles": [
+        "roles/artifactregistry.writer",
+        "roles/cloudbuild.builds.editor",
+        "roles/logging.logWriter",
+        "roles/run.admin"
+      ]
+    }
+  ],
+  "service_account_bindings": [
+    {
+      "target_account_id": "identity-prod-run",
+      "member_account_id": "cloudbuild-prod-deploy",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow the production deployer to attach identity-service runtime identity."
+    },
+    {
+      "target_account_id": "dispatch-prod-run",
+      "member_account_id": "cloudbuild-prod-deploy",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow the production deployer to attach dispatch-service runtime identity."
+    },
+    {
+      "target_account_id": "ticketing-prod-run",
+      "member_account_id": "cloudbuild-prod-deploy",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow the production deployer to attach ticketing-service runtime identity."
+    },
+    {
+      "target_account_id": "document-prod-run",
+      "member_account_id": "cloudbuild-prod-deploy",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow the production deployer to attach document-service runtime identity."
+    },
+    {
+      "target_account_id": "reporting-prod-run",
+      "member_account_id": "cloudbuild-prod-deploy",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow the production deployer to attach reporting-service runtime identity."
+    },
+    {
+      "target_account_id": "audit-prod-run",
+      "member_account_id": "cloudbuild-prod-deploy",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow the production deployer to attach audit-service runtime identity."
+    },
+    {
+      "target_account_id": "frontend-prod-run",
+      "member_account_id": "cloudbuild-prod-deploy",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow the production deployer to attach frontend-shell runtime identity."
+    },
+    {
+      "target_account_id": "mfe-identity-prod-run",
+      "member_account_id": "cloudbuild-prod-deploy",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow the production deployer to attach mfe-identity runtime identity."
+    },
+    {
+      "target_account_id": "mfe-dispatch-prod-run",
+      "member_account_id": "cloudbuild-prod-deploy",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow the production deployer to attach mfe-dispatch runtime identity."
+    },
+    {
+      "target_account_id": "mfe-ticketing-prod-run",
+      "member_account_id": "cloudbuild-prod-deploy",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow the production deployer to attach mfe-ticketing runtime identity."
+    },
+    {
+      "target_account_id": "mfe-reporting-prod-run",
+      "member_account_id": "cloudbuild-prod-deploy",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow the production deployer to attach mfe-reporting runtime identity."
+    },
+    {
+      "target_account_id": "mfe-admin-prod-run",
+      "member_account_id": "cloudbuild-prod-deploy",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow the production deployer to attach mfe-admin runtime identity."
+    }
+  ],
+  "storage_bindings": [
+    {
+      "bucket": "venta-pasajes-prod-documents",
+      "member": "serviceAccount:document-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "role": "roles/storage.objectAdmin",
+      "purpose": "Allow document-service production runtime to store and read generated documents."
+    }
+  ],
+  "cloud_run_invocation_policy": {
+    "status": "deferred_until_services_exist",
+    "public_services_when_deployed": [
+      "frontend-shell"
+    ],
+    "private_services_when_deployed": [
+      "identity-service",
+      "dispatch-service",
+      "ticketing-service",
+      "document-service",
+      "reporting-service",
+      "audit-service",
+      "mfe-identity",
+      "mfe-dispatch",
+      "mfe-ticketing",
+      "mfe-reporting",
+      "mfe-admin"
+    ],
+    "planned_invokers": [
+      {
+        "target_group": "private_services_when_deployed",
+        "invoker_service_accounts": [
+          "frontend-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+          "mfe-identity-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+          "mfe-dispatch-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+          "mfe-ticketing-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+          "mfe-reporting-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+          "mfe-admin-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com"
+        ]
+      }
+    ]
+  },
+  "legacy_resource_access_to_remove": {
+    "cloud_sql_iam_database_users": [
+      "identity-service-run@project-fbb34cd7-0b82-43e1-867.iam",
+      "dispatch-service-run@project-fbb34cd7-0b82-43e1-867.iam",
+      "ticketing-service-run@project-fbb34cd7-0b82-43e1-867.iam",
+      "document-service-run@project-fbb34cd7-0b82-43e1-867.iam",
+      "reporting-service-run@project-fbb34cd7-0b82-43e1-867.iam",
+      "audit-service-run@project-fbb34cd7-0b82-43e1-867.iam"
+    ],
+    "secret_accessors": [
+      "identity-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "dispatch-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "ticketing-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "document-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "reporting-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "audit-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "frontend-shell-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com"
+    ],
+    "storage_bindings": [
+      {
+        "bucket": "venta-pasajes-prod-documents",
+        "member": "serviceAccount:document-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+        "role": "roles/storage.objectAdmin"
+      }
+    ],
+    "pubsub_principals": [
+      "identity-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "dispatch-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "ticketing-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "document-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "reporting-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "audit-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com"
+    ]
+  },
+  "administrator_access_policy": {
+    "implemented_in_this_day": [
+      "No service account keys are created.",
+      "Production runtime identities are separated from dev/staging identities.",
+      "Production secrets are resource-level IAM bindings.",
+      "Production Storage and Pub/Sub bindings are resource-level IAM bindings."
+    ],
+    "manual_controls_before_real_traffic": [
+      "Review project Owner/Editor members with the security owner.",
+      "Replace personal admin grants with Google Workspace or Cloud Identity groups when available.",
+      "Enforce MFA for all human administrators.",
+      "Use the production deployer service account for deployments instead of personal administrator accounts."
+    ]
+  }
+}

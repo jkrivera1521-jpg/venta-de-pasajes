@@ -706,3 +706,46 @@ C:\VENTA-DE-PASAJES\docs\dia-68-backups-restauracion-staging.md
 C:\VENTA-DE-PASAJES\logs\backup-restore\dia68-restore-evidence.json
 C:\VENTA-DE-PASAJES\logs\backup-restore\verify-backup-restore-readiness-staging.json
 ```
+
+## Dia 69 production infrastructure
+
+Production base resources now exist and are separated from staging:
+
+```text
+Cloud SQL: venta-pasajes-prod-sql
+Document bucket: gs://venta-pasajes-prod-documents
+Secrets catalog: C:\VENTA-DE-PASAJES\infra\gcloud\secrets-prod.json
+Pub/Sub catalog: C:\VENTA-DE-PASAJES\infra\gcloud\pubsub-prod.json
+```
+
+Run the production infrastructure verifier:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-prod-infra.ps1 `
+  -FailOnNotReady
+```
+
+Expected final state:
+
+```text
+Cloud SQL prod instance RUNNABLE: True
+Cloud SQL backups enabled: True
+Cloud SQL databases complete: True
+Cloud SQL IAM DB users complete: True
+Storage prod document bucket exists: True
+Secrets prod secrets ready: True
+Pub/Sub prod topics ready: True
+Pub/Sub prod subscriptions ready: True
+Overall prod infra ready: True
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-69-infraestructura-produccion.md
+C:\VENTA-DE-PASAJES\logs\prod-infra\verify-prod-infra.json
+```

@@ -1,0 +1,103 @@
+﻿{
+  "environment": "prod",
+  "project_id": "project-fbb34cd7-0b82-43e1-867",
+  "instance": {
+    "name": "venta-pasajes-prod-sql",
+    "region": "us-central1",
+    "database_version": "POSTGRES_16",
+    "edition": "enterprise",
+    "tier": "db-f1-micro",
+    "availability_type": "ZONAL",
+    "storage_type": "SSD",
+    "storage_size_gb": 10,
+    "storage_auto_increase": true,
+    "backup_start_time": "08:00",
+    "retained_backups_count": 14,
+    "deletion_protection": true,
+    "database_flags": [
+      "cloudsql.iam_authentication=on"
+    ]
+  },
+  "databases": [
+    {
+      "name": "identity_db",
+      "owner_service": "identity-service",
+      "iam_database_user": "identity-prod-run@project-fbb34cd7-0b82-43e1-867.iam"
+    },
+    {
+      "name": "dispatch_db",
+      "owner_service": "dispatch-service",
+      "iam_database_user": "dispatch-prod-run@project-fbb34cd7-0b82-43e1-867.iam"
+    },
+    {
+      "name": "ticketing_db",
+      "owner_service": "ticketing-service",
+      "iam_database_user": "ticketing-prod-run@project-fbb34cd7-0b82-43e1-867.iam"
+    },
+    {
+      "name": "documents_db",
+      "owner_service": "document-service",
+      "iam_database_user": "document-prod-run@project-fbb34cd7-0b82-43e1-867.iam"
+    },
+    {
+      "name": "reporting_db",
+      "owner_service": "reporting-service",
+      "iam_database_user": "reporting-prod-run@project-fbb34cd7-0b82-43e1-867.iam"
+    },
+    {
+      "name": "audit_db",
+      "owner_service": "audit-service",
+      "iam_database_user": "audit-prod-run@project-fbb34cd7-0b82-43e1-867.iam"
+    }
+  ],
+  "iam_database_users": [
+    {
+      "service": "identity-service",
+      "service_account": "identity-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "cloud_sql_username": "identity-prod-run@project-fbb34cd7-0b82-43e1-867.iam",
+      "database": "identity_db"
+    },
+    {
+      "service": "dispatch-service",
+      "service_account": "dispatch-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "cloud_sql_username": "dispatch-prod-run@project-fbb34cd7-0b82-43e1-867.iam",
+      "database": "dispatch_db"
+    },
+    {
+      "service": "ticketing-service",
+      "service_account": "ticketing-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "cloud_sql_username": "ticketing-prod-run@project-fbb34cd7-0b82-43e1-867.iam",
+      "database": "ticketing_db"
+    },
+    {
+      "service": "document-service",
+      "service_account": "document-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "cloud_sql_username": "document-prod-run@project-fbb34cd7-0b82-43e1-867.iam",
+      "database": "documents_db"
+    },
+    {
+      "service": "reporting-service",
+      "service_account": "reporting-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "cloud_sql_username": "reporting-prod-run@project-fbb34cd7-0b82-43e1-867.iam",
+      "database": "reporting_db"
+    },
+    {
+      "service": "audit-service",
+      "service_account": "audit-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "cloud_sql_username": "audit-prod-run@project-fbb34cd7-0b82-43e1-867.iam",
+      "database": "audit_db"
+    }
+  ],
+  "privilege_strategy": {
+    "authentication": "cloud_sql_iam_database_authentication",
+    "passwords": "not_created",
+    "json_keys": "not_created",
+    "schema_privileges": "deferred_to_service_migrations",
+    "notes": [
+      "Production uses the existing runtime service accounts until Day 70 creates dedicated production service accounts.",
+      "The instance is intentionally small for initial production infrastructure; size and HA can be adjusted before real traffic.",
+      "Deletion protection is enabled to prevent accidental production database removal."
+    ]
+  }
+}
+

@@ -8563,3 +8563,76 @@ El RTO inicial medido para Cloud SQL staging es 17.45 minutos.
 Los recursos temporales fueron eliminados; permanecen la instancia staging y el bucket documental staging.
 Estos recursos reales pueden generar costo.
 ```
+
+## Dia 69 - Infraestructura produccion
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 69 - Infraestructura produccion.
+Se creo infra\gcloud\cloudsql-prod.json.
+Se creo infra\gcloud\secrets-prod.json.
+Se creo infra\gcloud\pubsub-prod.json.
+Se creo infra\gcloud\bootstrap-pubsub.ps1.
+Se creo infra\gcloud\verify-prod-infra.ps1.
+Se creo Cloud SQL produccion: venta-pasajes-prod-sql.
+Se crearon seis bases produccion: identity_db, dispatch_db, ticketing_db, documents_db, reporting_db y audit_db.
+Se crearon usuarios IAM de base para los seis microservicios.
+Se creo el bucket documental produccion: gs://venta-pasajes-prod-documents.
+Se otorgo roles/storage.objectAdmin al runtime de document-service sobre el bucket produccion.
+Se crearon 15 secretos produccion en Secret Manager.
+Se crearon 10 topicos Pub/Sub produccion y 10 suscripciones.
+Se aplicaron permisos publisher/subscriber de Pub/Sub.
+Se corrigio verify-prod-infra.ps1 para usar Python 3.12 y evitar el error SSL observado con Python 3.14.
+Se documento docs\dia-69-infraestructura-produccion.md con Reversa primero y Guia manual desde cero.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\infra\gcloud\cloudsql-prod.json
+C:\VENTA-DE-PASAJES\infra\gcloud\secrets-prod.json
+C:\VENTA-DE-PASAJES\infra\gcloud\pubsub-prod.json
+C:\VENTA-DE-PASAJES\infra\gcloud\bootstrap-pubsub.ps1
+C:\VENTA-DE-PASAJES\infra\gcloud\verify-prod-infra.ps1
+C:\VENTA-DE-PASAJES\docs\dia-69-infraestructura-produccion.md
+C:\VENTA-DE-PASAJES\logs\prod-infra\verify-prod-infra.json
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\bootstrap-pubsub.ps1 -ConfigPath .\infra\gcloud\pubsub-prod.json -ProjectId project-fbb34cd7-0b82-43e1-867 -DryRun
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\bootstrap-cloudsql-dev.ps1 -ConfigPath .\infra\gcloud\cloudsql-prod.json -ProjectId project-fbb34cd7-0b82-43e1-867 -DryRun
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\bootstrap-cloudsql-dev.ps1 -ConfigPath .\infra\gcloud\cloudsql-prod.json -ProjectId project-fbb34cd7-0b82-43e1-867
+gcloud storage buckets create gs://venta-pasajes-prod-documents --project project-fbb34cd7-0b82-43e1-867 --location us-central1 --uniform-bucket-level-access --public-access-prevention --default-storage-class STANDARD
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\bootstrap-secrets-dev.ps1 -ConfigPath .\infra\gcloud\secrets-prod.json -ProjectId project-fbb34cd7-0b82-43e1-867
+gcloud storage buckets add-iam-policy-binding gs://venta-pasajes-prod-documents --project project-fbb34cd7-0b82-43e1-867 --member serviceAccount:document-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com --role roles/storage.objectAdmin
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\bootstrap-pubsub.ps1 -ConfigPath .\infra\gcloud\pubsub-prod.json -ProjectId project-fbb34cd7-0b82-43e1-867
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-prod-infra.ps1 -FailOnNotReady
+```
+
+Validaciones:
+
+```text
+Cloud SQL prod instance RUNNABLE: True.
+Cloud SQL backups enabled: True.
+Cloud SQL databases complete: True.
+Cloud SQL IAM DB users complete: True.
+Storage prod document bucket exists: True.
+Secrets prod secrets ready: True.
+Pub/Sub prod topics ready: True.
+Pub/Sub prod subscriptions ready: True.
+Overall prod infra ready: True.
+```
+
+Lectura ejecutiva:
+
+```text
+La infraestructura base de produccion ya existe en Google Cloud y esta separada de staging.
+La instancia Cloud SQL produccion tiene deletion protection activa.
+Los secretos produccion existen con version habilitada, sin registrar valores reales en el repositorio.
+Los topicos DLQ existen, pero las politicas dead-letter quedan pendientes para el endurecimiento IAM del Dia 70.
+Cloud Run produccion aun no fue desplegado.
+Estos recursos reales pueden generar costo.
+```
