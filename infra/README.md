@@ -1086,3 +1086,162 @@ Evidence:
 C:\VENTA-DE-PASAJES\docs\dia-74-ensayo-migracion-final.md
 C:\VENTA-DE-PASAJES\logs\migration\dia74-final-rehearsal\final-migration-rehearsal.json
 ```
+
+## Dia 75 cutover and rollback plan
+
+The production cutover plan is local documentation plus validation evidence. It does not execute Cloud Run, Cloud SQL or traffic changes by itself:
+
+```text
+C:\VENTA-DE-PASAJES\infra\cutover\prod-cutover-plan.json
+C:\VENTA-DE-PASAJES\scripts\verify-cutover-rollback-plan.ps1
+```
+
+Validate the plan:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-cutover-rollback-plan.ps1 `
+  -FailOnBlocker
+```
+
+Expected state:
+
+```text
+Plan de corte controlado listo: True
+Ejecucion real autorizada: False
+```
+
+The real execution remains blocked until business approval changes the plan status to `approved_for_execution`.
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-75-plan-corte-rollback.md
+C:\VENTA-DE-PASAJES\logs\cutover\dia75-cutover-readiness.json
+```
+
+## Dia 76 operational training package
+
+Operational training is documentation and readiness validation. It does not modify infrastructure:
+
+```text
+C:\VENTA-DE-PASAJES\docs\manual-usuario-operativo.md
+C:\VENTA-DE-PASAJES\docs\faq-operativa.md
+C:\VENTA-DE-PASAJES\docs\registro-capacitacion-operativa.md
+C:\VENTA-DE-PASAJES\scripts\verify-operational-training.ps1
+```
+
+Validate the package:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-operational-training.ps1 `
+  -FailOnBlocker
+```
+
+Expected state:
+
+```text
+Paquete de capacitacion listo: True
+Capacitacion real firmada: False
+```
+
+After real attendance and signatures are recorded, validate the closure:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-operational-training.ps1 `
+  -RequireSignedAttendance `
+  -FailOnBlocker
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-76-capacitacion-operativa.md
+C:\VENTA-DE-PASAJES\logs\training\dia76-operational-training-readiness.json
+```
+
+## Dia 77 final data migration package
+
+The Day 77 package prepares production SQL imports but does not modify Cloud SQL until the cutover plan is explicitly approved:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\run-final-data-migration-prod.ps1
+```
+
+Prepare and validate locally:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-final-data-migration-prod.ps1
+```
+
+Expected protected state:
+
+```text
+Paquete de migracion listo: True
+Ejecucion productiva autorizada: False
+Migracion productiva ejecutada: False
+Datos productivos aprobados: False
+```
+
+When the cutover plan is approved and legacy is frozen, regenerate the package with confirmations:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-final-data-migration-prod.ps1 `
+  -ConfirmLegacyFreeze `
+  -ConfirmBusinessGoNoGo
+```
+
+The generated command file is:
+
+```text
+C:\VENTA-DE-PASAJES\logs\migration\dia77-final-prod\apply-prod-migration.commands.ps1
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-77-migracion-final-datos.md
+C:\VENTA-DE-PASAJES\logs\migration\dia77-final-prod\final-data-migration-prod-readiness.json
+```
+
+## Dia 78 controlled production test
+
+The controlled production test package generates the real test command file but does not execute it:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-controlled-prod-test.ps1
+```
+
+Prepare the package:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-controlled-prod-test.ps1
+```
+
+Expected state while Day 77 is not applied and approved:
+
+```text
+Paquete de prueba listo: True
+Prueba real autorizada: False
+Prueba real ejecutada: False
+```
+
+The generated command file is:
+
+```text
+C:\VENTA-DE-PASAJES\logs\prod-controlled-test\dia78-controlled-prod-test.commands.ps1
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-78-prueba-productiva-controlada.md
+C:\VENTA-DE-PASAJES\logs\prod-controlled-test\dia78-controlled-prod-test-readiness.json
+```

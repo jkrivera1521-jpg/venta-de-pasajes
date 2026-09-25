@@ -1,0 +1,259 @@
+{
+  "plan_id": "dia75-prod-cutover-rollback",
+  "title": "Dia 75 - Plan de corte y rollback",
+  "environment": "prod",
+  "project_id": "project-fbb34cd7-0b82-43e1-867",
+  "region": "us-central1",
+  "time_zone": "America/Guayaquil",
+  "approval_status": "proposed_pending_explicit_go_no_go",
+  "planned_window": {
+    "start_local": "2026-09-28T22:00:00-05:00",
+    "end_local": "2026-09-28T23:30:00-05:00",
+    "business_note": "Ventana propuesta fuera de horario operativo. Requiere aprobacion explicita de negocio antes de ejecutar."
+  },
+  "responsibilities": [
+    {
+      "role": "cutover_lead",
+      "owner": "Responsable tecnico del proyecto",
+      "backup_owner": "Responsable tecnico suplente",
+      "decision_power": "coordina go/no-go y ordena rollback tecnico"
+    },
+    {
+      "role": "business_owner",
+      "owner": "Responsable operativo de boleteria",
+      "backup_owner": "Supervisor operativo",
+      "decision_power": "aprueba congelamiento, reapertura de ventas y comunicacion a usuarios"
+    },
+    {
+      "role": "legacy_owner",
+      "owner": "Responsable sistema legacy Access/VB6",
+      "backup_owner": "Soporte legacy",
+      "decision_power": "ejecuta congelamiento y reapertura controlada del sistema antiguo"
+    },
+    {
+      "role": "data_owner",
+      "owner": "Responsable de datos",
+      "backup_owner": "Administrador base de datos suplente",
+      "decision_power": "aprueba respaldo final, conteos, migracion y restauracion"
+    },
+    {
+      "role": "qa_owner",
+      "owner": "Responsable QA/UAT",
+      "backup_owner": "Usuario funcional designado",
+      "decision_power": "valida flujos criticos y firma salida funcional"
+    },
+    {
+      "role": "communications_owner",
+      "owner": "Responsable de comunicacion operativa",
+      "backup_owner": "Supervisor de sala",
+      "decision_power": "envia avisos de corte, exito o rollback"
+    }
+  ],
+  "legacy_freeze": {
+    "freeze_start_local": "2026-09-28T20:00:00-05:00",
+    "rules": [
+      "No crear ni modificar rutas, buses, usuarios ni parametros despues del freeze.",
+      "No emitir boletos nuevos desde el legacy una vez iniciado el freeze duro.",
+      "Permitir solo consulta hasta que el responsable de datos confirme respaldo final.",
+      "Registrar cualquier excepcion en bitacora manual antes de continuar."
+    ],
+    "hard_freeze_condition": "Responsable operativo confirma cierre de caja y cero ventas pendientes.",
+    "release_condition": "Go-live exitoso o rollback autorizado por cutover_lead y business_owner."
+  },
+  "final_backup": {
+    "required": true,
+    "steps": [
+      "Tomar copia final de legacy/sistema/Proyect/usuario.mdb despues del freeze duro.",
+      "Calcular SHA256 de la copia final y guardarlo en logs/cutover.",
+      "Crear backup on-demand de Cloud SQL produccion antes de importar datos finales.",
+      "Registrar inventario del bucket documental productivo.",
+      "Guardar commit/tag Git usado para el corte."
+    ],
+    "minimum_evidence": [
+      "ruta copia usuario.mdb final",
+      "hash SHA256 origen y copia",
+      "id backup Cloud SQL prod",
+      "conteos origen Access",
+      "conteos destino PostgreSQL",
+      "verificacion frontend y backend prod"
+    ]
+  },
+  "go_no_go_gates": [
+    {
+      "id": "gate-prod-backends",
+      "description": "Backends productivos privados listos y health autenticado 6/6.",
+      "evidence": "logs/cloudrun-prod/verify-cloudrun-prod-backends.json"
+    },
+    {
+      "id": "gate-prod-frontends",
+      "description": "Frontend shell y MFEs productivos listos con checks 19/19.",
+      "evidence": "logs/cloudrun-prod/verify-cloudrun-prod-frontends.json"
+    },
+    {
+      "id": "gate-migration-rehearsal",
+      "description": "Ensayo de migracion final listo sin bloqueos.",
+      "evidence": "logs/migration/dia74-final-rehearsal/final-migration-rehearsal.json"
+    },
+    {
+      "id": "gate-restore-readiness",
+      "description": "Staging con backup/restore probado y bucket documental listo.",
+      "evidence": "logs/backup-restore/verify-backup-restore-readiness-staging.json"
+    },
+    {
+      "id": "gate-business-approval",
+      "description": "Negocio aprueba ventana, freeze, comunicacion y go-live.",
+      "evidence": "aprobacion manual en bitacora de corte"
+    }
+  ],
+  "cutover_timeline": [
+    {
+      "relative_time": "T-72h",
+      "phase": "precheck",
+      "actions": [
+        "Confirmar plan y responsables.",
+        "Validar evidencias de dias 68, 72, 73 y 74.",
+        "Confirmar que no existen cambios pendientes no autorizados."
+      ]
+    },
+    {
+      "relative_time": "T-24h",
+      "phase": "announce_freeze",
+      "actions": [
+        "Enviar aviso de ventana de corte.",
+        "Confirmar usuarios funcionales para validacion.",
+        "Bloquear cambios funcionales no urgentes."
+      ]
+    },
+    {
+      "relative_time": "T-2h",
+      "phase": "hard_freeze_legacy",
+      "actions": [
+        "Cerrar ventas pendientes en legacy.",
+        "Confirmar cero operaciones en curso.",
+        "Poner legacy en modo consulta o detener operacion de venta."
+      ]
+    },
+    {
+      "relative_time": "T-90m",
+      "phase": "final_backup",
+      "actions": [
+        "Copiar usuario.mdb final.",
+        "Calcular hash SHA256.",
+        "Crear backup Cloud SQL prod.",
+        "Registrar inventario documental."
+      ]
+    },
+    {
+      "relative_time": "T-60m",
+      "phase": "final_migration",
+      "actions": [
+        "Ejecutar migracion final de datos.",
+        "Comparar conteos.",
+        "Validar tickets y asientos migrados."
+      ]
+    },
+    {
+      "relative_time": "T-30m",
+      "phase": "technical_smoke",
+      "actions": [
+        "Validar health de backends.",
+        "Validar health, manifests y rutas embedded de frontends.",
+        "Validar admin agregado."
+      ]
+    },
+    {
+      "relative_time": "T-15m",
+      "phase": "functional_validation",
+      "actions": [
+        "Usuario funcional valida login.",
+        "Usuario funcional valida busqueda de salida.",
+        "Usuario funcional valida mapa de asientos.",
+        "Usuario funcional valida emision o flujo controlado de boleto.",
+        "Usuario funcional valida reporte basico."
+      ]
+    },
+    {
+      "relative_time": "T0",
+      "phase": "go_live",
+      "actions": [
+        "Publicar entrada productiva aprobada.",
+        "Comunicar disponibilidad a usuarios.",
+        "Monitorear ventas iniciales."
+      ]
+    },
+    {
+      "relative_time": "T+30m",
+      "phase": "hypercare",
+      "actions": [
+        "Monitorear errores.",
+        "Confirmar ventas emitidas.",
+        "Confirmar documentos generados.",
+        "Confirmar que no hay usuarios bloqueados."
+      ]
+    }
+  ],
+  "rollback_criteria": [
+    "Falla health backend o frontend que impida venta y no se resuelve en 30 minutos.",
+    "Conteos de migracion no cuadran y afectan pasajeros, salidas, asientos o boletos.",
+    "Usuario funcional no puede iniciar sesion o operar venta.",
+    "Mapa de asientos muestra disponibilidad incorrecta.",
+    "Emision de boleto cobra o registra datos incorrectos.",
+    "Documentos de boleto no se generan cuando el flujo los requiere.",
+    "Error de seguridad, exposicion de datos o acceso no autorizado.",
+    "Entrada productiva, dominio o TLS no queda disponible para usuarios.",
+    "Cualquier incidente P1 declarado por business_owner o cutover_lead."
+  ],
+  "rollback_plan": {
+    "before_opening_sales": [
+      "No publicar entrada productiva.",
+      "Mantener o reabrir legacy como sistema oficial.",
+      "Descartar datos nuevos generados en el ensayo productivo si no hubo venta real.",
+      "Comunicar postergacion de salida."
+    ],
+    "after_opening_sales": [
+      "Congelar sistema nuevo inmediatamente.",
+      "Exportar ventas nuevas emitidas en el sistema nuevo.",
+      "Comparar ventas nuevas contra legacy antes de reabrir legacy.",
+      "Restaurar Cloud SQL prod desde backup final solo con aprobacion de data_owner.",
+      "Reabrir legacy si negocio aprueba continuidad manual.",
+      "Comunicar rollback y ventana de reconciliacion."
+    ],
+    "traffic_reversal": [
+      "Retirar DNS o entrada publica nueva si ya fue publicada.",
+      "Volver a URL legacy o canal operativo anterior.",
+      "Mantener Cloud Run prod disponible solo para diagnostico interno si aplica."
+    ]
+  },
+  "communications": [
+    {
+      "id": "pre_cutover_t24",
+      "when": "T-24h",
+      "audience": "usuarios operativos",
+      "message": "Se ejecutara una ventana de corte para el sistema de venta de pasajes. Durante la ventana no se realizaran ventas en el sistema antiguo."
+    },
+    {
+      "id": "freeze_t2",
+      "when": "T-2h",
+      "audience": "supervisores y boleteria",
+      "message": "Inicia congelamiento operativo. No registrar nuevas ventas ni cambios de catalogo en el sistema antiguo."
+    },
+    {
+      "id": "go_live",
+      "when": "T0",
+      "audience": "usuarios operativos",
+      "message": "El nuevo sistema queda habilitado para operacion controlada. Reportar cualquier incidente al responsable operativo."
+    },
+    {
+      "id": "success",
+      "when": "T+30m",
+      "audience": "usuarios operativos y responsables",
+      "message": "Corte completado. Continuar operacion en el nuevo sistema y mantener monitoreo."
+    },
+    {
+      "id": "rollback",
+      "when": "si aplica",
+      "audience": "usuarios operativos y responsables",
+      "message": "Se ejecuta rollback controlado. Continuar instrucciones del responsable operativo y no duplicar ventas."
+    }
+  ]
+}

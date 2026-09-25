@@ -8987,3 +8987,200 @@ El tiempo medido del ensayo fue 7.191 segundos.
 La estimacion inicial de corte es 17.57 minutos, sumando el RTO medido del Dia 68.
 La aplicacion en staging queda documentada y protegida para una ventana controlada, evitando sobrescribir Cloud SQL sin decision explicita.
 ```
+
+## Dia 75 - Plan de corte y rollback
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 75 - Plan de corte y rollback.
+Se creo infra\cutover\prod-cutover-plan.json.
+Se creo scripts\verify-cutover-rollback-plan.ps1.
+Se genero logs\cutover\dia75-cutover-readiness.json.
+Se documento docs\dia-75-plan-corte-rollback.md con Reversa primero y Guia manual desde cero.
+Se dejo la ejecucion real bloqueada hasta aprobacion explicita de negocio.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\infra\cutover\prod-cutover-plan.json
+C:\VENTA-DE-PASAJES\scripts\verify-cutover-rollback-plan.ps1
+C:\VENTA-DE-PASAJES\docs\dia-75-plan-corte-rollback.md
+C:\VENTA-DE-PASAJES\logs\cutover\dia75-cutover-readiness.json
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-cutover-rollback-plan.ps1 -FailOnBlocker
+```
+
+Validaciones:
+
+```text
+Plan de corte controlado listo: True.
+Ejecucion real autorizada: False.
+Bloqueos: 0.
+Advertencias: plan pendiente de aprobacion real y responsables aun definidos por rol.
+```
+
+Lectura ejecutiva:
+
+```text
+El corte productivo queda controlado con ventana propuesta, responsables, freeze legacy, respaldo final, criterios de rollback y comunicaciones.
+No se ejecuto ningun cambio real en Cloud.
+El plan no debe ejecutarse hasta registrar aprobacion explicita y nombres concretos de responsables.
+```
+
+## Dia 76 - Capacitacion operativa
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 76 - Capacitacion operativa.
+Se creo docs\manual-usuario-operativo.md.
+Se creo docs\faq-operativa.md.
+Se creo docs\registro-capacitacion-operativa.md.
+Se creo scripts\verify-operational-training.ps1.
+Se genero logs\training\dia76-operational-training-readiness.json.
+Se documento docs\dia-76-capacitacion-operativa.md con Reversa primero y Guia manual desde cero.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\docs\manual-usuario-operativo.md
+C:\VENTA-DE-PASAJES\docs\faq-operativa.md
+C:\VENTA-DE-PASAJES\docs\registro-capacitacion-operativa.md
+C:\VENTA-DE-PASAJES\scripts\verify-operational-training.ps1
+C:\VENTA-DE-PASAJES\docs\dia-76-capacitacion-operativa.md
+C:\VENTA-DE-PASAJES\logs\training\dia76-operational-training-readiness.json
+```
+
+Comandos agregados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-operational-training.ps1 -FailOnBlocker
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-operational-training.ps1 -RequireSignedAttendance -FailOnBlocker
+```
+
+Lectura ejecutiva:
+
+```text
+El paquete de capacitacion queda listo para ejecutar con boleteria, administrador y soporte.
+No se marco capacitacion real como completada porque aun faltan asistentes y firmas reales.
+El cierre real debe reemplazar PENDIENTE_FIRMA_REAL y validar con -RequireSignedAttendance.
+```
+
+## Dia 77 - Migracion final de datos
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 77 - Migracion final de datos.
+Se creo scripts\run-final-data-migration-prod.ps1.
+Se creo docs\acta-validacion-migracion-final.md.
+Se creo docs\dia-77-migracion-final-datos.md con Reversa primero y Guia manual desde cero.
+Se actualizo migration\README.md con el flujo de migracion final.
+Se agrego backups\final-data-migration\ a .gitignore.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\run-final-data-migration-prod.ps1
+C:\VENTA-DE-PASAJES\docs\acta-validacion-migracion-final.md
+C:\VENTA-DE-PASAJES\docs\dia-77-migracion-final-datos.md
+C:\VENTA-DE-PASAJES\logs\migration\dia77-final-prod\final-data-migration-prod-readiness.json
+C:\VENTA-DE-PASAJES\logs\migration\dia77-final-prod\apply-prod-migration.commands.ps1
+```
+
+Comandos ejecutados y agregados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-final-data-migration-prod.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-final-data-migration-prod.ps1 -ConfirmLegacyFreeze -ConfirmBusinessGoNoGo
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-final-data-migration-prod.ps1 -ConfirmLegacyFreeze -ConfirmBusinessGoNoGo -ApproveDataMigration
+gcloud sql backups create --help
+gcloud sql import sql --help
+```
+
+Validaciones:
+
+```text
+Paquete de migracion listo: True.
+Ejecucion productiva autorizada: False.
+Migracion productiva ejecutada: False.
+Datos productivos aprobados: False.
+Access backup final candidato: C:\VENTA-DE-PASAJES\backups\final-data-migration\20260925-152103\usuario.mdb.
+identity_users: 1.
+identity_profiles: 1.
+dispatch_terminals: 2.
+dispatch_bus_types: 3.
+dispatch_buses: 1.
+dispatch_routes: 1.
+dispatch_departures: 1.
+ticketing_passengers: 3.
+ticketing_synced_departures: 1.
+ticketing_departure_seats: 25.
+ticketing_tickets: 3.
+```
+
+Correccion aplicada:
+
+```text
+El primer archivo generado usaba gcloud sql backups create con instancia posicional.
+Se verifico la ayuda local de gcloud sql backups create y gcloud sql import sql.
+Se corrigio a gcloud sql backups create --instance $Instance.
+Se regenero logs\migration\dia77-final-prod\apply-prod-migration.commands.ps1 con la forma correcta.
+```
+
+Lectura ejecutiva:
+
+```text
+El paquete de migracion final queda preparado y probado localmente.
+La importacion productiva queda bloqueada mientras el plan de corte no tenga approval_status=approved_for_execution.
+No se modifico Cloud SQL produccion.
+El acta de validacion queda pendiente hasta ejecutar importacion real, validar conteos y registrar firmas.
+```
+
+## Dia 78 - Prueba productiva controlada
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 78 - Prueba productiva controlada.
+Se creo scripts\prepare-controlled-prod-test.ps1.
+Se creo docs\acta-prueba-productiva-controlada.md.
+Se creo docs\dia-78-prueba-productiva-controlada.md con Reversa primero y Guia manual desde cero.
+Se genero logs\prod-controlled-test\dia78-controlled-prod-test-readiness.json.
+Se genero logs\prod-controlled-test\dia78-controlled-prod-test.commands.ps1.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-controlled-prod-test.ps1
+C:\VENTA-DE-PASAJES\docs\acta-prueba-productiva-controlada.md
+C:\VENTA-DE-PASAJES\docs\dia-78-prueba-productiva-controlada.md
+C:\VENTA-DE-PASAJES\logs\prod-controlled-test\dia78-controlled-prod-test-readiness.json
+C:\VENTA-DE-PASAJES\logs\prod-controlled-test\dia78-controlled-prod-test.commands.ps1
+```
+
+Comandos agregados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-controlled-prod-test.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-controlled-prod-test.ps1 -ConfirmMigrationApplied -ConfirmBusinessGoNoGo
+.\logs\prod-controlled-test\dia78-controlled-prod-test.commands.ps1
+```
+
+Lectura ejecutiva:
+
+```text
+El paquete de prueba productiva controlada queda preparado.
+La prueba real queda bloqueada porque Dia 77 no esta aplicado ni aprobado en produccion.
+No se creo salida, no se vendieron boletos, no se genero PDF real y no se modifico produccion.
+La generacion de PDF se prepara via document-service directo porque ticketing-service-prod no tiene APP_DOCUMENT_INTEGRATION_ENABLED=true.
+```

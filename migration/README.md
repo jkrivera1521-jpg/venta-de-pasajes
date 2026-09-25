@@ -56,3 +56,44 @@ Full procedure:
 ```text
 C:\VENTA-DE-PASAJES\docs\dia-74-ensayo-migracion-final.md
 ```
+
+## Dia 77 final data migration package
+
+The production migration package reuses the validated Day 74 reader/generator, writes Day 77 SQL files, prepares production import commands and leaves the production import blocked until the cutover plan is explicitly approved:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\run-final-data-migration-prod.ps1
+```
+
+Generate the final package without touching production:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-final-data-migration-prod.ps1
+```
+
+Expected state before real approval:
+
+```text
+Paquete de migracion listo: True
+Ejecucion productiva autorizada: False
+Migracion productiva ejecutada: False
+Datos productivos aprobados: False
+```
+
+Generated evidence:
+
+```text
+C:\VENTA-DE-PASAJES\logs\migration\dia77-final-prod\final-data-migration-prod-readiness.json
+C:\VENTA-DE-PASAJES\logs\migration\dia77-final-prod\identity_db-dia77-final.sql
+C:\VENTA-DE-PASAJES\logs\migration\dia77-final-prod\dispatch_db-dia77-final.sql
+C:\VENTA-DE-PASAJES\logs\migration\dia77-final-prod\ticketing_db-dia77-final.sql
+C:\VENTA-DE-PASAJES\logs\migration\dia77-final-prod\apply-prod-migration.commands.ps1
+```
+
+Full procedure:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-77-migracion-final-datos.md
+```

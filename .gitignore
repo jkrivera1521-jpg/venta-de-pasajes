@@ -43,6 +43,7 @@ artifacts/
 *.sql.gz
 *.bak
 backups/final-migration-rehearsal/
+backups/final-data-migration/
 
 # Legacy remains tracked intentionally when Git is initialized.
 !legacy/

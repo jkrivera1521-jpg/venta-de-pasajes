@@ -8,7 +8,7 @@ Fecha de inicio: 2026-09-01
 
 Avance documentado:
 
-- Dias 1 a 74 documentados en `docs`.
+- Dias 1 a 78 documentados en `docs`.
 - Monorepo base preparado para desarrollo multi-modulo.
 - Toolchain backend Quarkus validada con servicio demo JVM y nativo.
 - Toolchain frontend Next.js/MFE validada con shell y MFE Identity demo.
@@ -41,6 +41,10 @@ Avance documentado:
 - Backends productivos desplegados en Cloud Run como servicios `*-prod`, privados y validados con smoke tests autenticados.
 - Frontends productivos desplegados en Cloud Run como servicios `*-prod`; shell, manifests, rutas embedded y admin agregado validados.
 - Ensayo de migracion final ejecutado desde Access hacia SQL por microservicio y validado en PostgreSQL temporal desde cero.
+- Plan de corte y rollback productivo definido con verificacion automatica y ejecucion real bloqueada hasta aprobacion explicita.
+- Paquete de capacitacion operativa creado con manual de usuario, FAQ, registro de capacitacion y verificacion automatica.
+- Paquete de migracion final de datos preparado con SQL final, comandos productivos bloqueados por aprobacion y acta pendiente de firma.
+- Paquete de prueba productiva controlada preparado con comandos, acta y bloqueo hasta que la migracion final este aplicada y aprobada.
 - Pendiente tecnico identificado: recompilacion nativa backend con Cloud SQL Socket Factory y GraalVM/Mandrel.
 - El sistema legacy se conserva en `legacy`.
 - Los respaldos iniciales se guardan en `backups`.
@@ -128,6 +132,15 @@ backups/
 - `docs/dia-72-despliegue-productivo-backend.md`: despliegue productivo de backends Cloud Run, smoke tests y reversa.
 - `docs/dia-73-despliegue-productivo-frontend.md`: despliegue productivo de frontend shell y MFEs, validacion y reversa.
 - `docs/dia-74-ensayo-migracion-final.md`: copia Access, SQL por microservicio, conteos, tiempo de corte y reversa.
+- `docs/dia-75-plan-corte-rollback.md`: plan de corte, rollback, freeze, respaldo final, comunicacion y reversa.
+- `docs/dia-76-capacitacion-operativa.md`: capacitacion operativa, manual, FAQ, registro y reversa.
+- `docs/manual-usuario-operativo.md`: manual rapido para boleteria, administracion, reportes y soporte.
+- `docs/faq-operativa.md`: preguntas frecuentes de operacion.
+- `docs/registro-capacitacion-operativa.md`: registro de sesiones, asistencia y firmas.
+- `docs/dia-77-migracion-final-datos.md`: migracion final de datos, SQL final, comandos productivos y reversa.
+- `docs/acta-validacion-migracion-final.md`: acta para aprobacion de datos migrados.
+- `docs/dia-78-prueba-productiva-controlada.md`: prueba productiva controlada, comandos, acta y reversa.
+- `docs/acta-prueba-productiva-controlada.md`: acta para salida controlada, venta, PDF, anulacion, reportes y logs.
 - `docs/onpremise-offline-runbook.md`: guia para correr servicios sin dependencia de Google Cloud.
 - `docs/api-conventions.md`: convenciones REST.
 - `docs/naming-standards.md`: estandar de nombres.
