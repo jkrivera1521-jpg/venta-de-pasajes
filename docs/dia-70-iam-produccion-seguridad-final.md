@@ -34,8 +34,8 @@ Politica Cloud Run produccion: deferred_until_services_exist
 La politica de invocacion Cloud Run queda en estado `deferred_until_services_exist` porque los servicios productivos todavia no existen. Cuando se desplieguen, el criterio sera:
 
 ```text
-Publico: frontend-shell
-Privados: backends y MFEs internos
+Publico: frontend-shell-prod
+Privados: backends y MFEs internos con sufijo -prod
 Invocadores planeados: frontend-prod-run y cuentas mfe-*-prod-run
 ```
 

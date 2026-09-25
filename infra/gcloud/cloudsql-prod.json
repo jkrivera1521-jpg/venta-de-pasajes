@@ -92,11 +92,12 @@
     "authentication": "cloud_sql_iam_database_authentication",
     "passwords": "not_created",
     "json_keys": "not_created",
-    "schema_privileges": "deferred_to_service_migrations",
+    "schema_privileges": "applied_public_schema_create_usage_for_service_users",
     "notes": [
-      "Production uses the existing runtime service accounts until Day 70 creates dedicated production service accounts.",
+      "Production uses dedicated service accounts created in Day 70.",
       "The instance is intentionally small for initial production infrastructure; size and HA can be adjusted before real traffic.",
-      "Deletion protection is enabled to prevent accidental production database removal."
+      "Deletion protection is enabled to prevent accidental production database removal.",
+      "Day 72 applied CONNECT and CREATE on each service database plus USAGE and CREATE on schema public for the matching IAM database user."
     ]
   }
 }

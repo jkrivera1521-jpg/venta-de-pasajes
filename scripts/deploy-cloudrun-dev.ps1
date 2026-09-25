@@ -207,6 +207,38 @@ function Convert-EnvObjectToPairs {
   return $Pairs
 }
 
+function ConvertTo-YamlSingleQuotedValue {
+  param([string]$Value)
+
+  if ($null -eq $Value) {
+    return "''"
+  }
+
+  return "'" + $Value.Replace("'", "''") + "'"
+}
+
+function Write-EnvVarsFile {
+  param(
+    [string[]]$EnvPairs,
+    [string]$Path
+  )
+
+  $Lines = New-Object System.Collections.Generic.List[string]
+  foreach ($Pair in $EnvPairs) {
+    $SeparatorIndex = $Pair.IndexOf("=")
+    if ($SeparatorIndex -lt 1) {
+      throw "Par de variable de entorno invalido: $Pair"
+    }
+
+    $Name = $Pair.Substring(0, $SeparatorIndex)
+    $Value = $Pair.Substring($SeparatorIndex + 1)
+    $Lines.Add("${Name}: $(ConvertTo-YamlSingleQuotedValue -Value $Value)") | Out-Null
+  }
+
+  $Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+  [System.IO.File]::WriteAllLines($Path, $Lines.ToArray(), $Utf8NoBom)
+}
+
 function Build-DeployArguments {
   param(
     $Service,
@@ -254,10 +286,6 @@ function Build-DeployArguments {
 
   if ([bool]$Service.cloud_sql) {
     $Arguments += @("--add-cloudsql-instances", $Context.CLOUD_SQL_CONNECTION_NAME)
-  }
-
-  if ($EnvPairs.Count -gt 0) {
-    $Arguments += @("--set-env-vars", ($EnvPairs -join ","))
   }
 
   return [pscustomobject]@{
@@ -413,11 +441,22 @@ foreach ($Service in $Services) {
   }
 
   $Deployment = Build-DeployArguments -Service $Service -Context $Context -ServiceUrls $ServiceUrls
+  $EnvFilePath = ""
+  if ($Deployment.EnvPairs.Count -gt 0) {
+    $EnvFilePath = Join-Path $OutputDir "$($Deployment.Id).env.yaml"
+    Write-EnvVarsFile -EnvPairs $Deployment.EnvPairs -Path $EnvFilePath
+    $Deployment.Arguments += @("--env-vars-file", $EnvFilePath)
+  }
 
   $Unresolved = @()
   foreach ($Argument in $Deployment.Arguments) {
     if (Test-Unresolved -Value $Argument) {
       $Unresolved += $Argument
+    }
+  }
+  foreach ($EnvPair in $Deployment.EnvPairs) {
+    if (Test-Unresolved -Value $EnvPair) {
+      $Unresolved += $EnvPair
     }
   }
 
@@ -472,6 +511,7 @@ foreach ($Service in $Services) {
     port = [int]$Service.port
     allow_unauthenticated = [bool]$Service.allow_unauthenticated
     cloud_sql = [bool]$Service.cloud_sql
+    env_vars_file = $EnvFilePath
     health_url = $Deployment.HealthUrl
     image_exists = if ($CheckImagesOnly) { ($ImageChecks | Where-Object service_id -eq $Deployment.Id | Select-Object -First 1).exists } else { $null }
     unresolved = $Unresolved

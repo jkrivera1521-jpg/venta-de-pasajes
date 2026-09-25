@@ -8,7 +8,7 @@ Fecha de inicio: 2026-09-01
 
 Avance documentado:
 
-- Dias 1 a 70 documentados en `docs`.
+- Dias 1 a 73 documentados en `docs`.
 - Monorepo base preparado para desarrollo multi-modulo.
 - Toolchain backend Quarkus validada con servicio demo JVM y nativo.
 - Toolchain frontend Next.js/MFE validada con shell y MFE Identity demo.
@@ -37,6 +37,9 @@ Avance documentado:
 - Staging base creado con Cloud SQL, bucket documental, prueba real de restauracion y RTO inicial documentado.
 - Produccion base creada con Cloud SQL, bases por servicio, bucket documental, secretos y Pub/Sub separados de staging.
 - IAM produccion endurecido con service accounts productivas, bindings minimos por recurso y verificacion automatica.
+- Entrada productiva preparada para dominio, TLS y Load Balancer; URL final pendiente de dominio real y frontend productivo.
+- Backends productivos desplegados en Cloud Run como servicios `*-prod`, privados y validados con smoke tests autenticados.
+- Frontends productivos desplegados en Cloud Run como servicios `*-prod`; shell, manifests, rutas embedded y admin agregado validados.
 - Pendiente tecnico identificado: recompilacion nativa backend con Cloud SQL Socket Factory y GraalVM/Mandrel.
 - El sistema legacy se conserva en `legacy`.
 - Los respaldos iniciales se guardan en `backups`.
@@ -120,6 +123,9 @@ backups/
 - `docs/dia-68-backups-restauracion-staging.md`: backups, restauracion real staging, RTO inicial y reversa.
 - `docs/dia-69-infraestructura-produccion.md`: infraestructura produccion, separacion staging/prod, validacion y reversa.
 - `docs/dia-70-iam-produccion-seguridad-final.md`: IAM produccion, seguridad final, validacion y reversa.
+- `docs/dia-71-dominio-tls-entrada-productiva.md`: dominio, TLS, entrada productiva, validacion y reversa.
+- `docs/dia-72-despliegue-productivo-backend.md`: despliegue productivo de backends Cloud Run, smoke tests y reversa.
+- `docs/dia-73-despliegue-productivo-frontend.md`: despliegue productivo de frontend shell y MFEs, validacion y reversa.
 - `docs/onpremise-offline-runbook.md`: guia para correr servicios sin dependencia de Google Cloud.
 - `docs/api-conventions.md`: convenciones REST.
 - `docs/naming-standards.md`: estandar de nombres.
@@ -137,6 +143,6 @@ backups/
 
 ## Proximos pasos
 
+- Conectar la entrada TLS con dominio real sobre `frontend-shell-prod`.
 - Integrar emision de boleto con generacion/descarga de comprobante.
 - Conectar outbox de eventos a Pub/Sub.
-- Decidir si la ruta JVM queda como runtime cloud definitivo o si se resuelve compilacion nativa con Cloud SQL Socket Factory.

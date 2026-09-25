@@ -816,3 +816,232 @@ Evidence:
 C:\VENTA-DE-PASAJES\docs\dia-70-iam-produccion-seguridad-final.md
 C:\VENTA-DE-PASAJES\logs\prod-iam\verify-iam-prod.json
 ```
+
+## Dia 71 production domain, TLS and entrypoint
+
+Production entrypoint configuration and verification are prepared here:
+
+```text
+Config:    C:\VENTA-DE-PASAJES\infra\gcloud\entrypoint-prod.json
+Bootstrap: C:\VENTA-DE-PASAJES\infra\gcloud\bootstrap-prod-entrypoint.ps1
+Verifier:  C:\VENTA-DE-PASAJES\infra\gcloud\verify-prod-entrypoint.ps1
+```
+
+The real URL is intentionally pending until a real domain is confirmed and `frontend-shell` runs as production:
+
+```text
+Expected app env: prod
+Expected runtime: frontend-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com
+```
+
+Verify current status:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-prod-entrypoint.ps1
+```
+
+Plan with a real domain:
+
+```powershell
+$DomainName = Read-Host "Ingrese el dominio productivo real"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\bootstrap-prod-entrypoint.ps1 `
+  -DomainName $DomainName
+```
+
+Apply only after the production frontend is deployed:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\bootstrap-prod-entrypoint.ps1 `
+  -DomainName $DomainName `
+  -Execute
+```
+
+Final verification:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-prod-entrypoint.ps1 `
+  -DomainName $DomainName `
+  -FailOnNotReady
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-71-dominio-tls-entrada-productiva.md
+C:\VENTA-DE-PASAJES\logs\prod-entrypoint\verify-prod-entrypoint.json
+```
+
+## Dia 72 production backend Cloud Run
+
+Production backend Cloud Run descriptors:
+
+```text
+C:\VENTA-DE-PASAJES\infra\cloudrun\prod-backend-services.json
+```
+
+Note: some reusable scripts still have `dev` in the filename, but this day runs them with production configuration files. The effective target is defined by `prod-backend-services.json` and `cloudsql-prod.json`.
+
+Synchronize JSON connection secrets when `secrets-prod.json` changes:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\sync-json-secrets-from-config.ps1 `
+  -ConfigPath .\infra\gcloud\secrets-prod.json
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\sync-json-secrets-from-config.ps1 `
+  -ConfigPath .\infra\gcloud\secrets-prod.json `
+  -Execute
+```
+
+Apply production schema grants before running Flyway migrations:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\grant-cloudsql-schema-dev.ps1 `
+  -ConfigPath .\infra\gcloud\cloudsql-prod.json `
+  -ProjectId project-fbb34cd7-0b82-43e1-867 `
+  -ConnectionMode import `
+  -Execute
+```
+
+Promote validated JVM images to the backend production tag:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 `
+  -ServiceIds identity-service,dispatch-service,ticketing-service,document-service,reporting-service,audit-service `
+  -SourceTag 0.1.1-jvm `
+  -TargetTag prod-backend-0.1.1-jvm `
+  -Execute
+```
+
+Deploy private backend production services:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
+  -ConfigPath .\infra\cloudrun\prod-backend-services.json `
+  -ImageTag prod-backend-0.1.1-jvm `
+  -BackendOnly `
+  -Execute `
+  -OutputPath logs\cloudrun-prod\deploy-cloudrun-prod.commands.ps1
+```
+
+Verify:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-cloudrun-prod-backends.ps1 `
+  -FailOnNotReady
+```
+
+Expected final state:
+
+```text
+identity-service-prod Ready: True
+dispatch-service-prod Ready: True
+ticketing-service-prod Ready: True
+document-service-prod Ready: True
+reporting-service-prod Ready: True
+audit-service-prod Ready: True
+Backend productivo listo: True
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-72-despliegue-productivo-backend.md
+C:\VENTA-DE-PASAJES\logs\cloudrun-prod\verify-cloudrun-prod-backends.json
+```
+
+## Dia 73 production frontend Cloud Run
+
+Production frontend Cloud Run descriptors:
+
+```text
+C:\VENTA-DE-PASAJES\infra\cloudrun\prod-frontend-services.json
+```
+
+Promote validated frontend images from `dev` to the production frontend tag:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 `
+  -ServiceIds frontend-shell,mfe-identity,mfe-dispatch,mfe-ticketing,mfe-reporting,mfe-admin `
+  -SourceTag dev `
+  -TargetTag prod-frontend-20260924 `
+  -Execute
+```
+
+Grant frontend production runtimes permission to invoke private production backends:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\grant-prod-frontend-backend-invokers.ps1 `
+  -Execute
+```
+
+Deploy production frontends. Run a bootstrap pass only when services do not exist yet:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
+  -ConfigPath .\infra\cloudrun\prod-frontend-services.json `
+  -ImageTag prod-frontend-20260924 `
+  -FrontendOnly `
+  -ResolveExistingServiceUrls `
+  -AllowUnresolved `
+  -Execute `
+  -OutputPath logs\cloudrun-prod\deploy-cloudrun-prod-frontends.commands.ps1
+```
+
+Then run the definitive pass without unresolved values:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 `
+  -ConfigPath .\infra\cloudrun\prod-frontend-services.json `
+  -ImageTag prod-frontend-20260924 `
+  -FrontendOnly `
+  -ResolveExistingServiceUrls `
+  -Execute `
+  -OutputPath logs\cloudrun-prod\deploy-cloudrun-prod-frontends.commands.ps1
+```
+
+Verify:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-cloudrun-prod-frontends.ps1 `
+  -FailOnNotReady
+```
+
+Expected final state:
+
+```text
+frontend-shell-prod Ready: True
+mfe-identity-prod Ready: True
+mfe-dispatch-prod Ready: True
+mfe-ticketing-prod Ready: True
+mfe-reporting-prod Ready: True
+mfe-admin-prod Ready: True
+Frontend productivo listo: True
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-73-despliegue-productivo-frontend.md
+C:\VENTA-DE-PASAJES\logs\cloudrun-prod\verify-cloudrun-prod-frontends.json
+```

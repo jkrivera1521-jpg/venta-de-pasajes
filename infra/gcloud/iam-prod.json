@@ -246,26 +246,26 @@
     }
   ],
   "cloud_run_invocation_policy": {
-    "status": "deferred_until_services_exist",
+    "status": "applied_for_backend_services_on_day_73",
     "public_services_when_deployed": [
-      "frontend-shell"
+      "frontend-shell-prod",
+      "mfe-identity-prod",
+      "mfe-dispatch-prod",
+      "mfe-ticketing-prod",
+      "mfe-reporting-prod",
+      "mfe-admin-prod"
     ],
     "private_services_when_deployed": [
-      "identity-service",
-      "dispatch-service",
-      "ticketing-service",
-      "document-service",
-      "reporting-service",
-      "audit-service",
-      "mfe-identity",
-      "mfe-dispatch",
-      "mfe-ticketing",
-      "mfe-reporting",
-      "mfe-admin"
+      "identity-service-prod",
+      "dispatch-service-prod",
+      "ticketing-service-prod",
+      "document-service-prod",
+      "reporting-service-prod",
+      "audit-service-prod"
     ],
     "planned_invokers": [
       {
-        "target_group": "private_services_when_deployed",
+        "target_group": "private_backend_services",
         "invoker_service_accounts": [
           "frontend-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
           "mfe-identity-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",

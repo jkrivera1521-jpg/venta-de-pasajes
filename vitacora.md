@@ -8712,3 +8712,198 @@ Cloud Run produccion aun no existe, por lo que la politica de invocacion queda p
 Antes de trafico real falta la revision humana de administradores Owner/Editor, grupos y MFA.
 Estos recursos reales pueden generar costo.
 ```
+
+## Dia 71 - Dominio, TLS y entrada productiva
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 71 - Dominio, TLS y entrada productiva.
+Se creo infra\gcloud\entrypoint-prod.json.
+Se creo infra\gcloud\bootstrap-prod-entrypoint.ps1.
+Se creo infra\gcloud\verify-prod-entrypoint.ps1.
+Se selecciono entrada productiva con External Managed HTTPS Load Balancer, serverless NEG y certificado administrado por Google.
+Se dejo la URL final como pendiente hasta confirmar dominio real.
+Se agrego proteccion para no configurar TLS/LB con placeholders.
+Se agrego validacion para no conectar la entrada productiva al frontend-shell dev.
+Se documento docs\dia-71-dominio-tls-entrada-productiva.md con Reversa primero y Guia manual desde cero.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\infra\gcloud\entrypoint-prod.json
+C:\VENTA-DE-PASAJES\infra\gcloud\bootstrap-prod-entrypoint.ps1
+C:\VENTA-DE-PASAJES\infra\gcloud\verify-prod-entrypoint.ps1
+C:\VENTA-DE-PASAJES\docs\dia-71-dominio-tls-entrada-productiva.md
+C:\VENTA-DE-PASAJES\logs\prod-entrypoint\verify-prod-entrypoint.json
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-prod-entrypoint.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\bootstrap-prod-entrypoint.ps1
+```
+
+Validaciones:
+
+```text
+entrypoint-prod.json: OK.
+bootstrap-prod-entrypoint.ps1: sintaxis OK.
+verify-prod-entrypoint.ps1: sintaxis OK.
+Cloud Run frontend-shell existe: True.
+Cloud Run frontend-shell usa APP_ENV=prod: False.
+Cloud Run frontend-shell usa frontend-prod-run: False.
+Dominio productivo real configurado: False.
+Load Balancer productivo existe: False.
+TLS productivo activo: False.
+Overall prod entrypoint ready: False.
+El bootstrap se bloqueo correctamente sin -DomainName real.
+```
+
+Lectura ejecutiva:
+
+```text
+El Dia 71 queda preparado, pero no publicado.
+No se configuro una URL final porque falta dominio productivo real y el frontend-shell actual corresponde a dev.
+La entrada productiva solo debe aplicarse cuando el frontend este desplegado con APP_ENV=prod y service account frontend-prod-run.
+Este bloqueo evita exponer dev como si fuera produccion.
+```
+
+## Dia 72 - Despliegue productivo de backend
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 72 - Despliegue productivo de backend.
+Se creo infra\cloudrun\prod-backend-services.json.
+Se creo infra\gcloud\sync-json-secrets-from-config.ps1.
+Se creo scripts\verify-cloudrun-prod-backends.ps1.
+Se actualizo scripts\deploy-cloudrun-dev.ps1 para usar --env-vars-file y soportar valores JDBC con &.
+Se actualizo infra\gcloud\cloudsql-prod.json para reflejar grants de esquema aplicados.
+Se promovieron seis imagenes backend JVM 0.1.1-jvm al tag prod-backend-0.1.1-jvm.
+Se sincronizaron las versiones JSON de seis secretos *-prod__db-connection.
+Se aplicaron grants de esquema public por usuario IAM productivo en Cloud SQL prod.
+Se desplegaron seis servicios Cloud Run productivos privados con sufijo -prod.
+Se ejecutaron smoke tests autenticados para los seis health endpoints productivos.
+Se documento docs\dia-72-despliegue-productivo-backend.md con Reversa primero y Guia manual desde cero.
+Se aclaro que algunos scripts conservan sufijo dev por historia, pero en este dia apuntan a produccion por los archivos prod-backend-services.json y cloudsql-prod.json.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\infra\cloudrun\prod-backend-services.json
+C:\VENTA-DE-PASAJES\infra\gcloud\sync-json-secrets-from-config.ps1
+C:\VENTA-DE-PASAJES\scripts\verify-cloudrun-prod-backends.ps1
+C:\VENTA-DE-PASAJES\scripts\deploy-cloudrun-dev.ps1
+C:\VENTA-DE-PASAJES\docs\dia-72-despliegue-productivo-backend.md
+C:\VENTA-DE-PASAJES\logs\cloudrun-prod\verify-cloudrun-prod-backends.json
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\sync-json-secrets-from-config.ps1 -ConfigPath .\infra\gcloud\secrets-prod.json -Execute
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\grant-cloudsql-schema-dev.ps1 -ConfigPath .\infra\gcloud\cloudsql-prod.json -ProjectId project-fbb34cd7-0b82-43e1-867 -ConnectionMode import -Execute
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 -ServiceIds identity-service,dispatch-service,ticketing-service,document-service,reporting-service,audit-service -SourceTag 0.1.1-jvm -TargetTag prod-backend-0.1.1-jvm -Execute
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ConfigPath .\infra\cloudrun\prod-backend-services.json -ImageTag prod-backend-0.1.1-jvm -BackendOnly -Execute -OutputPath logs\cloudrun-prod\deploy-cloudrun-prod.commands.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-cloudrun-prod-backends.ps1 -FailOnNotReady
+```
+
+Validaciones:
+
+```text
+identity-service-prod Ready: True.
+dispatch-service-prod Ready: True.
+ticketing-service-prod Ready: True.
+document-service-prod Ready: True.
+reporting-service-prod Ready: True.
+audit-service-prod Ready: True.
+APP_ENV=prod en seis servicios: True.
+Cloud SQL prod en seis servicios: True.
+Service accounts productivas en seis servicios: True.
+Servicios privados: True.
+Smoke tests autenticados: 6/6.
+Backend productivo listo: True.
+```
+
+Lectura ejecutiva:
+
+```text
+El backend productivo ya esta desplegado en Cloud Run con servicios separados de dev.
+Los servicios productivos usan cuentas *-prod-run, Cloud SQL prod y secretos prod.
+Las APIs productivas responden correctamente en health checks autenticados.
+Los servicios permanecen privados; la exposicion publica final queda pendiente del frontend productivo, dominio y TLS.
+Estos recursos reales pueden generar costo.
+```
+
+## Dia 73 - Despliegue productivo de frontend shell y MFEs
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 73 - Despliegue productivo de frontend shell y MFEs.
+Se creo infra\cloudrun\prod-frontend-services.json.
+Se creo infra\gcloud\grant-prod-frontend-backend-invokers.ps1.
+Se creo scripts\verify-cloudrun-prod-frontends.ps1.
+Se actualizo scripts\deploy-cloudrun-dev.ps1 para detectar UNRESOLVED_ dentro de archivos env yaml.
+Se promovieron seis imagenes frontend desde dev al tag prod-frontend-20260924.
+Se aplicaron 36 bindings roles/run.invoker desde cuentas frontend prod hacia seis backends privados prod.
+Se ejecuto bootstrap inicial de seis servicios frontend productivos con sufijo -prod.
+Se ejecuto despliegue definitivo sin valores UNRESOLVED_.
+Se validaron health, manifests MFE, rutas embedded, runtime config y admin aggregate health.
+Se documento docs\dia-73-despliegue-productivo-frontend.md con Reversa primero y Guia manual desde cero.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\infra\cloudrun\prod-frontend-services.json
+C:\VENTA-DE-PASAJES\infra\gcloud\grant-prod-frontend-backend-invokers.ps1
+C:\VENTA-DE-PASAJES\scripts\verify-cloudrun-prod-frontends.ps1
+C:\VENTA-DE-PASAJES\scripts\deploy-cloudrun-dev.ps1
+C:\VENTA-DE-PASAJES\docs\dia-73-despliegue-productivo-frontend.md
+C:\VENTA-DE-PASAJES\logs\cloudrun-prod\verify-cloudrun-prod-frontends.json
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\promote-artifact-image-tags.ps1 -ServiceIds frontend-shell,mfe-identity,mfe-dispatch,mfe-ticketing,mfe-reporting,mfe-admin -SourceTag dev -TargetTag prod-frontend-20260924 -Execute
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\grant-prod-frontend-backend-invokers.ps1 -Execute
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ConfigPath .\infra\cloudrun\prod-frontend-services.json -ImageTag prod-frontend-20260924 -FrontendOnly -ResolveExistingServiceUrls -AllowUnresolved -Execute -OutputPath logs\cloudrun-prod\deploy-cloudrun-prod-frontends.commands.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-cloudrun-dev.ps1 -ConfigPath .\infra\cloudrun\prod-frontend-services.json -ImageTag prod-frontend-20260924 -FrontendOnly -ResolveExistingServiceUrls -Execute -OutputPath logs\cloudrun-prod\deploy-cloudrun-prod-frontends.commands.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-cloudrun-prod-frontends.ps1 -FailOnNotReady
+```
+
+Validaciones:
+
+```text
+frontend-shell-prod Ready: True.
+mfe-identity-prod Ready: True.
+mfe-dispatch-prod Ready: True.
+mfe-ticketing-prod Ready: True.
+mfe-reporting-prod Ready: True.
+mfe-admin-prod Ready: True.
+NEXT_PUBLIC_APP_ENV=prod en seis servicios: True.
+Service accounts productivas correctas: True.
+Servicios sin UNRESOLVED_: True.
+Health publicos: 6/6.
+Manifests MFE: 5/5.
+Rutas embedded: 5/5.
+Admin aggregate health: 12/12 up.
+Frontend productivo listo: True.
+```
+
+Lectura ejecutiva:
+
+```text
+El frontend productivo ya esta desplegado en Cloud Run con servicios separados de dev.
+El shell productivo carga los cinco MFEs productivos mediante manifests reales.
+Los MFEs productivos pueden consumir backends privados mediante identity token service-to-service.
+Los backends permanecen privados; los frontends estan publicos porque el navegador carga manifests e iframes directamente.
+El siguiente paso es retomar la entrada productiva del Dia 71 con dominio real y TLS.
+Estos recursos reales pueden generar costo.
+```

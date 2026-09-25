@@ -1,0 +1,39 @@
+{
+  "environment": "prod",
+  "project_id": "project-fbb34cd7-0b82-43e1-867",
+  "region": "us-central1",
+  "domain_name": "",
+  "final_url_status": "pending_real_domain",
+  "final_url_template": "https://<dominio-productivo-confirmado>",
+  "frontend": {
+    "service_name": "frontend-shell-prod",
+    "expected_app_env": "prod",
+    "expected_service_account": "frontend-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+    "health_path": "/api/health"
+  },
+  "load_balancer": {
+    "type": "external_managed_https_load_balancer",
+    "global_ip_name": "venta-pasajes-prod-ip",
+    "managed_certificate_name": "venta-pasajes-prod-managed-cert",
+    "serverless_neg_name": "venta-pasajes-prod-frontend-neg",
+    "backend_service_name": "venta-pasajes-prod-frontend-backend",
+    "url_map_name": "venta-pasajes-prod-url-map",
+    "https_proxy_name": "venta-pasajes-prod-https-proxy",
+    "forwarding_rule_name": "venta-pasajes-prod-https-forwarding-rule",
+    "port": 443
+  },
+  "dns": {
+    "required_record_type": "A",
+    "target": "global_ip_address_from_load_balancer"
+  },
+  "office_validation": {
+    "required": true,
+    "evidence_file": "logs/prod-entrypoint/office-validation-prod.json",
+    "expected_checks": [
+      "open_final_url_from_admin_office",
+      "open_final_url_from_terminal_office",
+      "health_endpoint_returns_200",
+      "login_page_loads_over_https"
+    ]
+  }
+}
