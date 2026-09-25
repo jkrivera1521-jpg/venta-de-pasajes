@@ -8907,3 +8907,83 @@ Los backends permanecen privados; los frontends estan publicos porque el navegad
 El siguiente paso es retomar la entrada productiva del Dia 71 con dominio real y TLS.
 Estos recursos reales pueden generar costo.
 ```
+
+## Dia 74 - Ensayo de migracion final
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 74 - Ensayo de migracion final.
+Se verifico que Access legacy existe en C:\VENTA-DE-PASAJES\legacy\sistema\Proyect\usuario.mdb.
+Se confirmo apertura con Microsoft.ACE.OLEDB.16.0.
+Se leyeron tablas Buses, Clientes, Salidas, Terminales, Tipobus y Usuarios.
+Se creo scripts\run-final-migration-rehearsal.ps1.
+Se genero copia reciente de Access en backups\final-migration-rehearsal\20260925-080816\usuario.mdb.
+Se generaron SQL separados para identity_db, dispatch_db y ticketing_db.
+Se valido la carga en PostgreSQL temporal local desde cero con Docker.
+Se documento docs\dia-74-ensayo-migracion-final.md con Reversa primero y Guia manual desde cero.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\run-final-migration-rehearsal.ps1
+C:\VENTA-DE-PASAJES\docs\dia-74-ensayo-migracion-final.md
+C:\VENTA-DE-PASAJES\migration\README.md
+C:\VENTA-DE-PASAJES\logs\migration\dia74-final-rehearsal\final-migration-rehearsal.json
+C:\VENTA-DE-PASAJES\logs\migration\dia74-final-rehearsal\identity_db-dia74.sql
+C:\VENTA-DE-PASAJES\logs\migration\dia74-final-rehearsal\dispatch_db-dia74.sql
+C:\VENTA-DE-PASAJES\logs\migration\dia74-final-rehearsal\ticketing_db-dia74.sql
+C:\VENTA-DE-PASAJES\backups\final-migration-rehearsal\20260925-080816\usuario.mdb
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-final-migration-rehearsal.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-final-migration-rehearsal.ps1 -ValidateLocal -FailOnBlocked
+```
+
+Validaciones:
+
+```text
+Access source_sha256 == backup_sha256: True.
+Access Buses: 1.
+Access Clientes: 3.
+Access Salidas: 1.
+Access Terminales: 1.
+Access Tipobus: 3.
+Access Usuarios: 1.
+identity_users: 1.
+identity_profiles: 1.
+dispatch_terminals: 2.
+dispatch_bus_types: 3.
+dispatch_buses: 1.
+dispatch_routes: 1.
+dispatch_departures: 1.
+ticketing_passengers: 3.
+ticketing_synced_departures: 1.
+ticketing_departure_seats: 25.
+ticketing_tickets: 3.
+ready_for_staging_execution: True.
+blockers: 0.
+```
+
+Problemas encontrados y solucionados:
+
+```text
+El primer borrador de PowerShell fallo por interpolacion $Variable: dentro de strings; se corrigio con ${Variable}.
+El helper de terminales no resolvia correctamente legacy_id usando Nullable[int]; se cambio a conversion interna segura.
+La primera evidencia JSON mezclo salidas de Docker con conteos; se limpio Invoke-Docker para descartar salida operativa.
+La limpieza recursiva automatica de copias fallidas fue bloqueada por seguridad del entorno; se dejo la reversa documentada.
+```
+
+Lectura ejecutiva:
+
+```text
+El procedimiento de migracion final ya existe como ensayo reproducible.
+La carga se probo desde cero en PostgreSQL temporal usando esquemas reales de identity, dispatch y ticketing.
+El tiempo medido del ensayo fue 7.191 segundos.
+La estimacion inicial de corte es 17.57 minutos, sumando el RTO medido del Dia 68.
+La aplicacion en staging queda documentada y protegida para una ventana controlada, evitando sobrescribir Cloud SQL sin decision explicita.
+```

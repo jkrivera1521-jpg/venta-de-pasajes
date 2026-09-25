@@ -1045,3 +1045,44 @@ Evidence:
 C:\VENTA-DE-PASAJES\docs\dia-73-despliegue-productivo-frontend.md
 C:\VENTA-DE-PASAJES\logs\cloudrun-prod\verify-cloudrun-prod-frontends.json
 ```
+
+## Dia 74 final migration rehearsal
+
+The final migration rehearsal reads the legacy Access file and generates SQL loads for the service-owned PostgreSQL databases:
+
+```text
+C:\VENTA-DE-PASAJES\legacy\sistema\Proyect\usuario.mdb
+C:\VENTA-DE-PASAJES\scripts\run-final-migration-rehearsal.ps1
+```
+
+Run the rehearsal and local from-scratch PostgreSQL validation:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-final-migration-rehearsal.ps1 `
+  -ValidateLocal `
+  -FailOnBlocked
+```
+
+Expected final state:
+
+```text
+Access copy hash matches source: True
+identity users: 1
+dispatch terminals: 2
+dispatch buses: 1
+dispatch departures: 1
+ticketing passengers: 3
+ticketing departure_seats: 25
+ticketing tickets: 3
+ready_for_staging_execution: True
+estimated cutover: 17.57 minutes
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-74-ensayo-migracion-final.md
+C:\VENTA-DE-PASAJES\logs\migration\dia74-final-rehearsal\final-migration-rehearsal.json
+```

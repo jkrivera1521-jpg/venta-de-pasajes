@@ -8,7 +8,7 @@ Fecha de inicio: 2026-09-01
 
 Avance documentado:
 
-- Dias 1 a 73 documentados en `docs`.
+- Dias 1 a 74 documentados en `docs`.
 - Monorepo base preparado para desarrollo multi-modulo.
 - Toolchain backend Quarkus validada con servicio demo JVM y nativo.
 - Toolchain frontend Next.js/MFE validada con shell y MFE Identity demo.
@@ -40,6 +40,7 @@ Avance documentado:
 - Entrada productiva preparada para dominio, TLS y Load Balancer; URL final pendiente de dominio real y frontend productivo.
 - Backends productivos desplegados en Cloud Run como servicios `*-prod`, privados y validados con smoke tests autenticados.
 - Frontends productivos desplegados en Cloud Run como servicios `*-prod`; shell, manifests, rutas embedded y admin agregado validados.
+- Ensayo de migracion final ejecutado desde Access hacia SQL por microservicio y validado en PostgreSQL temporal desde cero.
 - Pendiente tecnico identificado: recompilacion nativa backend con Cloud SQL Socket Factory y GraalVM/Mandrel.
 - El sistema legacy se conserva en `legacy`.
 - Los respaldos iniciales se guardan en `backups`.
@@ -126,6 +127,7 @@ backups/
 - `docs/dia-71-dominio-tls-entrada-productiva.md`: dominio, TLS, entrada productiva, validacion y reversa.
 - `docs/dia-72-despliegue-productivo-backend.md`: despliegue productivo de backends Cloud Run, smoke tests y reversa.
 - `docs/dia-73-despliegue-productivo-frontend.md`: despliegue productivo de frontend shell y MFEs, validacion y reversa.
+- `docs/dia-74-ensayo-migracion-final.md`: copia Access, SQL por microservicio, conteos, tiempo de corte y reversa.
 - `docs/onpremise-offline-runbook.md`: guia para correr servicios sin dependencia de Google Cloud.
 - `docs/api-conventions.md`: convenciones REST.
 - `docs/naming-standards.md`: estandar de nombres.
