@@ -14,6 +14,7 @@ Validar la toolchain frontend con Node.js LTS, npm workspaces, Next.js, React, T
 - Se verifico que `pnpm` y `yarn` no estan instalados en PATH.
 - Se eligio npm workspaces porque ya esta disponible y evita instalar un gestor adicional.
 - Se consultaron versiones de paquetes desde npm registry.
+- Se actualizo Next.js a `16.3.8` despues de que `npm audit` detectara una vulnerabilidad critica en versiones `16.2.0` a `16.3.5`.
 - Se creo `package.json` raiz con workspaces.
 - Se creo `tsconfig.base.json`.
 - Se creo el paquete compartido `C:\VENTA-DE-PASAJES\packages\shared-types`.
@@ -37,7 +38,7 @@ Validar la toolchain frontend con Node.js LTS, npm workspaces, Next.js, React, T
 | Corepack | `0.34.5` |
 | pnpm | No instalado en PATH |
 | yarn | No instalado en PATH |
-| Next.js | `16.3.4` |
+| Next.js | `16.3.8` |
 | React | `19.2.8` |
 | TypeScript | `7.0.2` |
 | lucide-react | `1.39.0` |

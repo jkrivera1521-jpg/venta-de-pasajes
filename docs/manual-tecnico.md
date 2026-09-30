@@ -10,7 +10,7 @@ Este manual consolida la arquitectura tecnica del sistema Venta de Pasajes para 
 
 | Capa | Tecnologia | Version / regla |
 | --- | --- | --- |
-| Frontend | Next.js App Router | 16.3.4 |
+| Frontend | Next.js App Router | 16.3.8 |
 | Frontend | React | 19.2.8 |
 | Frontend | TanStack Query | ^5.103.1 |
 | Frontend | TanStack Table | ^8.21.3 en mfe-admin |
