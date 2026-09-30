@@ -42,6 +42,24 @@ Validar la toolchain frontend con Node.js LTS, npm workspaces, Next.js, React, T
 | TypeScript | `7.0.2` |
 | lucide-react | `1.39.0` |
 
+## Ubicacion para ejecutar los comandos
+
+Todos los comandos de este dia se ejecutan desde la raiz del monorepo:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+```
+
+El prompt deberia quedar parecido a:
+
+```text
+PS C:\VENTA-DE-PASAJES>
+```
+
+Desde ahi se ejecutan `npm install`, `npm run typecheck:frontend`, `npm run build:frontend`, `npm run dev:frontend` y `npm run stop:frontend`.
+
+No ejecutar estos comandos desde `apps\frontend-shell`, `apps\mfe-identity` ni `packages\shared-types`, porque los scripts usan npm workspaces y rutas relativas desde la raiz.
+
 ## Workspaces creados
 
 | Workspace | Ruta | Proposito |
@@ -82,6 +100,12 @@ Manifest validado:
 ```
 
 ## Comandos validados
+
+Antes de ejecutar cualquiera de estos bloques, confirmar que estas ubicado en:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+```
 
 Instalacion:
 
@@ -155,17 +179,35 @@ npm run stop:frontend
 
 ## Archivos principales creados
 
-| Archivo | Proposito |
-| --- | --- |
-| `C:\VENTA-DE-PASAJES\package.json` | Workspaces y scripts frontend. |
-| `C:\VENTA-DE-PASAJES\package-lock.json` | Lockfile npm reproducible. |
-| `C:\VENTA-DE-PASAJES\tsconfig.base.json` | Configuracion TypeScript compartida. |
-| `C:\VENTA-DE-PASAJES\apps\frontend-shell\app\page.tsx` | Vista inicial del shell operativo. |
-| `C:\VENTA-DE-PASAJES\apps\frontend-shell\app\components\RemoteMfeFrame.tsx` | Carga de manifest remoto y render embebido. |
-| `C:\VENTA-DE-PASAJES\apps\mfe-identity\app\mfe\manifest\route.ts` | Manifest remoto del MFE Identity. |
-| `C:\VENTA-DE-PASAJES\apps\mfe-identity\app\identity\embedded\page.tsx` | Pantalla embebible del MFE Identity. |
-| `C:\VENTA-DE-PASAJES\scripts\start-frontend-dev.ps1` | Arranque local de shell + MFE. |
-| `C:\VENTA-DE-PASAJES\scripts\stop-frontend-dev.ps1` | Detencion local de shell + MFE. |
+| Archivo | Tipo | Descripcion |
+| --- | --- | --- |
+| `C:\VENTA-DE-PASAJES\package.json` | Configuracion raiz npm | Declara el monorepo, los workspaces frontend y los scripts principales. Desde aqui salen `npm run dev:frontend`, `npm run stop:frontend`, `npm run typecheck:frontend` y `npm run build:frontend`. En dias posteriores este archivo puede tener mas MFEs registrados. |
+| `C:\VENTA-DE-PASAJES\package-lock.json` | Lockfile npm | Congela las versiones instaladas por npm para que otra instalacion use las mismas dependencias base. |
+| `C:\VENTA-DE-PASAJES\tsconfig.base.json` | TypeScript compartido | Centraliza reglas TypeScript comunes para apps y paquetes frontend. Cada workspace hereda o replica estas reglas segun su `tsconfig.json`. |
+| `C:\VENTA-DE-PASAJES\.env.example` | Plantilla de ambiente raiz | Sirve como referencia general de variables de entorno del proyecto. No debe contener secretos reales. |
+| `C:\VENTA-DE-PASAJES\packages\shared-types\package.json` | Paquete compartido | Define `@venta-pasajes/shared-types`, paquete usado por shell y MFEs para compartir contratos TypeScript. |
+| `C:\VENTA-DE-PASAJES\packages\shared-types\src\index.ts` | Contratos TypeScript | Define `MicrofrontendManifest` y `MicrofrontendStatus`, el contrato que el shell espera leer desde cada MFE. |
+| `C:\VENTA-DE-PASAJES\packages\shared-types\tsconfig.json` | TypeScript del paquete | Configura la validacion TypeScript del paquete compartido. |
+| `C:\VENTA-DE-PASAJES\apps\frontend-shell\package.json` | Workspace Next.js | Define el shell como app Next.js y sus scripts locales `dev`, `build`, `start` y `typecheck`. |
+| `C:\VENTA-DE-PASAJES\apps\frontend-shell\next.config.ts` | Configuracion Next.js | Configura Next.js para el shell. En este proyecto tambien evita comportamiento autogenerado no deseado mediante `agentRules: false`. |
+| `C:\VENTA-DE-PASAJES\apps\frontend-shell\tsconfig.json` | TypeScript del shell | Configura la validacion TypeScript del shell. |
+| `C:\VENTA-DE-PASAJES\apps\frontend-shell\.env.example` | Variables del shell | Define las URLs de manifest que el shell debe consultar, por ejemplo `NEXT_PUBLIC_MFE_IDENTITY_MANIFEST_URL`. |
+| `C:\VENTA-DE-PASAJES\apps\frontend-shell\app\layout.tsx` | Layout Next.js | Estructura raiz visual del shell. |
+| `C:\VENTA-DE-PASAJES\apps\frontend-shell\app\page.tsx` | Pantalla principal | Vista inicial del shell operativo desde donde se presenta o carga la composicion MFE. |
+| `C:\VENTA-DE-PASAJES\apps\frontend-shell\app\globals.css` | Estilos globales | Estilos base del shell. |
+| `C:\VENTA-DE-PASAJES\apps\frontend-shell\app\components\RemoteMfeFrame.tsx` | Componente de composicion | Consulta el manifest remoto del MFE y renderiza la entrada embebida por iframe. |
+| `C:\VENTA-DE-PASAJES\apps\mfe-identity\package.json` | Workspace Next.js | Define el MFE Identity como app Next.js independiente con scripts `dev`, `build`, `start` y `typecheck`. |
+| `C:\VENTA-DE-PASAJES\apps\mfe-identity\next.config.ts` | Configuracion Next.js | Configura Next.js para el MFE Identity. |
+| `C:\VENTA-DE-PASAJES\apps\mfe-identity\tsconfig.json` | TypeScript del MFE | Configura la validacion TypeScript del MFE Identity. |
+| `C:\VENTA-DE-PASAJES\apps\mfe-identity\.env.example` | Variables del MFE | Define la URL publica local del MFE, por ejemplo `NEXT_PUBLIC_MFE_PUBLIC_URL=http://localhost:3001`. |
+| `C:\VENTA-DE-PASAJES\apps\mfe-identity\app\layout.tsx` | Layout Next.js | Estructura raiz visual del MFE Identity. |
+| `C:\VENTA-DE-PASAJES\apps\mfe-identity\app\page.tsx` | Pagina standalone | Permite abrir el MFE Identity directamente, sin pasar por el shell. |
+| `C:\VENTA-DE-PASAJES\apps\mfe-identity\app\globals.css` | Estilos globales | Estilos base del MFE Identity. |
+| `C:\VENTA-DE-PASAJES\apps\mfe-identity\app\api\health\route.ts` | Endpoint local | Expone `GET /api/health` para validar que el MFE esta vivo. |
+| `C:\VENTA-DE-PASAJES\apps\mfe-identity\app\mfe\manifest\route.ts` | Manifest MFE | Expone `GET /mfe/manifest`, con nombre, version, estado, URL embebida, health URL y capacidades del MFE. |
+| `C:\VENTA-DE-PASAJES\apps\mfe-identity\app\identity\embedded\page.tsx` | Entrada embebida | Pantalla que el shell carga dentro del iframe. |
+| `C:\VENTA-DE-PASAJES\scripts\start-frontend-dev.ps1` | Script PowerShell de arranque | Arranca los servidores Next.js locales con puertos definidos, valida que los puertos esten libres, inyecta variables de entorno, guarda logs en `C:\VENTA-DE-PASAJES\logs` y registra archivos `.pid` para poder detenerlos luego. En el Dia 11 nacio para shell + identity; en el estado actual del repo tambien arranca los MFEs agregados despues. |
+| `C:\VENTA-DE-PASAJES\scripts\stop-frontend-dev.ps1` | Script PowerShell de detencion | Detiene procesos frontend usando los `.pid` generados y, si hace falta, los puertos 3000 a 3005. Luego limpia los archivos `.pid` y devuelve un resumen JSON con procesos detenidos y puertos restantes. |
 
 ## Decisiones registradas
 

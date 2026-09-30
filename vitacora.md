@@ -9184,3 +9184,1084 @@ La prueba real queda bloqueada porque Dia 77 no esta aplicado ni aprobado en pro
 No se creo salida, no se vendieron boletos, no se genero PDF real y no se modifico produccion.
 La generacion de PDF se prepara via document-service directo porque ticketing-service-prod no tiene APP_DOCUMENT_INTEGRATION_ENABLED=true.
 ```
+
+## Dia 79 - Puesta en marcha
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 79 - Puesta en marcha.
+Se creo scripts\prepare-go-live-prod.ps1.
+Se creo docs\dia-79-puesta-en-marcha.md con Reversa primero y Guia manual desde cero.
+Se creo docs\acta-puesta-en-marcha.md.
+Se creo docs\registro-incidencias-iniciales.md.
+Se genero logs\go-live\dia79-go-live-readiness.json.
+Se genero logs\go-live\dia79-go-live-commands.ps1.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-go-live-prod.ps1
+C:\VENTA-DE-PASAJES\docs\dia-79-puesta-en-marcha.md
+C:\VENTA-DE-PASAJES\docs\acta-puesta-en-marcha.md
+C:\VENTA-DE-PASAJES\docs\registro-incidencias-iniciales.md
+C:\VENTA-DE-PASAJES\logs\go-live\dia79-go-live-readiness.json
+C:\VENTA-DE-PASAJES\logs\go-live\dia79-go-live-commands.ps1
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-go-live-prod.ps1
+```
+
+Resultado:
+
+```text
+Paquete de puesta en marcha listo: True
+Puesta en marcha real autorizada: False
+Operacion real iniciada: False
+Bloqueos tecnicos: 0
+Bloqueos de negocio: 8
+```
+
+Comandos agregados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-go-live-prod.ps1 `
+  -OperatorEmails "boleteria1@empresa.com","boleteria2@empresa.com" `
+  -SupervisorEmails "supervisor@empresa.com" `
+  -ConfirmMigrationApplied `
+  -ConfirmControlledTestApproved `
+  -ConfirmBusinessOpen
+
+.\logs\go-live\dia79-go-live-commands.ps1
+```
+
+Lectura ejecutiva:
+
+```text
+El paquete de puesta en marcha queda preparado.
+La apertura real queda bloqueada porque Dia 77 no esta aplicado/aprobado y Dia 78 no esta ejecutado/aprobado.
+Tambien faltan correos Google reales para boleteria y supervisores.
+No se asignaron accesos, no se inicio operacion real y no se modifico produccion.
+```
+
+## Dia 80 - Soporte intensivo dia 1
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 80 - Soporte intensivo dia 1.
+Se creo scripts\prepare-post-start-day1-report.ps1.
+Se creo docs\dia-80-soporte-intensivo-dia-1.md con Reversa primero y Guia manual desde cero.
+Se creo docs\reporte-post-arranque-dia-1.md.
+Se genero logs\post-start-day1\dia80-post-start-day1-readiness.json.
+Se genero logs\post-start-day1\dia80-post-start-day1-commands.ps1.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-post-start-day1-report.ps1
+C:\VENTA-DE-PASAJES\docs\dia-80-soporte-intensivo-dia-1.md
+C:\VENTA-DE-PASAJES\docs\reporte-post-arranque-dia-1.md
+C:\VENTA-DE-PASAJES\logs\post-start-day1\dia80-post-start-day1-readiness.json
+C:\VENTA-DE-PASAJES\logs\post-start-day1\dia80-post-start-day1-commands.ps1
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-post-start-day1-report.ps1
+```
+
+Resultado:
+
+```text
+Paquete soporte listo: True
+Revision real autorizada: False
+Revision real ejecutada: False
+Bloqueos tecnicos: 0
+Bloqueos de negocio: 4
+```
+
+Comandos agregados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-post-start-day1-report.ps1 `
+  -ConfirmGoLiveStarted `
+  -ConfirmBusinessOpen
+
+.\logs\post-start-day1\dia80-post-start-day1-commands.ps1
+```
+
+Lectura ejecutiva:
+
+```text
+El paquete de soporte intensivo dia 1 queda preparado.
+La revision real queda bloqueada porque la operacion real del Dia 79 no esta iniciada.
+No existe evidencia de monitoreo de apertura Dia 79.
+No se revisaron ventas reales, reportes reales ni consumo Cloud SQL real.
+No se aplicaron ajustes urgentes.
+```
+
+## Dia 81 - Soporte intensivo dia 2
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 81 - Soporte intensivo dia 2.
+Se creo scripts\prepare-post-start-day2-report.ps1.
+Se creo docs\dia-81-soporte-intensivo-dia-2.md con Reversa primero y Guia manual desde cero.
+Se creo docs\reporte-post-arranque-dia-2.md.
+Se genero logs\post-start-day2\dia81-post-start-day2-readiness.json.
+Se genero logs\post-start-day2\dia81-post-start-day2-commands.ps1.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-post-start-day2-report.ps1
+C:\VENTA-DE-PASAJES\docs\dia-81-soporte-intensivo-dia-2.md
+C:\VENTA-DE-PASAJES\docs\reporte-post-arranque-dia-2.md
+C:\VENTA-DE-PASAJES\logs\post-start-day2\dia81-post-start-day2-readiness.json
+C:\VENTA-DE-PASAJES\logs\post-start-day2\dia81-post-start-day2-commands.ps1
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-post-start-day2-report.ps1
+```
+
+Resultado:
+
+```text
+Paquete soporte dia 2 listo: True
+Revision real dia 2 autorizada: False
+Revision real dia 2 ejecutada: False
+Bloqueos tecnicos: 0
+Bloqueos de negocio: 5
+```
+
+Comandos agregados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-post-start-day2-report.ps1 `
+  -ConfirmDay1Closed `
+  -ConfirmBusinessOpen
+
+$env:DIA81_DOCUMENT_ID = "<document-id-real>"
+$env:DIA81_CANCELLED_TICKET_ID = "<ticket-id-anulado>"
+.\logs\post-start-day2\dia81-post-start-day2-commands.ps1
+```
+
+Lectura ejecutiva:
+
+```text
+El paquete de soporte intensivo dia 2 queda preparado.
+La revision real queda bloqueada porque Dia 80 no esta ejecutado ni cerrado.
+No se reviso feedback real de boleteria.
+No se ajustaron permisos.
+No se validaron impresion ni anulaciones reales.
+```
+
+## Dia 82 - Soporte intensivo dia 3
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 82 - Soporte intensivo dia 3.
+Se creo scripts\prepare-post-start-day3-report.ps1.
+Se creo docs\dia-82-soporte-intensivo-dia-3.md con Reversa primero y Guia manual desde cero.
+Se creo docs\reporte-post-arranque-dia-3.md.
+Se genero logs\post-start-day3\dia82-post-start-day3-readiness.json.
+Se genero logs\post-start-day3\dia82-post-start-day3-commands.ps1.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-post-start-day3-report.ps1
+C:\VENTA-DE-PASAJES\docs\dia-82-soporte-intensivo-dia-3.md
+C:\VENTA-DE-PASAJES\docs\reporte-post-arranque-dia-3.md
+C:\VENTA-DE-PASAJES\logs\post-start-day3\dia82-post-start-day3-readiness.json
+C:\VENTA-DE-PASAJES\logs\post-start-day3\dia82-post-start-day3-commands.ps1
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-post-start-day3-report.ps1
+```
+
+Resultado:
+
+```text
+Paquete soporte dia 3 listo: True
+Decision soporte normal autorizada: False
+Revision real dia 3 ejecutada: False
+Bloqueos tecnicos: 0
+Bloqueos de negocio: 5
+```
+
+Comandos agregados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-post-start-day3-report.ps1 `
+  -ConfirmDay2Closed `
+  -ConfirmBusinessStable
+
+.\logs\post-start-day3\dia82-post-start-day3-commands.ps1
+```
+
+Lectura ejecutiva:
+
+```text
+El paquete de soporte intensivo dia 3 queda preparado.
+La decision de soporte normal queda bloqueada porque Dia 81 no esta ejecutado ni cerrado.
+No se reviso estabilidad real, latencia real, costos preliminares reales ni logs de seguridad reales.
+No se cerraron incidencias y no se autorizo paso a soporte normal.
+```
+
+## Dia 83 - Optimizacion de costos
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 83 - Optimizacion de costos.
+Se creo scripts\prepare-cost-optimization-review.ps1.
+Se creo docs\dia-83-optimizacion-costos.md con Reversa primero y Guia manual desde cero.
+Se creo docs\reporte-costo-mensual-estimado.md.
+Se genero logs\cost-optimization\dia83-cost-optimization-readiness.json.
+Se genero logs\cost-optimization\dia83-cost-optimization-commands.ps1.
+Se genero logs\cost-optimization\dia83-budget-alert-template.ps1.
+Se genero logs\cost-optimization\dia83-cost-adjustments-plan.json.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-cost-optimization-review.ps1
+C:\VENTA-DE-PASAJES\docs\dia-83-optimizacion-costos.md
+C:\VENTA-DE-PASAJES\docs\reporte-costo-mensual-estimado.md
+C:\VENTA-DE-PASAJES\logs\cost-optimization\dia83-cost-optimization-readiness.json
+C:\VENTA-DE-PASAJES\logs\cost-optimization\dia83-cost-optimization-commands.ps1
+C:\VENTA-DE-PASAJES\logs\cost-optimization\dia83-budget-alert-template.ps1
+C:\VENTA-DE-PASAJES\logs\cost-optimization\dia83-cost-adjustments-plan.json
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-cost-optimization-review.ps1
+```
+
+Resultado:
+
+```text
+Paquete optimizacion costos listo: True
+Revision real costos autorizada: False
+Guardrails de configuracion OK: True
+Costo real mensual validado: False
+Bloqueos tecnicos: 0
+Bloqueos de negocio: 3
+```
+
+Comandos agregados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-cost-optimization-review.ps1 `
+  -ConfirmProductionStable
+
+.\logs\cost-optimization\dia83-cost-optimization-commands.ps1
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\logs\cost-optimization\dia83-budget-alert-template.ps1 `
+  -BillingAccountId "<billing-account-id-real>" `
+  -BudgetAmountUsd 150
+```
+
+Lectura ejecutiva:
+
+```text
+El paquete de optimizacion de costos queda preparado.
+La configuracion actual tiene guardrails de costo: Cloud Run min_instances=0, max_instances=2, 1 CPU y 512Mi.
+Cloud SQL produccion esta en db-f1-micro con 10GB SSD y auto incremento.
+La validacion de costo real mensual queda bloqueada porque Dia 82 no esta cerrado con evidencia real y no se confirmo produccion estable.
+No se aplicaron cambios reales en GCP ni se creo presupuesto automaticamente.
+```
+
+## Dia 84 - Documentacion tecnica final
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 84 - Documentacion tecnica final.
+Se creo scripts\prepare-technical-documentation.ps1.
+Se creo docs\dia-84-documentacion-tecnica-final.md con Reversa primero y Guia manual desde cero.
+Se genero docs\manual-tecnico.md.
+Se genero docs\diagramas-finales.md.
+Se genero logs\technical-documentation\dia84-technical-documentation-readiness.json.
+Se genero logs\technical-documentation\dia84-technical-documentation-inventory.json.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-technical-documentation.ps1
+C:\VENTA-DE-PASAJES\docs\dia-84-documentacion-tecnica-final.md
+C:\VENTA-DE-PASAJES\docs\manual-tecnico.md
+C:\VENTA-DE-PASAJES\docs\diagramas-finales.md
+C:\VENTA-DE-PASAJES\logs\technical-documentation\dia84-technical-documentation-readiness.json
+C:\VENTA-DE-PASAJES\logs\technical-documentation\dia84-technical-documentation-inventory.json
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-technical-documentation.ps1
+```
+
+Resultado:
+
+```text
+Documentacion tecnica lista: True
+Manual tecnico generado: True
+Diagramas finales generados: True
+Servicios inventariados: 12
+Bases inventariadas: 6
+OpenAPI inventariados: 6
+Eventos inventariados: 14
+Pipelines inventariados: 2
+Bloqueos tecnicos: 0
+```
+
+Comandos agregados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-technical-documentation.ps1
+
+$Result = Get-Content -LiteralPath .\logs\technical-documentation\dia84-technical-documentation-readiness.json -Raw |
+  ConvertFrom-Json
+
+$Result | Select-Object ready_for_technical_documentation, manual_generated, diagrams_generated
+```
+
+Lectura ejecutiva:
+
+```text
+El manual tecnico consolida stack, arquitectura, MFEs, microservicios, bases de datos, APIs, eventos, pipelines y despliegues.
+Los diagramas finales quedan en Markdown Mermaid para mantenerse versionados con el repo.
+No se modificaron recursos de Google Cloud.
+El sistema puede ser mantenido por otro tecnico desde docs\manual-tecnico.md y docs\diagramas-finales.md.
+```
+
+## Dia 85 - Documentacion operativa final
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 85 - Documentacion operativa final.
+Se creo scripts\prepare-operational-documentation.ps1.
+Se creo docs\dia-85-documentacion-operativa-final.md con Reversa primero y Guia manual desde cero.
+Se genero docs\manual-operativo-final.md.
+Se genero docs\guia-rapida-boleteria.md.
+Se genero logs\operational-documentation\dia85-operational-documentation-readiness.json.
+Se genero logs\operational-documentation\dia85-operational-documentation-inventory.json.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-operational-documentation.ps1
+C:\VENTA-DE-PASAJES\docs\dia-85-documentacion-operativa-final.md
+C:\VENTA-DE-PASAJES\docs\manual-operativo-final.md
+C:\VENTA-DE-PASAJES\docs\guia-rapida-boleteria.md
+C:\VENTA-DE-PASAJES\logs\operational-documentation\dia85-operational-documentation-readiness.json
+C:\VENTA-DE-PASAJES\logs\operational-documentation\dia85-operational-documentation-inventory.json
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-operational-documentation.ps1
+```
+
+Resultado:
+
+```text
+Documentacion operativa lista: True
+Manual operativo generado: True
+Guia rapida generada: True
+Fuentes verificadas: 9
+Bloqueos: 0
+```
+
+Comandos agregados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-operational-documentation.ps1
+
+$Result = Get-Content -LiteralPath .\logs\operational-documentation\dia85-operational-documentation-readiness.json -Raw |
+  ConvertFrom-Json
+
+$Result | Select-Object ready_for_operational_documentation, manual_generated, quick_guide_generated
+```
+
+Lectura ejecutiva:
+
+```text
+El manual operativo final cubre login hibrido, ventas, anulaciones, reportes, administracion de buses/salidas y soporte basico.
+La guia rapida resume el flujo de boleteria y el cierre de turno.
+No se modificaron recursos de Google Cloud ni datos de negocio.
+Los usuarios tienen material de apoyo versionado en docs\manual-operativo-final.md y docs\guia-rapida-boleteria.md.
+```
+
+## Dia 86 - Prueba de restauracion en produccion controlada
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 86 - Prueba de restauracion en produccion controlada.
+Se creo scripts\prepare-production-restore-test.ps1.
+Se creo docs\dia-86-prueba-restauracion-produccion-controlada.md con Reversa primero y Guia manual desde cero.
+Se genero docs\evidencia-restauracion-produccion-controlada.md.
+Se genero docs\procedimiento-restauracion-produccion.md.
+Se ejecuto verificacion de solo lectura de Cloud SQL prod, backups y bucket documental.
+Se ejecuto restauracion real del backup productivo en la instancia temporal venta-pasajes-prod-restore-test.
+Se valido la copia restaurada y se eliminaron los recursos temporales.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-production-restore-test.ps1
+C:\VENTA-DE-PASAJES\docs\dia-86-prueba-restauracion-produccion-controlada.md
+C:\VENTA-DE-PASAJES\docs\evidencia-restauracion-produccion-controlada.md
+C:\VENTA-DE-PASAJES\docs\procedimiento-restauracion-produccion.md
+C:\VENTA-DE-PASAJES\logs\backup-restore\verify-backup-restore-readiness-prod.json
+C:\VENTA-DE-PASAJES\logs\production-restore-test\dia86-production-restore-readiness.json
+C:\VENTA-DE-PASAJES\logs\production-restore-test\dia86-production-restore-execution-evidence.json
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-backup-restore-readiness.ps1 `
+  -Environment prod `
+  -CloudSqlInstanceName venta-pasajes-prod-sql `
+  -DocumentBucketName venta-pasajes-prod-documents `
+  -RestoreInstanceName venta-pasajes-prod-restore-test
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-production-restore-test.ps1
+```
+
+Resultado:
+
+```text
+Paquete restauracion produccion listo: True
+Restauracion controlada ejecutada: True
+Criterio completo: True
+RTO total medido: 17.43 minutos
+RTO Cloud SQL restore: 14.44 minutos
+RPO al iniciar: 8.1 horas
+RPO de cierre: 8.43 horas
+Bases esperadas restauradas: 6 de 6
+Usuarios IAM esperados restaurados: 6 de 6
+Bucket temporal documental validado: True
+Instancia temporal eliminada: True
+Bucket temporal eliminado: True
+```
+
+Comandos agregados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-production-restore-test.ps1
+
+$Result = Get-Content -LiteralPath .\logs\production-restore-test\dia86-production-restore-readiness.json -Raw |
+  ConvertFrom-Json
+
+$Result | Select-Object ready_for_controlled_restore, controlled_restore_executed, criteria_met, measured_rpo_hours, measured_prod_rto_minutes
+```
+
+Lectura ejecutiva:
+
+```text
+Se sabe recuperar Cloud SQL produccion en una instancia temporal.
+El RTO productivo total medido fue 17.43 minutos.
+El RPO medido al cierre fue 8.4 horas frente al ultimo backup exitoso disponible.
+No quedaron recursos temporales de la prueba.
+El procedimiento quedo documentado en docs\procedimiento-restauracion-produccion.md.
+```
+
+## Dia 87 - Revision de seguridad final
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 87 - Revision de seguridad final.
+Se creo scripts\prepare-final-security-review.ps1.
+Se creo docs\dia-87-revision-seguridad-final.md con Reversa primero y Guia manual desde cero.
+Se genero docs\informe-seguridad-final.md.
+Se consolidaron evidencias de roles funcionales, IAM, Secret Manager, exposicion de APIs, auditoria y backups.
+Se verifico que los backends productivos siguen privados y que los frontends productivos tienen checks saludables.
+Se cerro la revision con 0 riesgos criticos abiertos.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-final-security-review.ps1
+C:\VENTA-DE-PASAJES\docs\dia-87-revision-seguridad-final.md
+C:\VENTA-DE-PASAJES\docs\informe-seguridad-final.md
+C:\VENTA-DE-PASAJES\logs\final-security\dia87-final-security-readiness.json
+C:\VENTA-DE-PASAJES\logs\final-security\dia87-final-security-findings.json
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-final-security-review.ps1
+
+$Result = Get-Content -LiteralPath .\logs\final-security\dia87-final-security-readiness.json -Raw |
+  ConvertFrom-Json
+
+$Result.area_results | Select-Object area, ready
+```
+
+Resultado:
+
+```text
+Revision seguridad final lista: True
+Riesgos criticos mitigados: True
+Riesgos criticos abiertos: 0
+Areas listas: 6/6
+
+Roles funcionales: True
+IAM produccion: True
+Secret Manager: True
+Exposicion de APIs: True
+Auditoria: True
+Backups y restauracion: True
+```
+
+Lectura ejecutiva:
+
+```text
+El informe final de seguridad confirma que no quedan riesgos criticos abiertos en las areas revisadas.
+IAM productivo, secretos, backends privados, auditoria y backups/restauracion tienen evidencia versionada.
+El acceso humano Owner queda como observacion no critica de revision periodica, no como bloqueo.
+El siguiente paso natural es Dia 88 - Preparacion de crecimiento modular.
+```
+
+## Dia 88 - Preparacion de crecimiento modular
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 88 - Preparacion de crecimiento modular.
+Se creo scripts\new-next-mfe.ps1 para generar MFEs Next.js desde plantilla.
+Se creo scripts\prepare-modular-growth.ps1 para validar plantillas y generar evidencia.
+Se creo templates como punto de entrada reutilizable.
+Se documento la plantilla Quarkus existente como plantilla oficial de servicio.
+Se creo templates\next-mfe con archivos base para package, health, manifest, embedded y proxy server-side.
+Se genero docs\guia-crecimiento-modular.md.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\new-next-mfe.ps1
+C:\VENTA-DE-PASAJES\scripts\prepare-modular-growth.ps1
+C:\VENTA-DE-PASAJES\docs\dia-88-preparacion-crecimiento-modular.md
+C:\VENTA-DE-PASAJES\docs\guia-crecimiento-modular.md
+C:\VENTA-DE-PASAJES\templates\README.md
+C:\VENTA-DE-PASAJES\templates\quarkus-service\template.json
+C:\VENTA-DE-PASAJES\templates\next-mfe\template.json
+C:\VENTA-DE-PASAJES\logs\modular-growth\dia88-modular-growth-readiness.json
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\new-quarkus-service.ps1 `
+  -ServiceName catalog-service `
+  -PackageSegment catalog `
+  -DatabaseName catalog_db `
+  -HttpPort 8087 `
+  -DryRun
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\new-next-mfe.ps1 `
+  -MfeName mfe-catalog `
+  -PackageSegment catalog `
+  -Title "Catalogos" `
+  -LocalPort 3006 `
+  -BackendPort 8087 `
+  -DryRun
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-modular-growth.ps1
+```
+
+Resultado:
+
+```text
+Crecimiento modular listo: True
+Plantillas reutilizables listas: True
+DryRun Quarkus OK: True
+DryRun MFE OK: True
+Secciones guia faltantes: 0
+```
+
+Lectura ejecutiva:
+
+```text
+El equipo ya tiene una ruta repetible para crear nuevos microservicios y nuevos MFEs.
+El backend reutiliza services\quarkus-service-template y scripts\new-quarkus-service.ps1.
+El frontend cuenta con una plantilla MFE nueva y scripts\new-next-mfe.ps1.
+No se creo un modulo real; solo plantillas y evidencia de modo seco.
+El siguiente paso natural es Dia 89 - Backlog de siguientes modulos.
+```
+
+## Dia 89 - Backlog de siguientes modulos
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 89 - Backlog de siguientes modulos.
+Se creo scripts\prepare-future-modules-backlog.ps1.
+Se creo docs\dia-89-backlog-siguientes-modulos.md con Reversa primero y Guia manual desde cero.
+Se genero docs\backlog-futuro-priorizado.md.
+Se genero docs\estimaciones-modulos-futuros.md.
+Se priorizaron cinco modulos futuros: facturacion electronica, caja avanzada, pagos online, encomiendas y venta web publica.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-future-modules-backlog.ps1
+C:\VENTA-DE-PASAJES\docs\dia-89-backlog-siguientes-modulos.md
+C:\VENTA-DE-PASAJES\docs\backlog-futuro-priorizado.md
+C:\VENTA-DE-PASAJES\docs\estimaciones-modulos-futuros.md
+C:\VENTA-DE-PASAJES\logs\future-modules-backlog\dia89-future-modules-backlog-readiness.json
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-future-modules-backlog.ps1
+
+$Result = Get-Content -LiteralPath .\logs\future-modules-backlog\dia89-future-modules-backlog-readiness.json -Raw |
+  ConvertFrom-Json
+
+$Result.modules |
+  Select-Object priority, module, effort_size, estimated_calendar_weeks, estimated_person_weeks
+```
+
+Resultado:
+
+```text
+Backlog futuro listo: True
+Modulos priorizados: 5
+Prioridad 1: Facturacion electronica
+Secciones backlog faltantes: 0
+Secciones estimaciones faltantes: 0
+
+P1 Facturacion electronica: XL, 8-12 semanas, 28 persona-semanas
+P2 Caja avanzada: M, 5-8 semanas, 16 persona-semanas
+P3 Pagos online: L, 6-10 semanas, 22 persona-semanas
+P4 Encomiendas: L, 8-12 semanas, 26 persona-semanas
+P5 Venta web publica: XL, 10-14 semanas, 34 persona-semanas
+```
+
+Lectura ejecutiva:
+
+```text
+El crecimiento posterior queda ordenado y estimado inicialmente.
+Facturacion electronica queda como prioridad 1 por impacto regulatorio y administrativo.
+Venta web publica queda despues de pagos online por sus dependencias y exposicion publica.
+No se creo ningun modulo real ni se modificaron recursos cloud.
+El siguiente paso natural es Dia 90 - Cierre del proyecto.
+```
+
+## Dia 90 - Cierre del proyecto
+
+Resumen:
+
+```text
+Se alineo el dia con el plan maestro tareas.md: Dia 90 - Cierre del proyecto.
+Se creo scripts\prepare-project-closure.ps1.
+Se creo docs\dia-90-cierre-proyecto.md con Reversa primero y Guia manual desde cero.
+Se genero docs\acta-cierre-proyecto.md.
+Se genero docs\plataforma-funcionando-google-cloud.md.
+Se genero docs\backlog-evolucion.md.
+El cierre queda tecnico/documental condicionado: Cloud Run y Google Cloud estan listos, pero la operacion funcional 100% no se firma mientras sigan pendientes migracion final, prueba controlada, go-live y soporte real.
+```
+
+Archivos principales:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-project-closure.ps1
+C:\VENTA-DE-PASAJES\docs\dia-90-cierre-proyecto.md
+C:\VENTA-DE-PASAJES\docs\acta-cierre-proyecto.md
+C:\VENTA-DE-PASAJES\docs\plataforma-funcionando-google-cloud.md
+C:\VENTA-DE-PASAJES\docs\backlog-evolucion.md
+C:\VENTA-DE-PASAJES\logs\project-closure\dia90-project-closure-readiness.json
+C:\VENTA-DE-PASAJES\logs\project-closure\dia90-project-closure-inventory.json
+```
+
+Comandos ejecutados:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-project-closure.ps1
+
+$Result = Get-Content -LiteralPath .\logs\project-closure\dia90-project-closure-readiness.json -Raw |
+  ConvertFrom-Json
+
+$Result |
+  Select-Object closure_status,
+    platform_functioning_in_google_cloud,
+    technical_platform_ready,
+    business_operational_ready,
+    full_100_percent_operational,
+    criterion_100_percent_operational_met
+```
+
+Resultado:
+
+```text
+Cierre tecnico/documental listo: True
+Plataforma funcionando en Google Cloud: True
+Operacion funcional 100%: False
+Estado de cierre: Cierre tecnico/documental condicionado
+Pendientes bloqueantes: 21
+```
+
+Lectura ejecutiva:
+
+```text
+La plataforma tecnica productiva funciona en Google Cloud.
+La documentacion tecnica, operativa, seguridad, restauracion y backlog de evolucion estan consolidados.
+No se declara cierre funcional 100% porque la migracion final de datos, la prueba productiva controlada, la apertura real y el soporte post-arranque siguen pendientes de ejecucion/aprobacion.
+El proyecto queda listo para firma de cierre tecnico/documental condicionado.
+```
+
+## Continuacion - Migracion final de datos
+
+Resumen:
+
+```text
+Se retomo la migracion final despues del cierre tecnico/documental del Dia 90.
+Se inicio Docker Desktop porque el ensayo local necesitaba PostgreSQL temporal.
+Se refresco el paquete de migracion final con scripts\run-final-data-migration-prod.ps1.
+Se genero nuevo run_id: 20260929-155804.
+Se creo nueva copia local de Access en backups\final-data-migration\20260929-155804\usuario.mdb.
+Se regeneraron SQL finales para identity_db, dispatch_db y ticketing_db.
+Se valido localmente la migracion con conteos esperados.
+No se importo nada en Cloud SQL produccion.
+```
+
+Resultado:
+
+```text
+Paquete de migracion listo: True
+Ejecucion productiva autorizada: False
+Migracion productiva ejecutada: False
+Datos productivos aprobados: False
+```
+
+Conteos validados localmente:
+
+```text
+identity_users: 1
+identity_profiles: 1
+dispatch_terminals: 2
+dispatch_bus_types: 3
+dispatch_buses: 1
+dispatch_routes: 1
+dispatch_departures: 1
+ticketing_passengers: 3
+ticketing_synced_departures: 1
+ticketing_departure_seats: 25
+ticketing_tickets: 3
+```
+
+Bloqueos para importar en produccion:
+
+```text
+El plan de corte no esta aprobado para ejecucion real: proposed_pending_explicit_go_no_go
+No se confirmo congelamiento del legacy con -ConfirmLegacyFreeze.
+No se confirmo GO/NO-GO de negocio con -ConfirmBusinessGoNoGo.
+```
+
+Siguiente accion segura:
+
+```text
+Confirmar explicitamente ventana de corte, freeze del legacy y GO/NO-GO de negocio antes de ejecutar logs\migration\dia77-final-prod\apply-prod-migration.commands.ps1.
+```
+
+## Preparacion para cierre 100% funcional
+
+Resumen:
+
+```text
+Se reviso el estado de cierre al 30/09/2026.
+La plataforma tecnica productiva sigue lista en Google Cloud.
+El cierre funcional 100% sigue pendiente porque no se ha ejecutado la migracion final real, la prueba productiva controlada, la puesta en marcha ni el soporte post-arranque.
+Se agrego scripts\record-final-data-migration-prod.ps1 para registrar la migracion final solo despues de confirmar importacion real, freeze, GO/NO-GO y aprobacion de datos.
+Se ajustaron scripts de Dia 78, Dia 79 y Dia 80 para permitir registrar ejecucion real solo si existen los archivos de evidencia generados por sus comandos operativos.
+Se refresco docs\acta-cierre-proyecto.md con estado condicionado.
+```
+
+Validaciones ejecutadas:
+
+```text
+scripts\record-final-data-migration-prod.ps1: parse-ok
+scripts\prepare-controlled-prod-test.ps1: parse-ok
+scripts\prepare-go-live-prod.ps1: parse-ok
+scripts\prepare-post-start-day1-report.ps1: parse-ok
+```
+
+Estado actual:
+
+```text
+Cierre tecnico/documental listo: True
+Plataforma funcionando en Google Cloud: True
+Operacion funcional 100%: False
+Estado de cierre: Cierre tecnico/documental condicionado
+Pendientes bloqueantes: 23
+```
+
+Siguiente accion para pasar de preparacion a ejecucion real:
+
+```text
+Recibir aprobacion explicita de negocio y tecnica para ejecutar importacion en Cloud SQL produccion.
+```
+
+## Autorizacion del plan de corte productivo
+
+Resumen:
+
+```text
+El responsable del proyecto confirmo que el sistema legacy ya fue apagado.
+Se autorizo el plan de corte productivo en infra\cutover\prod-cutover-plan.json.
+approval_status cambio de proposed_pending_explicit_go_no_go a approved_for_execution.
+La ventana de corte autorizada quedo registrada para 2026-09-30T10:05:46-05:00 a 2026-09-30T11:35:46-05:00.
+Se regenero el paquete de migracion final con -ConfirmLegacyFreeze y -ConfirmBusinessGoNoGo.
+```
+
+Resultado:
+
+```text
+Paquete de migracion listo: True
+Ejecucion productiva autorizada: True
+Migracion productiva ejecutada: False
+Datos productivos aprobados: False
+```
+
+Conteos validados localmente:
+
+```text
+identity_users: 1
+identity_profiles: 1
+dispatch_terminals: 2
+dispatch_bus_types: 3
+dispatch_buses: 1
+dispatch_routes: 1
+dispatch_departures: 1
+ticketing_passengers: 3
+ticketing_synced_departures: 1
+ticketing_departure_seats: 25
+ticketing_tickets: 3
+```
+
+Estado de cierre luego de autorizar corte:
+
+```text
+Cierre tecnico/documental listo: True
+Plataforma funcionando en Google Cloud: True
+Operacion funcional 100%: False
+Estado de cierre: Cierre tecnico/documental condicionado
+Pendientes bloqueantes: 19
+```
+
+Siguiente accion:
+
+```text
+Ejecutar logs\migration\dia77-final-prod\apply-prod-migration.commands.ps1 para importar en Cloud SQL produccion, crear backup previo y subir SQL final a Cloud Storage.
+```
+
+## Ejecucion de importacion productiva
+
+Resumen:
+
+```text
+Se ejecuto la importacion productiva solicitada.
+Cloud SQL creo backup previo de produccion.
+Los SQL finales se subieron a gs://venta-pasajes-prod-documents/migration/dia77/20260930-100609.
+La primera importacion fallo porque el service account administrado de Cloud SQL no tenia permiso de lectura sobre el bucket.
+Se otorgo roles/storage.objectViewer al service account p230270000840-nnpdyy@gcp-sa-cloud-sql.iam.gserviceaccount.com sobre el bucket productivo.
+La importacion con usuario postgres fallo por permisos sobre tablas.
+Se repitio la importacion usando los usuarios IAM propietarios por base:
+identity-prod-run@project-fbb34cd7-0b82-43e1-867.iam
+dispatch-prod-run@project-fbb34cd7-0b82-43e1-867.iam
+ticketing-prod-run@project-fbb34cd7-0b82-43e1-867.iam
+Las tres importaciones terminaron DONE.
+```
+
+Backup previo:
+
+```text
+Backup ID: 1790781249259
+Instancia: venta-pasajes-prod-sql
+Estado: SUCCESSFUL
+```
+
+Validacion productiva por API:
+
+```text
+dispatch_terminals: 2/2
+dispatch_bus_types: 3/3
+dispatch_buses: 1/1
+dispatch_routes: 1/1
+dispatch_departures: 1/1
+ticketing_passengers: 3/3
+ticketing_available_departures: 1/1
+ticketing_seat_map_total: 25/25
+ticketing_sold_seats: 3/3
+ticketing_tickets_found: 3/3
+```
+
+Resultado:
+
+```text
+Ejecucion productiva autorizada: True
+Migracion productiva ejecutada: True
+Datos productivos aprobados: True
+```
+
+Evidencia:
+
+```text
+C:\VENTA-DE-PASAJES\logs\migration\dia77-final-prod\final-data-migration-prod-readiness.json
+C:\VENTA-DE-PASAJES\logs\migration\dia77-final-prod\prod-data-validation-api-evidence.json
+C:\VENTA-DE-PASAJES\logs\migration\dia77-final-prod\apply-prod-migration.commands.ps1
+```
+
+Estado de cierre luego de migracion final:
+
+```text
+Cierre tecnico/documental listo: True
+Plataforma funcionando en Google Cloud: True
+Operacion funcional 100%: False
+Estado de cierre: Cierre tecnico/documental condicionado
+Pendientes bloqueantes: 17
+```
+
+Siguiente accion:
+
+```text
+Ejecutar la prueba productiva controlada del Dia 78.
+```
+
+## Ejecucion de prueba productiva controlada Dia 78
+
+Resumen:
+
+```text
+Se ejecuto la prueba controlada en produccion.
+Se corrigio el generador scripts/prepare-controlled-prod-test.ps1 para evitar saltos de linea en valores criticos del comando generado.
+La prueba valido health de servicios productivos, creo una salida controlada, sincronizo disponibilidad, emitio un ticket de prueba, genero PDF, consulto reportes y auditoria.
+Al cierre, el ticket de prueba quedo anulado y la salida controlada quedo cancelada.
+```
+
+Evidencia principal:
+
+```text
+C:\VENTA-DE-PASAJES\logs\prod-controlled-test\dia78-real-execution-evidence.json
+C:\VENTA-DE-PASAJES\logs\prod-controlled-test\dia78-ticket.pdf
+C:\VENTA-DE-PASAJES\logs\prod-controlled-test\dia78-controlled-prod-test-readiness.json
+```
+
+Resultado:
+
+```text
+Prueba real autorizada: True
+Prueba real ejecutada: True
+Ticket de prueba: TKT-941E2FC02CE8
+Estado final del ticket: VOIDED
+Estado final de la salida: CANCELLED
+```
+
+## Ejecucion Dia 79 - puesta en marcha
+
+Resumen:
+
+```text
+Se corrigio el generador scripts/prepare-go-live-prod.ps1 para evitar saltos de linea en valores criticos del comando generado.
+Se preparo el paquete de puesta en marcha con migracion aplicada, prueba controlada aprobada y apertura de negocio confirmada.
+Se recibieron correos reales de operacion:
+boleteria: goez2k12@gmail.com
+supervision: diego.martinezc@iess.gob.ec
+Se importo SQL idempotente en identity_db productiva para autorizar ambos correos y crear usuarios operativos base.
+goez2k12@gmail.com quedo con rol TICKET_SELLER.
+diego.martinezc@iess.gob.ec quedo con rol ADMIN.
+Se ejecuto el monitoreo de apertura y se registro el go-live como iniciado.
+```
+
+Evidencia:
+
+```text
+C:\VENTA-DE-PASAJES\logs\go-live\dia79-go-live-readiness.json
+C:\VENTA-DE-PASAJES\logs\go-live\dia79-go-live-monitoring-evidence.json
+C:\VENTA-DE-PASAJES\logs\go-live\dia79-operational-identities-evidence.json
+```
+
+Resultado:
+
+```text
+Paquete de puesta en marcha listo: True
+Puesta en marcha real autorizada: True
+Operacion real iniciada: True
+```
+
+## Ejecucion Dia 80 - soporte intensivo dia 1
+
+Resumen:
+
+```text
+Se corrigio el generador scripts/prepare-post-start-day1-report.ps1 para evitar saltos de linea en valores criticos.
+Se reemplazo la consulta no soportada de gcloud monitoring time-series por consulta REST directa a Cloud Monitoring.
+Se ejecuto la recoleccion de soporte post-arranque: health por servicio, logs Cloud Run, errores, reportes, Cloud SQL y metricas CPU/disco.
+No se registraron errores Cloud Run severity>=ERROR en la ventana revisada.
+```
+
+Evidencia:
+
+```text
+C:\VENTA-DE-PASAJES\logs\post-start-day1\dia80-post-start-day1-readiness.json
+C:\VENTA-DE-PASAJES\logs\post-start-day1\dia80-post-start-day1-evidence.json
+C:\VENTA-DE-PASAJES\logs\post-start-day1\dia80-cloudsql-cpu.json
+C:\VENTA-DE-PASAJES\logs\post-start-day1\dia80-cloudsql-disk.json
+```
+
+Resultado:
+
+```text
+Paquete soporte listo: True
+Revision real autorizada: True
+Revision real ejecutada: True
+```
+
+## Cierre funcional 100%
+
+Resultado actualizado:
+
+```text
+Cierre tecnico/documental listo: True
+Plataforma funcionando en Google Cloud: True
+Operacion funcional 100%: True
+Estado de cierre: Cierre funcional y tecnico aprobado
+Pendientes bloqueantes: 0
+```
