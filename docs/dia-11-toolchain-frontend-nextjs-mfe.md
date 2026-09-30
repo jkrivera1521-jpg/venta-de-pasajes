@@ -59,15 +59,47 @@ PS C:\VENTA-DE-PASAJES>
 
 Desde ahi se ejecutan `npm install`, `npm run typecheck:frontend`, `npm run build:frontend`, `npm run dev:frontend` y `npm run stop:frontend`.
 
+### Detalle de comandos principales
+
+| Comando | Que hace | Cuando usarlo | Resultado esperado |
+| --- | --- | --- | --- |
+| `npm install` | Lee el `package.json` raiz y los `package.json` de cada workspace registrado. Instala las dependencias necesarias en `node_modules` y actualiza o respeta `package-lock.json` segun corresponda. | Usarlo despues de clonar el proyecto, despues de cambiar dependencias, despues de actualizar versiones como Next.js, o cuando falte `node_modules`. | Debe terminar sin errores. En el estado actual esperado debe mostrar `found 0 vulnerabilities`. Si muestra vulnerabilidades, revisar con `npm audit` antes de continuar. |
+| `npm run typecheck:frontend` | Ejecuta la validacion TypeScript de todos los workspaces frontend registrados en el `package.json` raiz. No genera archivos productivos; solo revisa tipos, imports, rutas y errores de compilacion TypeScript. | Usarlo antes de compilar, despues de tocar codigo `.ts` o `.tsx`, y cada vez que se agregue o modifique un MFE. | Debe ejecutar el `typecheck` de `shared-types`, cada MFE y `frontend-shell` sin errores. Si falla, corregir el primer error reportado antes de seguir. |
+| `npm run build:frontend` | Ejecuta el build productivo de los workspaces frontend. Primero valida/construye el paquete compartido y luego compila los MFEs y el shell con Next.js. Genera carpetas `.next` dentro de cada app Next.js. | Usarlo despues de que `typecheck:frontend` pase correctamente, antes de crear imagenes Docker, antes de desplegar o antes de cerrar una tarea frontend. | Cada app debe compilar correctamente. Next.js muestra rutas estaticas y dinamicas generadas. Si falla en un MFE, revisar ese workspace puntual. |
+| `npm run dev:frontend` | Ejecuta `scripts\start-frontend-dev.ps1`. Levanta servidores locales de desarrollo para el shell y los MFEs registrados, usando puertos locales. Tambien inyecta variables de entorno necesarias para que el shell encuentre los manifests de los MFEs. | Usarlo cuando quieras probar visualmente el frontend completo en navegador. En el estado actual levanta shell y MFEs en puertos 3000 a 3005. | Debe devolver un resumen JSON con URLs y PIDs. Despues puedes abrir `http://localhost:3000` para el shell. |
+| `npm run stop:frontend` | Ejecuta `scripts\stop-frontend-dev.ps1`. Detiene los procesos locales iniciados por `dev:frontend`, usando archivos `.pid` y/o puertos conocidos. | Usarlo cuando termines las pruebas locales, antes de volver a ejecutar `dev:frontend`, o si algun puerto queda ocupado. | Debe devolver un resumen JSON indicando procesos detenidos y puertos restantes. Lo normal es que no queden listeners en 3000 a 3005. |
+
 No ejecutar estos comandos desde `apps\frontend-shell`, `apps\mfe-identity` ni `packages\shared-types`, porque los scripts usan npm workspaces y rutas relativas desde la raiz.
 
-## Workspaces creados
+## Workspaces creados en este dia
+
+Esta tabla conserva el estado historico del Dia 11. En ese momento el frontend todavia estaba iniciando y solo existian el shell, el primer MFE y el paquete compartido.
 
 | Workspace | Ruta | Proposito |
 | --- | --- | --- |
 | `@venta-pasajes/frontend-shell` | `C:\VENTA-DE-PASAJES\apps\frontend-shell` | Shell principal, navegacion y carga de MFEs. |
 | `@venta-pasajes/mfe-identity` | `C:\VENTA-DE-PASAJES\apps\mfe-identity` | Primer MFE demo para identidad, usuarios, roles y permisos. |
 | `@venta-pasajes/shared-types` | `C:\VENTA-DE-PASAJES\packages\shared-types` | Tipos compartidos, incluyendo contrato de manifest MFE. |
+
+## Workspaces actuales del monorepo
+
+Si repites este dia con el proyecto completo actual, es normal que npm muestre mas workspaces que los 3 originales. El `package.json` raiz actualmente registra:
+
+| Workspace | Ruta | Proposito |
+| --- | --- | --- |
+| `@venta-pasajes/frontend-shell` | `C:\VENTA-DE-PASAJES\apps\frontend-shell` | Shell principal que compone los MFEs. |
+| `@venta-pasajes/mfe-admin` | `C:\VENTA-DE-PASAJES\apps\mfe-admin` | MFE administrativo para salud, diagnosticos, runbooks y controles operativos. |
+| `@venta-pasajes/mfe-dispatch` | `C:\VENTA-DE-PASAJES\apps\mfe-dispatch` | MFE de despacho, rutas, salidas y operacion de buses. |
+| `@venta-pasajes/mfe-identity` | `C:\VENTA-DE-PASAJES\apps\mfe-identity` | MFE de identidad, usuarios, roles y permisos. |
+| `@venta-pasajes/mfe-reporting` | `C:\VENTA-DE-PASAJES\apps\mfe-reporting` | MFE de reportes e indicadores. |
+| `@venta-pasajes/mfe-ticketing` | `C:\VENTA-DE-PASAJES\apps\mfe-ticketing` | MFE de venta de boletos y mapa de asientos. |
+| `@venta-pasajes/shared-types` | `C:\VENTA-DE-PASAJES\packages\shared-types` | Tipos compartidos entre shell y MFEs. |
+
+Para revisar la lista real en cualquier momento:
+
+```powershell
+node -e "const p=require('./package.json'); console.log(p.workspaces.join('\n'))"
+```
 
 ## Composicion MFE validada
 
@@ -117,9 +149,11 @@ npm install
 Resultado:
 
 ```text
-added 34 packages, and audited 38 packages
+up to date, audited 50 packages
 found 0 vulnerabilities
 ```
+
+El numero de paquetes puede variar con el tiempo. Lo importante es que el comando termine sin error y que no reporte vulnerabilidades.
 
 Typecheck:
 
@@ -130,8 +164,18 @@ npm run typecheck:frontend
 Resultado:
 
 ```text
+Resultado historico Dia 11:
 @venta-pasajes/shared-types typecheck OK
 @venta-pasajes/mfe-identity typecheck OK
+@venta-pasajes/frontend-shell typecheck OK
+
+Resultado esperado con el monorepo actual:
+@venta-pasajes/shared-types typecheck OK
+@venta-pasajes/mfe-identity typecheck OK
+@venta-pasajes/mfe-dispatch typecheck OK
+@venta-pasajes/mfe-ticketing typecheck OK
+@venta-pasajes/mfe-reporting typecheck OK
+@venta-pasajes/mfe-admin typecheck OK
 @venta-pasajes/frontend-shell typecheck OK
 ```
 
@@ -144,7 +188,16 @@ npm run build:frontend
 Resultado:
 
 ```text
+Resultado historico Dia 11:
 mfe-identity compiled successfully
+frontend-shell compiled successfully
+
+Resultado esperado con el monorepo actual:
+mfe-identity compiled successfully
+mfe-dispatch compiled successfully
+mfe-ticketing compiled successfully
+mfe-reporting compiled successfully
+mfe-admin compiled successfully
 frontend-shell compiled successfully
 ```
 
