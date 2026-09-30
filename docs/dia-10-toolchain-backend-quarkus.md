@@ -107,12 +107,12 @@ Respuesta HTTP: {"status":"ok","service":"toolchain-demo-service","runtime":"qua
 
 ## Artefactos generados
 
-| Artefacto | Detalle |
-| --- | --- |
-| `C:\VENTA-DE-PASAJES\services\toolchain-demo-service\pom.xml` | Proyecto Maven Quarkus 3.25.2 con Java 21. |
-| `C:\VENTA-DE-PASAJES\services\toolchain-demo-service\src\main\java\com\ventapasajes\toolchain\ToolchainResource.java` | Endpoint REST de validacion. |
-| `C:\VENTA-DE-PASAJES\services\toolchain-demo-service\src\test\java\com\ventapasajes\toolchain\ToolchainResourceTest.java` | Prueba automatizada JVM. |
-| `C:\VENTA-DE-PASAJES\services\toolchain-demo-service\target\toolchain-demo-service-0.1.0-SNAPSHOT-runner` | Binario nativo Linux generado por Mandrel en Docker. |
+| Artefacto                                                                                                                 | Detalle                                              |
+| ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `C:\VENTA-DE-PASAJES\services\toolchain-demo-service\pom.xml`                                                             | Proyecto Maven Quarkus 3.25.2 con Java 21.           |
+| `C:\VENTA-DE-PASAJES\services\toolchain-demo-service\src\main\java\com\ventapasajes\toolchain\ToolchainResource.java`     | Endpoint REST de validacion.                         |
+| `C:\VENTA-DE-PASAJES\services\toolchain-demo-service\src\test\java\com\ventapasajes\toolchain\ToolchainResourceTest.java` | Prueba automatizada JVM.                             |
+| `C:\VENTA-DE-PASAJES\services\toolchain-demo-service\target\toolchain-demo-service-0.1.0-SNAPSHOT-runner`                 | Binario nativo Linux generado por Mandrel en Docker. |
 
 Tamano del binario nativo:
 
@@ -139,128 +139,19 @@ La toolchain backend queda validada. Se puede construir un microservicio Quarkus
 - Decidir si el equipo quiere instalar GraalVM/Mandrel local o mantener exclusivamente build nativo por contenedor.
 - Definir una version fija de builder image para CI/CD cuando se construyan imagenes productivas.
 
-## Reversa primero
+## Solución a los Pendientes
 
-> Estandarizacion documental agregada el 2026-09-16 para que este dia tambien tenga una ruta segura de limpieza antes de repetir la practica.
+|Pendiente|Estado|Evidencia|
+|---|---|---|
+|Convertir referencia en plantilla reutilizable para microservicios reales|Cubierto|Existe la plantilla en [quarkus-service-template](C:/VENTA-DE-PASAJES/services/quarkus-service-template/README.md), el generador [new-quarkus-service.ps1](C:/VENTA-DE-PASAJES/scripts/new-quarkus-service.ps1), y documentación en [día 16](C:/VENTA-DE-PASAJES/docs/dia-16-plantilla-estandar-microservicio-quarkus.md). También hay plantillas finales en [templates/quarkus-service](C:/VENTA-DE-PASAJES/templates/quarkus-service/template.json).|
+|Decidir GraalVM/Mandrel local vs build nativo por contenedor|Cubierto|En [día 10](C:/VENTA-DE-PASAJES/docs/dia-10-toolchain-backend-quarkus.md) quedó decidido usar **build nativo por contenedor con Mandrel**, evitando instalar GraalVM globalmente. Los scripts nativos usan `quarkus.native.container-build=true`.|
+|Definir versión fija de builder image para CI/CD productivo|Cubierto parcialmente|Los scripts usan un builder fijo: `quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-21`, por ejemplo en [build-identity-service-native.ps1](C:/VENTA-DE-PASAJES/scripts/build-identity-service-native.ps1). Pero para producción estricta sería mejor fijarlo por digest `@sha256`, porque un tag como `jdk-21` puede cambiar con el tiempo.|
+Nota importante: el despliegue productivo actual quedó usando imágenes **JVM** con tag `prod-backend-0.1.1-jvm`, como se ve en [prod-backend-services.json](C:/VENTA-DE-PASAJES/infra/cloudrun/prod-backend-services.json). Eso fue por compatibilidad práctica con Cloud SQL/GraalVM/Mandrel, así que el tercer pendiente **no bloquea producción actual**, pero sí conviene endurecerlo si retomamos imágenes nativas productivas.
 
-Este dia pertenece a la etapa inicial del proyecto. Antes de ejecutar una reversa, revisar si el archivo contiene recursos externos reales, como Google Cloud, Docker, bases de datos o imagenes publicadas. No ejecutar comandos destructivos si no estas seguro de que el recurso no esta siendo usado.
+### REVERSA
 
-### Paso R1 - Ubicarse en el workspace
-
-```powershell
-cd C:\VENTA-DE-PASAJES
-```
-
-### Paso R2 - Revisar recursos o archivos mencionados
-
-```powershell
-Select-String -Path .\docs\dia-10-toolchain-backend-quarkus.md -Pattern "C:\\VENTA-DE-PASAJES|docker|gcloud|mvn|npm|Remove-Item|delete|rm|Cloud SQL|Artifact Registry|Secret Manager" -Context 0,2
-```
-
-### Paso R3 - Detener procesos locales si este dia levanto herramientas
+Como maven genero la carpeta .\services\toolchain-demo-service\target, con este comando la eliminarmos :
 
 ```powershell
-Get-NetTCPConnection -LocalPort 3000,3001,3002,3003,8081,8082,8083,18083,18089,18096 -ErrorAction SilentlyContinue |
-  Select-Object LocalAddress,LocalPort,State,OwningProcess |
-  Format-Table -AutoSize
-
-Get-CimInstance Win32_Process -Filter "name = 'java.exe' or name = 'node.exe'" |
-  Select-Object ProcessId,CommandLine |
-  Format-List
-```
-
-Si identificas un proceso propio de la practica, detenerlo:
-
-```powershell
-Stop-Process -Id <process-id> -Force
-```
-
-### Paso R4 - Revisar contenedores temporales
-
-```powershell
-docker ps -a --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" |
-  Select-String -Pattern "venta-pasajes|identity|dispatch|ticketing|native|postgres"
-```
-
-Si el contenedor fue creado solo para repetir este dia y no se usa en otra practica:
-
-```powershell
-docker rm -f <container-name>
-```
-
-### Paso R5 - Reversa de archivos locales
-
-La reversa de archivos debe hacerse con control de cambios o backup. Este workspace inicio sin Git en los primeros dias, por eso no se recomienda borrar archivos a ciegas.
-
-```powershell
-Select-String -Path .\docs\dia-10-toolchain-backend-quarkus.md -Pattern "Archivo|Archivos|C:\\VENTA-DE-PASAJES" -Context 0,4
-```
-
-Si aun asi necesitas retirar solo este documento de la practica, hacer primero una copia:
-
-```powershell
-New-Item -ItemType Directory -Force -Path .\backups | Out-Null
-Copy-Item -LiteralPath .\docs\dia-10-toolchain-backend-quarkus.md -Destination .\backups\dia-10-toolchain-backend-quarkus-manual-backup.md -Force
-```
-
-Despues de respaldar, se podria eliminar manualmente el documento con:
-
-```powershell
-Remove-Item -LiteralPath .\docs\dia-10-toolchain-backend-quarkus.md -Force
-```
-
-## Guia manual desde cero
-
-> Estandarizacion documental agregada el 2026-09-16. Esta guia permite repetir el dia sin depender de Codex, usando el documento como fuente de verdad.
-
-### Paso 1 - Ubicarse en el proyecto
-
-```powershell
-cd C:\VENTA-DE-PASAJES
-```
-
-### Paso 2 - Leer el alcance del dia en el backlog
-
-```powershell
-Select-String -Path .\tareas.md -Pattern "Dia 10|Dia 10" -Context 0,40
-```
-
-### Paso 3 - Leer la documentacion del dia
-
-```powershell
-Get-Content -LiteralPath .\docs\dia-10-toolchain-backend-quarkus.md
-```
-
-### Paso 4 - Verificar archivos y rutas mencionadas
-
-```powershell
-Select-String -Path .\docs\dia-10-toolchain-backend-quarkus.md -Pattern "C:\\VENTA-DE-PASAJES" -AllMatches
-```
-
-Para cada ruta importante que aparezca en el documento:
-
-```powershell
-Test-Path -LiteralPath "<ruta-copiada-del-documento>"
-```
-
-### Paso 5 - Ejecutar comandos documentados
-
-Buscar bloques de comandos del documento y ejecutarlos en orden, validando el resultado de cada bloque antes de continuar:
-
-```powershell
-Select-String -Path .\docs\dia-10-toolchain-backend-quarkus.md -Pattern "```powershell|```text|mvn |npm |docker |gcloud |curl.exe|powershell " -Context 0,6
-```
-
-### Paso 6 - Registrar la repeticion en bitacora
-
-```powershell
-Add-Content -LiteralPath .\vitacora.md -Value "`nReplica manual Dia 10 - <fecha>: comandos ejecutados y resultado."
-```
-
-### Paso 7 - Validar criterio de avance
-
-Revisar la seccion de criterio de avance, resultado, estado final o pendientes del documento:
-
-```powershell
-Select-String -Path .\docs\dia-10-toolchain-backend-quarkus.md -Pattern "Criterio de avance|Resultado|Estado final|Pendiente|Pendientes" -Context 0,8
+Remove-Item -LiteralPath .\services\toolchain-demo-service\target -Recurse -Force
 ```
