@@ -331,7 +331,126 @@ Si el contenedor fue creado solo para repetir este dia y no se usa en otra pract
 docker rm -f <container-name>
 ```
 
-### Paso R5 - Reversa de archivos locales
+### Paso R5 - Limpiar artefactos generados por build frontend
+
+Este paso elimina archivos generados por `npm run build:frontend` y por validaciones TypeScript. No borra codigo fuente, `package.json`, `package-lock.json` ni archivos `.env.example`.
+
+Artefactos que se pueden eliminar con seguridad:
+
+| Artefacto | Motivo |
+| --- | --- |
+| `C:\VENTA-DE-PASAJES\apps\*\.next` | Build local generado por Next.js. Puede ocupar bastante espacio y se regenera con `npm run build:frontend` o `npm run dev:frontend`. |
+| `C:\VENTA-DE-PASAJES\apps\*\tsconfig.tsbuildinfo` | Cache incremental de TypeScript. Se regenera al ejecutar typecheck o build. |
+| `C:\VENTA-DE-PASAJES\packages\*\tsconfig.tsbuildinfo` | Cache incremental de TypeScript en paquetes compartidos. |
+| `C:\VENTA-DE-PASAJES\logs\*.dev.log`, `*.dev.err.log`, `*.pid` | Logs y archivos de proceso generados por los scripts de arranque local. |
+
+Primero revisar que se esta en la raiz correcta:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+```
+
+Listar los artefactos antes de borrarlos:
+
+```powershell
+$ProjectRoot = (Resolve-Path -LiteralPath "C:\VENTA-DE-PASAJES").Path
+
+$GeneratedTargets = @()
+$GeneratedTargets += Get-ChildItem -LiteralPath (Join-Path $ProjectRoot "apps") -Directory -Recurse -Force -Filter ".next" -ErrorAction SilentlyContinue
+$GeneratedTargets += Get-ChildItem -LiteralPath (Join-Path $ProjectRoot "apps") -File -Recurse -Force -Filter "*.tsbuildinfo" -ErrorAction SilentlyContinue
+$GeneratedTargets += Get-ChildItem -LiteralPath (Join-Path $ProjectRoot "packages") -File -Recurse -Force -Filter "*.tsbuildinfo" -ErrorAction SilentlyContinue
+
+$GeneratedTargets |
+  Select-Object FullName |
+  Format-Table -AutoSize
+```
+
+Borrar solo si las rutas listadas estan dentro de `C:\VENTA-DE-PASAJES\apps` o `C:\VENTA-DE-PASAJES\packages`:
+
+```powershell
+$AllowedRoots = @(
+  (Resolve-Path -LiteralPath (Join-Path $ProjectRoot "apps")).Path,
+  (Resolve-Path -LiteralPath (Join-Path $ProjectRoot "packages")).Path
+)
+
+foreach ($Target in $GeneratedTargets) {
+  if ($null -eq $Target) {
+    continue
+  }
+
+  $FullName = $Target.FullName
+  $IsAllowed = $false
+
+  foreach ($AllowedRoot in $AllowedRoots) {
+    if ($FullName.StartsWith($AllowedRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+      $IsAllowed = $true
+    }
+  }
+
+  if (-not $IsAllowed) {
+    throw "Ruta fuera del area permitida: $FullName"
+  }
+
+  if ($Target.PSIsContainer) {
+    Remove-Item -LiteralPath $FullName -Recurse -Force
+  } else {
+    Remove-Item -LiteralPath $FullName -Force
+  }
+}
+```
+
+Limpiar logs locales generados por `npm run dev:frontend`:
+
+```powershell
+$LogsRootPath = Join-Path $ProjectRoot "logs"
+
+if (Test-Path -LiteralPath $LogsRootPath) {
+  $LogsRoot = (Resolve-Path -LiteralPath $LogsRootPath).Path
+  $LogTargets = @()
+  $LogTargets += Get-ChildItem -LiteralPath $LogsRoot -File -Force -Filter "*.dev.log" -ErrorAction SilentlyContinue
+  $LogTargets += Get-ChildItem -LiteralPath $LogsRoot -File -Force -Filter "*.dev.err.log" -ErrorAction SilentlyContinue
+  $LogTargets += Get-ChildItem -LiteralPath $LogsRoot -File -Force -Filter "*.pid" -ErrorAction SilentlyContinue
+
+  foreach ($LogTarget in $LogTargets) {
+    if ($null -eq $LogTarget) {
+      continue
+    }
+
+    if (-not $LogTarget.FullName.StartsWith($LogsRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+      throw "Log fuera del area permitida: $($LogTarget.FullName)"
+    }
+
+    Remove-Item -LiteralPath $LogTarget.FullName -Force
+  }
+}
+```
+
+Validar que las carpetas `.next` ya no existen:
+
+```powershell
+Get-ChildItem -LiteralPath .\apps -Directory -Recurse -Force -Filter ".next" -ErrorAction SilentlyContinue
+```
+
+Si el comando no devuelve filas, la limpieza de builds Next.js quedo aplicada.
+
+Opcionalmente, si tambien se quiere recuperar el espacio de dependencias instaladas por `npm install`, se puede borrar `node_modules`. Esto no es un artefacto de build, sino dependencias descargadas; despues habra que volver a ejecutar `npm install`.
+
+```powershell
+$NodeModulesPath = Join-Path $ProjectRoot "node_modules"
+
+if (Test-Path -LiteralPath $NodeModulesPath) {
+  $NodeModulesFullPath = (Resolve-Path -LiteralPath $NodeModulesPath).Path
+  $ExpectedNodeModulesPath = Join-Path $ProjectRoot "node_modules"
+
+  if (-not $NodeModulesFullPath.Equals($ExpectedNodeModulesPath, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Ruta node_modules inesperada: $NodeModulesFullPath"
+  }
+
+  Remove-Item -LiteralPath $NodeModulesFullPath -Recurse -Force
+}
+```
+
+### Paso R6 - Reversa de archivos locales
 
 La reversa de archivos debe hacerse con control de cambios o backup. Este workspace inicio sin Git en los primeros dias, por eso no se recomienda borrar archivos a ciegas.
 
