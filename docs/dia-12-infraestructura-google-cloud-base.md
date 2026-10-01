@@ -6,6 +6,8 @@ Fecha: 2026-09-01
 
 Preparar el bootstrap del proyecto Google Cloud de desarrollo para recibir la plataforma: proyecto dev, APIs base, presupuesto de costo y convencion de region/nombres.
 
+**bootstrap.-** Iniciación o preparación del entorno base necesario antes de poder desplegar aplicaciones o servicios principales.
+
 ## Resultado ejecutivo
 
 La preparacion en repositorio quedo lista y validada con `-DryRun`.
@@ -233,7 +235,23 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-dev.ps
   -GcloudPath "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
 ```
 
-Interpretacion del resultado:
+**RESULTADO**:
+
+```json
+{
+	"project_id": "venta-pasajes-dev",
+	"project_name": "Venta de Pasajes Dev",
+	"region": "us-central1",
+	"billing_account_id": "000000-000000-000000",
+	"budget_display_name": "venta-pasajes-dev-monthly-budget",
+	"budget_amount": "50USD",
+	"api_count": 15,
+	"dry_run": true
+}
+```
+
+
+Interpretación del resultado:
 
 | Campo | Significado |
 | --- | --- |
@@ -274,6 +292,16 @@ terraform -version
 choco --version
 winget --version
 ```
+
+**Nota:** si al ejecutar  "gcloud --version" aparece el mensaje "Alias de ejecución de aplicaciones" ocurre porque **Windows tiene activados los "Alias de ejecución de aplicaciones"** para Python, los cuales interfieren cuando `gcloud` intenta llamar a Python o cuando intentas ejecutar `python` en la terminal.
+
+Para solucionarlo y dejar tu entorno limpio para trabajar con Google Cloud CLI, sigue estos pasos:
+### Desactivar los alias de Python en Windows
+1. Presiona la tecla `Windows` e ingresa a **Configuración** (o presiona `Win + I`).
+2. Ve a **Aplicaciones** > **Configuración avanzada de aplicaciones** (o _Opciones avanzadas de aplicaciones_).
+3. Haz clic en **Alias de ejecución de aplicaciones** (_App execution aliases_).
+4. Busca las opciones **Instalador de Python** y **Instalador de Python3** (o `python.exe` y `python3.exe`) y **desactívalas** (cámbialas a "Desactivado" / _Off_).
+
 
 Resultado:
 
@@ -365,17 +393,110 @@ Dry-run del bootstrap:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\bootstrap-dev.ps1 -DryRun -BillingAccountId 000000-000000-000000
 ```
 
+
 Comandos generados por el dry-run:
 
 ```text
-gcloud projects create venta-pasajes-dev --name=Venta de Pasajes Dev --labels=app=venta-pasajes,env=dev,managed_by=codex --set-as-default
-gcloud billing projects link venta-pasajes-dev --billing-account=000000-000000-000000
-gcloud services enable cloudresourcemanager.googleapis.com serviceusage.googleapis.com cloudbilling.googleapis.com billingbudgets.googleapis.com run.googleapis.com sqladmin.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com storage.googleapis.com pubsub.googleapis.com logging.googleapis.com monitoring.googleapis.com iam.googleapis.com iamcredentials.googleapis.com --project=venta-pasajes-dev
-gcloud config set run/region us-central1
-gcloud beta billing budgets create --billing-account=000000-000000-000000 --display-name=venta-pasajes-dev-monthly-budget --budget-amount=50USD --filter-projects=projects/venta-pasajes-dev --calendar-period=month --threshold-rule=percent=0.50,basis=current-spend --threshold-rule=percent=0.75,basis=current-spend --threshold-rule=percent=0.90,basis=forecasted-spend --threshold-rule=percent=1.00,basis=current-spend
+[dry-run] gcloud projects create venta-pasajes-dev --name=Venta de Pasajes Dev --labels=app=venta-pasajes,env=dev,managed_by=codex --set-as-default
 ```
 
-## Alternativa desde la consola web de Google Cloud
+```
+[dry-run] gcloud billing projects link venta-pasajes-dev --billing-account=000000-000000-000000
+```
+
+```
+[dry-run] gcloud services enable cloudresourcemanager.googleapis.com serviceusage.googleapis.com cloudbilling.googleapis.com billingbudgets.googleapis.com run.googleapis.com sqladmin.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com storage.googleapis.com pubsub.googleapis.com logging.googleapis.com monitoring.googleapis.com iam.googleapis.com iamcredentials.googleapis.com --project=venta-pasajes-dev
+```
+
+```
+[dry-run] gcloud config set run/region us-central1
+```
+
+```
+[dry-run] gcloud beta billing budgets create --billing-account=000000-000000-000000 --display-name=venta-pasajes-dev-monthly-budget --budget-amount=50USD --filter-projects=projects/venta-pasajes-dev --calendar-period=month --threshold-rule=percent=0.50,basis=current-spend --threshold-rule=percent=0.75,basis=current-spend --threshold-rule=percent=0.90,basis=forecasted-spend --threshold-rule=percent=1.00,basis=current-spend
+```
+
+```json
+{
+	"project_id": "venta-pasajes-dev",
+	"project_name": "Venta de Pasajes Dev",
+	"region": "us-central1",
+	"billing_account_id": "000000-000000-000000",
+	"budget_display_name": "venta-pasajes-dev-monthly-budget",
+	"budget_amount": "50USD",
+	"api_count": 15,
+	"dry_run": true
+}
+```
+## Ejecución real
+
+La ejecución real quedo verificada con:
+
+```powershell
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-dev.ps1 `
+  -ProjectId "project-fbb34cd7-0b82-43e1-867" `
+  -BillingAccountId "012A58-73A3EE-D43B8D" `
+  -GcloudPath "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+```
+
+Resultado:
+
+```json
+{
+	"project_id": "project-fbb34cd7-0b82-43e1-867",
+	"project_number": "230270000840",
+	"active_account": "jkrivera1521@gmail.com",
+	"billing_enabled": true,
+	"billing_account_name": "billingAccounts/012A58-73A3EE-D43B8D",
+	"enabled_api_count": 34,
+	"required_api_count": 15,
+	"missing_apis": [],
+	"budget_checked": true,
+	"budget_found": true,
+	"budget_check_error": null,
+	"ready": true
+}
+```
+
+Instalacion posible en Windows:
+
+```powershell
+choco install gcloudsdk -y
+winget install --id Google.CloudSDK --exact
+```
+
+Instalacion sugerida si se replica este entorno en otra maquina:
+
+```powershell
+choco install python312 -y
+gcloud components install beta
+```
+
+## Riesgos y controles
+
+- El Project ID es global; puede requerir sufijo unico.
+- El presupuesto genera alertas, no detiene automaticamente el gasto.
+- El billing account no debe registrarse con credenciales ni informacion sensible en el repositorio.
+- `auth/disable_ssl_validation=true` permite diagnostico, pero no debe quedar activado para trabajo normal.
+- IAM (Identity and Access Management) fino queda para Dia 13.
+- Cloud SQL fisico y bases por servicio quedan para Dia 14.
+- Secretos reales quedan para Dia 15 y deben vivir en Secret Manager.
+
+## Estado de avance
+
+- Preparacion local y scripts: completado.
+- Proyecto Google Cloud dev real: completado.
+- APIs activas en cloud: completado.
+- Presupuesto real: completado.
+
+El criterio completo de Dia 12 fue alcanzado cuando `verify-dev.ps1` confirmo proyecto, billing, APIs y presupuesto en la cuenta Google Cloud real.
+
+
+
+
+# Alternativa desde la consola web de Google Cloud
 
 Esta ruta sirve para hacer manualmente, desde el navegador, lo mismo que prepara `bootstrap-dev.ps1`: proyecto, billing, APIs base, region operativa y presupuesto.
 
@@ -635,59 +756,8 @@ cd C:\VENTA-DE-PASAJES
 Add-Content -LiteralPath .\vitacora.md -Value "`nDia 12 - Validacion por consola web Google Cloud: proyecto, billing, APIs y presupuesto verificados."
 ```
 
-Si se desea validar desde Windows con el script del repositorio, usar la seccion `Ejecucion real`.
+Si se desea validar desde Windows con el script del repositorio, usar la sección `Ejecucion real`.
 
-## Ejecucion real
-
-La ejecucion real quedo verificada con:
-
-```powershell
-$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
-
-powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-dev.ps1 `
-  -ProjectId "project-fbb34cd7-0b82-43e1-867" `
-  -BillingAccountId "012A58-73A3EE-D43B8D" `
-  -GcloudPath "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
-```
-
-Resultado:
-
-```json
-{"project_id":"project-fbb34cd7-0b82-43e1-867","project_number":"230270000840","active_account":"jkrivera1521@gmail.com","billing_enabled":true,"billing_account_name":"billingAccounts/012A58-73A3EE-D43B8D","enabled_api_count":34,"required_api_count":15,"missing_apis":[],"budget_checked":true,"budget_found":true,"budget_check_error":null,"ready":true}
-```
-
-Instalacion posible en Windows:
-
-```powershell
-choco install gcloudsdk -y
-winget install --id Google.CloudSDK --exact
-```
-
-Instalacion sugerida si se replica este entorno en otra maquina:
-
-```powershell
-choco install python312 -y
-gcloud components install beta
-```
-
-## Riesgos y controles
-
-- El Project ID es global; puede requerir sufijo unico.
-- El presupuesto genera alertas, no detiene automaticamente el gasto.
-- El billing account no debe registrarse con credenciales ni informacion sensible en el repositorio.
-- `auth/disable_ssl_validation=true` permite diagnostico, pero no debe quedar activado para trabajo normal.
-- IAM fino queda para Dia 13.
-- Cloud SQL fisico y bases por servicio quedan para Dia 14.
-- Secretos reales quedan para Dia 15 y deben vivir en Secret Manager.
-
-## Estado de avance
-
-- Preparacion local y scripts: completado.
-- Proyecto Google Cloud dev real: completado.
-- APIs activas en cloud: completado.
-- Presupuesto real: completado.
-
-El criterio completo de Dia 12 fue alcanzado cuando `verify-dev.ps1` confirmo proyecto, billing, APIs y presupuesto en la cuenta Google Cloud real.
 
 ## Referencias oficiales usadas
 
@@ -697,128 +767,5 @@ El criterio completo de Dia 12 fue alcanzado cuando `verify-dev.ps1` confirmo pr
 - `gcloud services enable`: https://docs.cloud.google.com/sdk/gcloud/reference/services/enable
 - `gcloud beta billing budgets create`: https://docs.cloud.google.com/sdk/gcloud/reference/beta/billing/budgets/create
 
-## Reversa primero
 
-> Estandarizacion documental agregada el 2026-09-16 para que este dia tambien tenga una ruta segura de limpieza antes de repetir la practica.
 
-Este dia pertenece a la etapa inicial del proyecto. Antes de ejecutar una reversa, revisar si el archivo contiene recursos externos reales, como Google Cloud, Docker, bases de datos o imagenes publicadas. No ejecutar comandos destructivos si no estas seguro de que el recurso no esta siendo usado.
-
-### Paso R1 - Ubicarse en el workspace
-
-```powershell
-cd C:\VENTA-DE-PASAJES
-```
-
-### Paso R2 - Revisar recursos o archivos mencionados
-
-```powershell
-Select-String -Path .\docs\dia-12-infraestructura-google-cloud-base.md -Pattern "C:\\VENTA-DE-PASAJES|docker|gcloud|mvn|npm|Remove-Item|delete|rm|Cloud SQL|Artifact Registry|Secret Manager" -Context 0,2
-```
-
-### Paso R3 - Detener procesos locales si este dia levanto herramientas
-
-```powershell
-Get-NetTCPConnection -LocalPort 3000,3001,3002,3003,8081,8082,8083,18083,18089,18096 -ErrorAction SilentlyContinue |
-  Select-Object LocalAddress,LocalPort,State,OwningProcess |
-  Format-Table -AutoSize
-
-Get-CimInstance Win32_Process -Filter "name = 'java.exe' or name = 'node.exe'" |
-  Select-Object ProcessId,CommandLine |
-  Format-List
-```
-
-Si identificas un proceso propio de la practica, detenerlo:
-
-```powershell
-Stop-Process -Id <process-id> -Force
-```
-
-### Paso R4 - Revisar contenedores temporales
-
-```powershell
-docker ps -a --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" |
-  Select-String -Pattern "venta-pasajes|identity|dispatch|ticketing|native|postgres"
-```
-
-Si el contenedor fue creado solo para repetir este dia y no se usa en otra practica:
-
-```powershell
-docker rm -f <container-name>
-```
-
-### Paso R5 - Reversa de archivos locales
-
-La reversa de archivos debe hacerse con control de cambios o backup. Este workspace inicio sin Git en los primeros dias, por eso no se recomienda borrar archivos a ciegas.
-
-```powershell
-Select-String -Path .\docs\dia-12-infraestructura-google-cloud-base.md -Pattern "Archivo|Archivos|C:\\VENTA-DE-PASAJES" -Context 0,4
-```
-
-Si aun asi necesitas retirar solo este documento de la practica, hacer primero una copia:
-
-```powershell
-New-Item -ItemType Directory -Force -Path .\backups | Out-Null
-Copy-Item -LiteralPath .\docs\dia-12-infraestructura-google-cloud-base.md -Destination .\backups\dia-12-infraestructura-google-cloud-base-manual-backup.md -Force
-```
-
-Despues de respaldar, se podria eliminar manualmente el documento con:
-
-```powershell
-Remove-Item -LiteralPath .\docs\dia-12-infraestructura-google-cloud-base.md -Force
-```
-
-## Guia manual desde cero
-
-> Estandarizacion documental agregada el 2026-09-16. Esta guia permite repetir el dia sin depender de Codex, usando el documento como fuente de verdad.
-
-### Paso 1 - Ubicarse en el proyecto
-
-```powershell
-cd C:\VENTA-DE-PASAJES
-```
-
-### Paso 2 - Leer el alcance del dia en el backlog
-
-```powershell
-Select-String -Path .\tareas.md -Pattern "Dia 12|Dia 12" -Context 0,40
-```
-
-### Paso 3 - Leer la documentacion del dia
-
-```powershell
-Get-Content -LiteralPath .\docs\dia-12-infraestructura-google-cloud-base.md
-```
-
-### Paso 4 - Verificar archivos y rutas mencionadas
-
-```powershell
-Select-String -Path .\docs\dia-12-infraestructura-google-cloud-base.md -Pattern "C:\\VENTA-DE-PASAJES" -AllMatches
-```
-
-Para cada ruta importante que aparezca en el documento:
-
-```powershell
-Test-Path -LiteralPath "<ruta-copiada-del-documento>"
-```
-
-### Paso 5 - Ejecutar comandos documentados
-
-Buscar bloques de comandos del documento y ejecutarlos en orden, validando el resultado de cada bloque antes de continuar:
-
-```powershell
-Select-String -Path .\docs\dia-12-infraestructura-google-cloud-base.md -Pattern "```powershell|```text|mvn |npm |docker |gcloud |curl.exe|powershell " -Context 0,6
-```
-
-### Paso 6 - Registrar la repeticion en bitacora
-
-```powershell
-Add-Content -LiteralPath .\vitacora.md -Value "`nReplica manual Dia 12 - <fecha>: comandos ejecutados y resultado."
-```
-
-### Paso 7 - Validar criterio de avance
-
-Revisar la seccion de criterio de avance, resultado, estado final o pendientes del documento:
-
-```powershell
-Select-String -Path .\docs\dia-12-infraestructura-google-cloud-base.md -Pattern "Criterio de avance|Resultado|Estado final|Pendiente|Pendientes" -Context 0,8
-```
