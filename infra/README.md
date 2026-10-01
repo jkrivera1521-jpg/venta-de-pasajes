@@ -4,7 +4,7 @@ Infrastructure workspace for Google Cloud resources.
 
 ## Folders
 
-- `terraform`: infrastructure as code.
+- `terraform`: espacio reservado para infraestructura como codigo. La automatizacion implementada en los primeros dias usa scripts `gcloud`.
 - `cloudbuild`: Cloud Build pipelines.
 - `cloudrun`: Cloud Run service descriptors.
 - `env`: environment variable templates for GCP and on-premise runtimes.

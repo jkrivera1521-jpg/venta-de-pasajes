@@ -44,6 +44,8 @@ Se confirmo acceso a `gcloud`, cuenta activa, proyecto seleccionado, facturacion
 | Terraform en Chocolatey | `terraform 1.16.0` disponible |
 | Terraform en Winget | `Hashicorp.Terraform 1.15.8` disponible |
 
+Nota: Terraform se reviso solo como herramienta disponible para una posible estrategia futura de infraestructura como codigo. En el Dia 12 no se uso Terraform para crear recursos. La ruta implementada y validada fue con scripts PowerShell que ejecutan `gcloud`.
+
 ## Estado Google Cloud actualizado
 
 | Elemento | Estado |
@@ -83,23 +85,32 @@ C:\VENTA-DE-PASAJES\infra\gcloud\dev-apis.txt
 
 APIs:
 
-| API | Proposito |
-| --- | --- |
-| `cloudresourcemanager.googleapis.com` | Creacion y gestion de proyectos. |
-| `serviceusage.googleapis.com` | Activacion de APIs. |
-| `cloudbilling.googleapis.com` | Vinculacion de proyecto con billing. |
-| `billingbudgets.googleapis.com` | Presupuestos y alertas. |
-| `run.googleapis.com` | Cloud Run. |
-| `sqladmin.googleapis.com` | Cloud SQL. |
-| `cloudbuild.googleapis.com` | Cloud Build. |
-| `artifactregistry.googleapis.com` | Artifact Registry. |
-| `secretmanager.googleapis.com` | Secret Manager. |
-| `storage.googleapis.com` | Cloud Storage. |
-| `pubsub.googleapis.com` | Pub/Sub. |
-| `logging.googleapis.com` | Cloud Logging. |
-| `monitoring.googleapis.com` | Cloud Monitoring. |
-| `iam.googleapis.com` | IAM. |
-| `iamcredentials.googleapis.com` | Credenciales de service accounts. |
+| API | Servicio Google Cloud | Uso concreto en Venta de Pasajes |
+| --- | --- | --- |
+| `cloudresourcemanager.googleapis.com` | Cloud Resource Manager | Permite crear, describir y administrar el proyecto Google Cloud donde vive el sistema. El bootstrap lo necesita para crear o validar el proyecto dev/prod y obtener datos como `projectId` y `projectNumber`. |
+| `serviceusage.googleapis.com` | Service Usage | Permite habilitar las demas APIs del proyecto. Sin esta API, el script no podria activar Cloud Run, Cloud SQL, Artifact Registry, Secret Manager, etc. |
+| `cloudbilling.googleapis.com` | Cloud Billing | Permite vincular el proyecto con una cuenta de facturacion. Es necesario porque servicios como Cloud Run, Cloud SQL, Artifact Registry y Cloud Storage requieren billing activo. |
+| `billingbudgets.googleapis.com` | Cloud Billing Budgets | Permite crear y consultar presupuestos y alertas de gasto. En el proyecto se usa para el presupuesto mensual inicial y umbrales de alerta 50%, 75%, 90% y 100%. |
+| `run.googleapis.com` | Cloud Run | Plataforma donde se despliegan los backends Quarkus y los frontends Next.js/MFEs. Es esencial para ejecutar `identity-service`, `dispatch-service`, `ticketing-service`, `reporting-service`, `audit-service`, `document-service`, `frontend-shell` y los MFEs. |
+| `sqladmin.googleapis.com` | Cloud SQL Admin API | Permite crear, configurar, consultar y administrar instancias Cloud SQL PostgreSQL. Se usa para preparar la instancia PostgreSQL y las bases separadas por microservicio. |
+| `cloudbuild.googleapis.com` | Cloud Build | Permite automatizar builds y pasos CI/CD dentro de Google Cloud. Sirve para construir imagenes, ejecutar pipelines y preparar despliegues cuando se use Cloud Build. |
+| `artifactregistry.googleapis.com` | Artifact Registry | Repositorio privado de imagenes Docker. Se usa para publicar y versionar imagenes de backends, shell y MFEs antes de desplegarlas en Cloud Run. |
+| `secretmanager.googleapis.com` | Secret Manager | Almacena secretos fuera del repositorio: peppers, claves, credenciales, secretos de JWT, configuracion sensible y valores productivos que no deben quedar en archivos `.env`. |
+| `storage.googleapis.com` | Cloud Storage | Almacenamiento de objetos. En el proyecto se usa para documentos, respaldos, evidencias, posibles exportaciones y buckets documentales por ambiente. |
+| `pubsub.googleapis.com` | Pub/Sub | Mensajeria asincrona entre dominios. Se usa como base para eventos, outbox, integracion entre microservicios y comunicacion desacoplada. |
+| `logging.googleapis.com` | Cloud Logging | Centraliza logs de Cloud Run, Cloud SQL y otros servicios. Sirve para diagnostico operativo, trazabilidad, auditoria tecnica y soporte. |
+| `monitoring.googleapis.com` | Cloud Monitoring | Permite metricas, paneles y alertas sobre servicios Cloud Run, base de datos, consumo y salud de la plataforma. |
+| `iam.googleapis.com` | IAM | Permite crear y administrar permisos, roles y service accounts. Se usa para separar identidades por servicio y controlar quien puede invocar o administrar recursos. |
+| `iamcredentials.googleapis.com` | IAM Service Account Credentials | Permite emitir credenciales/tokens para service accounts. Es necesaria para flujos de identidad servicio-a-servicio, invocacion privada entre Cloud Run y operaciones que requieren tokens de cuenta de servicio. |
+
+Resumen practico:
+
+| Grupo | APIs incluidas | Para que se usan |
+| --- | --- | --- |
+| Gobierno del proyecto | `cloudresourcemanager`, `serviceusage`, `cloudbilling`, `billingbudgets` | Crear/validar proyecto, activar servicios, vincular billing y controlar gasto. |
+| Ejecucion de la aplicacion | `run`, `sqladmin`, `artifactregistry`, `secretmanager`, `storage` | Ejecutar servicios, guardar imagenes, manejar base de datos, secretos y archivos. |
+| Integracion y operacion | `pubsub`, `logging`, `monitoring` | Eventos, logs, metricas y soporte operativo. |
+| Seguridad e identidad cloud | `iam`, `iamcredentials` | Service accounts, permisos e invocacion segura entre servicios. |
 
 ## Scripts creados
 
@@ -109,6 +120,127 @@ APIs:
 | `C:\VENTA-DE-PASAJES\infra\gcloud\verify-dev.ps1` | Verifica proyecto, billing, APIs habilitadas y presupuesto. |
 | `C:\VENTA-DE-PASAJES\infra\gcloud\README.md` | Instrucciones de prerrequisitos, dry-run, ejecucion y verificacion. |
 | `C:\VENTA-DE-PASAJES\infra\gcloud\dev-apis.txt` | Lista de APIs requeridas para dev. |
+
+### Detalle de scripts PowerShell creados
+
+#### `bootstrap-dev.ps1`
+
+Archivo:
+
+```text
+C:\VENTA-DE-PASAJES\infra\gcloud\bootstrap-dev.ps1
+```
+
+Objetivo:
+
+Preparar el proyecto Google Cloud de desarrollo. Es el script que arma o aplica el bootstrap inicial de infraestructura base.
+
+Parametros principales:
+
+| Parametro | Para que sirve |
+| --- | --- |
+| `ProjectId` | ID del proyecto Google Cloud. Si no se envia, toma `GOOGLE_CLOUD_PROJECT`; si no existe, usa `venta-pasajes-dev`. |
+| `ProjectName` | Nombre visible del proyecto. Por defecto usa `Venta de Pasajes Dev`. |
+| `Region` | Region principal para Cloud Run. Por defecto `us-central1`. |
+| `BillingAccountId` | Cuenta de facturacion que se vincula al proyecto. Es obligatoria en ejecucion real. |
+| `OrganizationId` | Organizacion Google Cloud padre, si aplica. No se usa junto con `FolderId`. |
+| `FolderId` | Carpeta Google Cloud padre, si aplica. No se usa junto con `OrganizationId`. |
+| `BudgetAmount` | Monto del presupuesto mensual. Por defecto `50`. |
+| `BudgetCurrency` | Moneda del presupuesto. Por defecto `USD`. |
+| `BudgetDisplayName` | Nombre del presupuesto. Por defecto `venta-pasajes-dev-monthly-budget`. |
+| `GcloudPath` | Ruta manual a `gcloud.cmd` si no esta en PATH. |
+| `DryRun` | Modo seguro: imprime los comandos `gcloud` que ejecutaria, pero no modifica Google Cloud. |
+
+Flujo interno:
+
+1. Valida que no se envien `OrganizationId` y `FolderId` al mismo tiempo.
+2. En modo `DryRun`, si no hay cuenta de billing, usa `000000-000000-000000` como placeholder.
+3. En ejecucion real, exige `BillingAccountId`.
+4. Busca `gcloud` en PATH o en rutas comunes de Chocolatey, Google Cloud SDK y perfil local.
+5. Busca Python compatible para `gcloud` y configura `CLOUDSDK_PYTHON` si hace falta.
+6. Verifica que exista una cuenta activa con `gcloud auth list`.
+7. Revisa si el proyecto existe.
+8. Si el proyecto existe, ejecuta `gcloud config set project`.
+9. Si el proyecto no existe, ejecuta `gcloud projects create`.
+10. Vincula billing con `gcloud billing projects link`.
+11. Lee `infra\gcloud\dev-apis.txt`.
+12. Habilita las APIs con `gcloud services enable`.
+13. Configura la region de Cloud Run con `gcloud config set run/region`.
+14. Revisa si el presupuesto ya existe.
+15. Si no existe, crea el presupuesto con reglas de alerta al 50%, 75%, 90% y 100%.
+16. Devuelve un resumen JSON con proyecto, region, billing, presupuesto, cantidad de APIs y si fue `dry_run`.
+
+Uso seguro recomendado:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\bootstrap-dev.ps1 `
+  -DryRun `
+  -BillingAccountId 000000-000000-000000
+```
+
+Uso real, solo cuando ya se valido el plan:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\bootstrap-dev.ps1 `
+  -ProjectId "project-fbb34cd7-0b82-43e1-867" `
+  -BillingAccountId "012A58-73A3EE-D43B8D" `
+  -GcloudPath "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+```
+
+#### `verify-dev.ps1`
+
+Archivo:
+
+```text
+C:\VENTA-DE-PASAJES\infra\gcloud\verify-dev.ps1
+```
+
+Objetivo:
+
+Verificar que la infraestructura base de desarrollo quedo lista. Este script no crea el proyecto; valida el estado real contra lo esperado.
+
+Parametros principales:
+
+| Parametro | Para que sirve |
+| --- | --- |
+| `ProjectId` | Proyecto Google Cloud a verificar. Si no se envia, toma `GOOGLE_CLOUD_PROJECT` o `venta-pasajes-dev`. |
+| `BillingAccountId` | Cuenta de facturacion usada para validar presupuesto. |
+| `BudgetDisplayName` | Nombre del presupuesto que debe existir. |
+| `GcloudPath` | Ruta manual a `gcloud.cmd` si no esta en PATH. |
+
+Flujo interno:
+
+1. Busca `gcloud` en PATH o en rutas comunes de instalacion.
+2. Busca Python compatible para `gcloud` y configura `CLOUDSDK_PYTHON` si hace falta.
+3. Verifica cuenta activa con `gcloud auth list`.
+4. Lee el proyecto con `gcloud projects describe`.
+5. Lee el estado de billing con `gcloud billing projects describe`.
+6. Lee las APIs requeridas desde `infra\gcloud\dev-apis.txt`.
+7. Lista APIs habilitadas con `gcloud services list --enabled`.
+8. Calcula APIs faltantes comparando requeridas contra habilitadas.
+9. Si se envio `BillingAccountId`, intenta listar presupuestos con `gcloud beta billing budgets list`.
+10. Verifica si existe el presupuesto esperado.
+11. Devuelve un JSON con cuenta activa, project number, billing, APIs habilitadas, APIs faltantes, presupuesto y `ready`.
+
+Uso recomendado:
+
+```powershell
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-dev.ps1 `
+  -ProjectId "project-fbb34cd7-0b82-43e1-867" `
+  -BillingAccountId "012A58-73A3EE-D43B8D" `
+  -GcloudPath "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+```
+
+Interpretacion del resultado:
+
+| Campo | Significado |
+| --- | --- |
+| `billing_enabled=true` | El proyecto tiene facturacion activa. |
+| `missing_apis=[]` | No faltan APIs requeridas. |
+| `budget_found=true` | Existe el presupuesto esperado. |
+| `ready=true` | El proyecto cumple las condiciones base del Dia 12. |
 
 ## Variables de entorno actualizadas
 
@@ -152,7 +284,41 @@ choco 2.5.0 disponible
 winget v1.29.280 disponible
 ```
 
+La presencia de `terraform -version` en este bloque no significa que Terraform forme parte de la ejecucion del Dia 12. Se incluyo como inventario de toolchain de infraestructura. Los recursos de Google Cloud de este dia se preparan mediante `infra\gcloud\bootstrap-dev.ps1` y se verifican con `infra\gcloud\verify-dev.ps1`.
+
 Validacion sintactica de scripts:
+
+Comando usado para generar el resultado:
+
+```powershell
+$Scripts = @(
+  ".\infra\gcloud\bootstrap-dev.ps1",
+  ".\infra\gcloud\verify-dev.ps1"
+)
+
+foreach ($Script in $Scripts) {
+  $ResolvedScript = (Resolve-Path -LiteralPath $Script).Path
+  $Tokens = $null
+  $Errors = $null
+  [System.Management.Automation.Language.Parser]::ParseFile($ResolvedScript, [ref]$Tokens, [ref]$Errors) | Out-Null
+
+  if (@($Errors).Count -gt 0) {
+    Write-Host "ERROR $Script"
+    $Errors | Format-List
+    exit 1
+  }
+
+  Write-Host "OK $Script"
+}
+```
+
+Que valida:
+
+- Que PowerShell pueda leer y parsear el archivo.
+- Que no haya errores de sintaxis como llaves sin cerrar, parametros mal formados o bloques incompletos.
+- No valida credenciales, permisos ni existencia de recursos en Google Cloud.
+
+Resultado:
 
 ```text
 OK .\infra\gcloud\bootstrap-dev.ps1
@@ -160,6 +326,34 @@ OK .\infra\gcloud\verify-dev.ps1
 ```
 
 Validacion de APIs:
+
+Comando usado para generar el resultado:
+
+```powershell
+$Apis = Get-Content -LiteralPath ".\infra\gcloud\dev-apis.txt" |
+  ForEach-Object { $_.Trim() } |
+  Where-Object { $_ -and -not $_.StartsWith("#") }
+
+$DuplicateApis = $Apis | Group-Object | Where-Object { $_.Count -gt 1 }
+
+if (@($DuplicateApis).Count -gt 0) {
+  Write-Host "ERROR duplicate APIs found"
+  $DuplicateApis | Format-Table Name, Count -AutoSize
+  exit 1
+}
+
+Write-Host "OK: $(@($Apis).Count) APIs, no duplicates"
+```
+
+Que valida:
+
+- Lee `C:\VENTA-DE-PASAJES\infra\gcloud\dev-apis.txt`.
+- Ignora lineas vacias.
+- Ignora comentarios que empiezan con `#`.
+- Cuenta las APIs reales requeridas.
+- Verifica que no haya APIs repetidas.
+
+Resultado:
 
 ```text
 OK: 15 APIs, no duplicates
