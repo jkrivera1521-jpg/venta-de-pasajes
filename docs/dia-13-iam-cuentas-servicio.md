@@ -64,6 +64,19 @@ C:\VENTA-DE-PASAJES\infra\gcloud\iam-dev.json
 | `frontend-shell` | `frontend-shell-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `roles/logging.logWriter`, `roles/monitoring.metricWriter` | Secret Manager para secreto de sesion |
 | Cloud Build | `cloudbuild-deployer@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `roles/artifactregistry.writer`, `roles/cloudbuild.builds.editor`, `roles/logging.logWriter`, `roles/run.admin`, `roles/storage.admin` | Secret Manager solo para secretos de pipeline |
 
+## Roles predefinidos principales
+
+Estos roles no son roles personalizados del proyecto. Son roles predefinidos de Google Cloud; por eso no aparecen al ejecutar `gcloud iam roles list --project <PROJECT_ID>`, ya que ese comando lista solamente roles personalizados creados dentro del proyecto.
+
+| Rol | Donde se usa | Descripcion |
+| --- | --- | --- |
+| `roles/cloudsql.client` | Runtime service accounts de backends | Permite que los servicios desplegados en Cloud Run puedan conectarse a Cloud SQL. Es necesario para que los microservicios accedan a PostgreSQL usando la infraestructura administrada de Google Cloud. |
+| `roles/cloudsql.instanceUser` | Runtime service accounts de backends | Permite usar autenticacion IAM contra Cloud SQL. Se agrego para soportar acceso a base de datos sin depender de contrasenas planas dentro del codigo o del repositorio. |
+| `roles/logging.logWriter` | Backends, frontend shell y Cloud Build deployer | Permite escribir logs en Cloud Logging. Sin este rol, los servicios podrian ejecutarse, pero quedaria limitada la trazabilidad operativa y el diagnostico. |
+| `roles/monitoring.metricWriter` | Backends y frontend shell | Permite publicar metricas en Cloud Monitoring. Sirve para monitoreo, alertas y visibilidad del comportamiento de los servicios. |
+| `roles/run.admin` | `cloudbuild-deployer` | Permite administrar y desplegar servicios Cloud Run. Se asigna a la identidad de despliegue, no a cada microservicio, para separar ejecucion runtime de capacidades de administracion. |
+| `roles/artifactregistry.writer` | `cloudbuild-deployer` | Permite publicar imagenes Docker en Artifact Registry. Es necesario para que el pipeline pueda subir imagenes versionadas antes de desplegarlas en Cloud Run. |
+
 ## Impersonacion Cloud Build
 
 Cloud Build deployer puede adjuntar estas identidades runtime a Cloud Run mediante `roles/iam.serviceAccountUser` aplicado en cada service account runtime:
