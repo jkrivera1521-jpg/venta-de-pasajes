@@ -134,6 +134,288 @@ Estado: pendiente de confirmacion manual por fuera de IAM del proyecto.
 | `C:\VENTA-DE-PASAJES\infra\gcloud\bootstrap-iam-dev.ps1` | Crea service accounts y aplica bindings IAM. |
 | `C:\VENTA-DE-PASAJES\infra\gcloud\verify-iam-dev.ps1` | Verifica service accounts y bindings requeridos. |
 
+## Alternativa desde la consola grafica de Google Cloud
+
+Esta ruta permite realizar manualmente, desde el navegador, lo mismo que automatiza `bootstrap-iam-dev.ps1`: crear las cuentas de servicio, asignar roles IAM de proyecto y permitir que `cloudbuild-deployer` adjunte las identidades runtime al desplegar servicios Cloud Run.
+
+Importante: desde la consola grafica no hay modo `-DryRun`. Si se presiona `Crear`, `Conceder acceso`, `Guardar` o `Actualizar`, el cambio se aplica realmente sobre Google Cloud.
+
+### Datos base
+
+| Dato | Valor |
+| --- | --- |
+| Proyecto | `project-fbb34cd7-0b82-43e1-867` |
+| Region de referencia | `us-central1` |
+| Matriz local | `C:\VENTA-DE-PASAJES\infra\gcloud\iam-dev.json` |
+| Cuenta deployer | `cloudbuild-deployer@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` |
+
+### Paso G1 - Abrir IAM y seleccionar el proyecto
+
+Abrir Google Cloud Console y confirmar que el proyecto activo sea:
+
+```text
+project-fbb34cd7-0b82-43e1-867
+```
+
+Ruta en consola:
+
+```text
+Menu principal > IAM y administracion
+```
+
+Si la consola esta en ingles, la ruta equivalente suele aparecer como:
+
+```text
+IAM & Admin
+```
+
+### Paso G2 - Crear las cuentas de servicio
+
+Ruta en consola:
+
+```text
+IAM y administracion > Cuentas de servicio
+```
+
+En ingles:
+
+```text
+IAM & Admin > Service Accounts
+```
+
+Por cada fila de esta tabla, usar `Crear cuenta de servicio`:
+
+| Account ID | Nombre visible | Descripcion |
+| --- | --- | --- |
+| `identity-service-run` | `identity-service runtime` | Runtime identity for identity-service in Cloud Run dev. |
+| `dispatch-service-run` | `dispatch-service runtime` | Runtime identity for dispatch-service in Cloud Run dev. |
+| `ticketing-service-run` | `ticketing-service runtime` | Runtime identity for ticketing-service in Cloud Run dev. |
+| `document-service-run` | `document-service runtime` | Runtime identity for document-service in Cloud Run dev. |
+| `reporting-service-run` | `reporting-service runtime` | Runtime identity for reporting-service in Cloud Run dev. |
+| `audit-service-run` | `audit-service runtime` | Runtime identity for audit-service in Cloud Run dev. |
+| `frontend-shell-run` | `frontend-shell runtime` | Runtime identity for frontend-shell in Cloud Run dev. |
+| `cloudbuild-deployer` | `Cloud Build deployer` | Custom Cloud Build service account for build and Cloud Run deployment in dev. |
+
+Resultado esperado:
+
+```text
+8 cuentas de servicio creadas.
+```
+
+Los correos completos quedan con esta forma:
+
+```text
+<account-id>@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com
+```
+
+Ejemplo:
+
+```text
+identity-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com
+```
+
+### Paso G3 - Asignar roles de proyecto a los runtimes backend
+
+Ruta en consola:
+
+```text
+IAM y administracion > IAM
+```
+
+Accion:
+
+1. Clic en `Conceder acceso`.
+2. En `Nuevos principales`, pegar el correo de la cuenta de servicio.
+3. Agregar los roles correspondientes.
+4. Guardar.
+
+Asignar estos roles a cada backend runtime:
+
+| Cuenta de servicio | Roles |
+| --- | --- |
+| `identity-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `Cloud SQL Client`, `Cloud SQL Instance User`, `Logs Writer`, `Monitoring Metric Writer` |
+| `dispatch-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `Cloud SQL Client`, `Cloud SQL Instance User`, `Logs Writer`, `Monitoring Metric Writer` |
+| `ticketing-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `Cloud SQL Client`, `Cloud SQL Instance User`, `Logs Writer`, `Monitoring Metric Writer` |
+| `document-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `Cloud SQL Client`, `Cloud SQL Instance User`, `Logs Writer`, `Monitoring Metric Writer` |
+| `reporting-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `Cloud SQL Client`, `Cloud SQL Instance User`, `Logs Writer`, `Monitoring Metric Writer` |
+| `audit-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `Cloud SQL Client`, `Cloud SQL Instance User`, `Logs Writer`, `Monitoring Metric Writer` |
+
+Equivalencia tecnica de roles:
+
+| Nombre en consola | ID del rol |
+| --- | --- |
+| `Cloud SQL Client` | `roles/cloudsql.client` |
+| `Cloud SQL Instance User` | `roles/cloudsql.instanceUser` |
+| `Logs Writer` | `roles/logging.logWriter` |
+| `Monitoring Metric Writer` | `roles/monitoring.metricWriter` |
+
+### Paso G4 - Asignar roles de proyecto al frontend shell
+
+En `IAM y administracion > IAM`, conceder acceso a:
+
+```text
+frontend-shell-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com
+```
+
+Roles:
+
+| Nombre en consola | ID del rol |
+| --- | --- |
+| `Logs Writer` | `roles/logging.logWriter` |
+| `Monitoring Metric Writer` | `roles/monitoring.metricWriter` |
+
+### Paso G5 - Asignar roles de proyecto al deployer de Cloud Build
+
+En `IAM y administracion > IAM`, conceder acceso a:
+
+```text
+cloudbuild-deployer@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com
+```
+
+Roles:
+
+| Nombre en consola | ID del rol | Uso |
+| --- | --- | --- |
+| `Artifact Registry Writer` | `roles/artifactregistry.writer` | Publicar imagenes Docker en Artifact Registry. |
+| `Cloud Build Editor` | `roles/cloudbuild.builds.editor` | Administrar/ejecutar builds del pipeline. |
+| `Logs Writer` | `roles/logging.logWriter` | Escribir logs de build y despliegue. |
+| `Cloud Run Admin` | `roles/run.admin` | Crear y actualizar servicios Cloud Run. |
+| `Storage Admin` | `roles/storage.admin` | Manejar artefactos/logs usados por el flujo de build. |
+
+### Paso G6 - Configurar impersonacion Cloud Build sobre cuentas runtime
+
+Este paso permite que `cloudbuild-deployer` pueda adjuntar una cuenta runtime a Cloud Run al desplegar un servicio.
+
+Ruta en consola:
+
+```text
+IAM y administracion > Cuentas de servicio
+```
+
+Para cada cuenta runtime de esta tabla:
+
+1. Abrir la cuenta de servicio.
+2. Entrar a `Permisos` o `Permissions`.
+3. Clic en `Conceder acceso` o `Grant access`.
+4. Principal:
+
+```text
+cloudbuild-deployer@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com
+```
+
+5. Rol:
+
+```text
+Service Account User
+```
+
+Equivalencia tecnica:
+
+```text
+roles/iam.serviceAccountUser
+```
+
+Cuentas runtime donde se concede este acceso:
+
+| Cuenta destino | Principal que recibe acceso | Rol |
+| --- | --- | --- |
+| `identity-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `cloudbuild-deployer@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `Service Account User` |
+| `dispatch-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `cloudbuild-deployer@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `Service Account User` |
+| `ticketing-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `cloudbuild-deployer@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `Service Account User` |
+| `document-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `cloudbuild-deployer@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `Service Account User` |
+| `reporting-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `cloudbuild-deployer@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `Service Account User` |
+| `audit-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `cloudbuild-deployer@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `Service Account User` |
+| `frontend-shell-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `cloudbuild-deployer@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` | `Service Account User` |
+
+### Paso G7 - No crear llaves JSON
+
+En las cuentas de servicio no crear claves JSON.
+
+Control esperado:
+
+```text
+Keys / Claves: sin claves creadas
+```
+
+Razon: el proyecto usa identidades administradas por Google Cloud. Las llaves JSON aumentan el riesgo porque pueden copiarse, filtrarse o quedar guardadas en equipos locales.
+
+### Paso G8 - Grupos administradores y MFA
+
+En la matriz existen grupos planificados:
+
+| Grupo logico | Estado | Proposito |
+| --- | --- | --- |
+| `gcp-venta-pasajes-admins` | Pendiente | Administradores del proyecto con MFA obligatorio. |
+| `gcp-venta-pasajes-developers` | Pendiente | Desarrolladores con acceso limitado a dev. |
+| `gcp-venta-pasajes-auditors` | Pendiente | Lectura de auditoria y revision de costos. |
+
+Estos grupos no se crean desde IAM del proyecto si no existe Google Workspace o Cloud Identity. Mientras se use una cuenta Google personal, MFA se controla en la cuenta Google de cada usuario.
+
+Control manual esperado:
+
+```text
+La cuenta administradora debe tener verificacion en 2 pasos activa.
+No usar cuentas compartidas.
+No entregar roles Owner/Editor/Viewer a service accounts.
+```
+
+### Paso G9 - Verificacion desde la consola grafica
+
+Validar en:
+
+```text
+IAM y administracion > Cuentas de servicio
+```
+
+Resultado esperado:
+
+```text
+8 service accounts visibles.
+```
+
+Validar en:
+
+```text
+IAM y administracion > IAM
+```
+
+Resultado esperado:
+
+- Cada backend runtime tiene `Cloud SQL Client`, `Cloud SQL Instance User`, `Logs Writer` y `Monitoring Metric Writer`.
+- `frontend-shell-run` tiene `Logs Writer` y `Monitoring Metric Writer`.
+- `cloudbuild-deployer` tiene `Artifact Registry Writer`, `Cloud Build Editor`, `Logs Writer`, `Cloud Run Admin` y `Storage Admin`.
+
+Validar en cada cuenta runtime:
+
+```text
+Cuentas de servicio > <cuenta runtime> > Permisos
+```
+
+Resultado esperado:
+
+```text
+cloudbuild-deployer tiene Service Account User sobre cada cuenta runtime.
+```
+
+### Paso G10 - Confirmacion tecnica opcional
+
+Si despues de la revision grafica se quiere validar con el script del repositorio:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-iam-dev.ps1 `
+  -ProjectId "project-fbb34cd7-0b82-43e1-867" `
+  -GcloudPath "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+```
+
+El resultado correcto debe terminar con:
+
+```json
+"ready":true
+```
+
 ## Comandos ejecutados
 
 Validacion local:
