@@ -5,11 +5,18 @@
   "project_id": "project-fbb34cd7-0b82-43e1-867",
   "region": "us-central1",
   "time_zone": "America/Guayaquil",
-  "approval_status": "proposed_pending_explicit_go_no_go",
+  "approval_status": "approved_for_execution",
   "planned_window": {
-    "start_local": "2026-09-28T22:00:00-05:00",
-    "end_local": "2026-09-28T23:30:00-05:00",
-    "business_note": "Ventana propuesta fuera de horario operativo. Requiere aprobacion explicita de negocio antes de ejecutar."
+    "start_local": "2026-09-30T10:05:46-05:00",
+    "end_local": "2026-09-30T11:35:46-05:00",
+    "business_note": "Ventana autorizada por negocio. El sistema legacy fue apagado y se autoriza iniciar el nuevo sistema."
+  },
+  "approval_record": {
+    "approved_at_local": "2026-09-30T10:05:46-05:00",
+    "approved_by": "Responsable del proyecto",
+    "approval_source": "Confirmacion en conversacion Codex",
+    "legacy_status": "apagado",
+    "decision": "GO para ejecutar corte productivo y preparar migracion final"
   },
   "responsibilities": [
     {

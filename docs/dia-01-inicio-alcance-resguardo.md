@@ -83,11 +83,7 @@ Pendiente:
 
 - Confirmacion humana de responsables funcionales y tecnicos.
 
-## Reversa primero
-
-> Estandarizacion documental agregada el 2026-09-16 para que este dia tambien tenga una ruta segura de limpieza antes de repetir la practica.
-
-Este dia pertenece a la etapa inicial del proyecto. Antes de ejecutar una reversa, revisar si el archivo contiene recursos externos reales, como Google Cloud, Docker, bases de datos o imagenes publicadas. No ejecutar comandos destructivos si no estas seguro de que el recurso no esta siendo usado.
+## Reversa 
 
 ### Paso R1 - Ubicarse en el workspace
 
@@ -95,70 +91,8 @@ Este dia pertenece a la etapa inicial del proyecto. Antes de ejecutar una revers
 cd C:\VENTA-DE-PASAJES
 ```
 
-### Paso R2 - Revisar recursos o archivos mencionados
 
-```powershell
-Select-String -Path .\docs\dia-01-inicio-alcance-resguardo.md -Pattern "C:\\VENTA-DE-PASAJES|docker|gcloud|mvn|npm|Remove-Item|delete|rm|Cloud SQL|Artifact Registry|Secret Manager" -Context 0,2
-```
-
-# Análisis del Comando PowerShell: `Select-String`
-
-## Comando
-
-```powershell
-Select-String -Path .\docs\dia-01-inicio-alcance-resguardo.md -Pattern "C:\\VENTA-DE-PASAJES|docker|gcloud|mvn|npm|Remove-Item|delete|rm|Cloud SQL|Artifact Registry|Secret Manager" -Context 0,2
-```
-
----
-
-## Propósito General
-
-El comando realiza una búsqueda de texto estructurada mediante expresiones regulares dentro de un archivo de documentación Markdown (`.md`). Su objetivo principal es auditar el archivo para identificar referencias a herramientas de desarrollo, comandos potencialmente peligrosos, rutas locales hardcodeadas y servicios de Google Cloud Platform (GCP).
-
----
-
-## Desglose de Parámetros
-
-| Parámetro | Valor / Expresión | Descripción |
-| :--- | :--- | :--- |
-| **Cmdlet** | `Select-String` | Cmdlet nativo de PowerShell equivalente a `grep` en sistemas Unix. Filtra texto mediante expresiones regulares. |
-| **`-Path`** | `.\docs\dia-01-inicio-alcance-resguardo.md` | Ruta relativa del archivo objetivo sobre el cual se ejecuta el análisis. |
-| **`-Pattern`** | `"C:\\VENTA-DE-PASAJES\|docker\|gcloud\|mvn\|npm\|Remove-Item\|delete\|rm\|Cloud SQL\|Artifact Registry\|Secret Manager"` | Patron de Expresión Regular (**Regex**). Utiliza el operador `\|` (OR) para hacer coincidir cualquiera de los términos. |
-| **`-Context`** | `0,2` | Define las líneas contextuales a mostrar: `0` líneas previas y `2` líneas posteriores a cada coincidencia. |
-
----
-
-## Categorización de Patrones Buscados
-
-1. **Rutas Absolutas / Locales**
-   * `C:\\VENTA-DE-PASAJES`: Detecta referencias fijas a directorios locales (la doble barra `\\` escapa la barra invertida en Regex).
-
-2. **Herramientas de CLI y Gestores de Paquetes**
-   * `docker`: Comandos o menciones relativas a contenedores.
-   * `gcloud`: Comandos de la interfaz de línea de comandos de Google Cloud.
-   * `mvn`: Ejecuciones o configuraciones de Apache Maven.
-   * `npm`: Ejecuciones o scripts de Node Package Manager.
-
-3. **Comandos de Eliminación / Destructivos**
-   * `Remove-Item`: Cmdlet de PowerShell para borrar archivos/carpetas.
-   * `delete`: Palabras clave relacionadas con borrado.
-   * `rm`: Comando bash/shell para eliminación de recursos.
-
-4. **Servicios de Google Cloud Platform (GCP)**
-   * `Cloud SQL`: Menciones relativas a la base de datos administrada.
-   * `Artifact Registry`: Referencias al repositorio de artefactos/imágenes.
-   * `Secret Manager`: Menciones sobre gestión de credenciales y secretos.
-
----
-
-## Casos de Uso Frecuentes
-
-* **Auditoría de Seguridad:** Identificación de comandos que eliminan recursos de forma permanente.
-* **Refactorización de Documentación:** Localización de rutas absolutas hardcodeadas que deben cambiarse por rutas relativas o variables de entorno.
-* **Mapeo de Arquitectura:** Verificación rápida de las tecnologías y servicios en la nube mencionados en la guía.
-
-
-### Paso R3 - Detener procesos locales si este dia levanto herramientas
+### Paso R2 - Detener procesos locales si este dia levanto herramientas
 
 ```powershell
 Get-NetTCPConnection -LocalPort 3000,3001,3002,3003,8081,8082,8083,18083,18089,18096 -ErrorAction SilentlyContinue |
@@ -173,10 +107,10 @@ Get-CimInstance Win32_Process -Filter "name = 'java.exe' or name = 'node.exe'" |
 Si identificas un proceso propio de la practica, detenerlo:
 
 ```powershell
-Stop-Process -Id <process-id> -Force
+Stop-Process -Id 9999 -Force
 ```
 
-### Paso R4 - Revisar contenedores temporales
+### Paso R3 - Revisar contenedores temporales
 
 ```powershell
 docker ps -a --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" |
@@ -189,79 +123,9 @@ Si el contenedor fue creado solo para repetir este dia y no se usa en otra pract
 docker rm -f <container-name>
 ```
 
-### Paso R5 - Reversa de archivos locales
+### Eliminar carpetas.
 
-La reversa de archivos debe hacerse con control de cambios o backup. Este workspace inicio sin Git en los primeros dias, por eso no se recomienda borrar archivos a ciegas.
-
-```powershell
-Select-String -Path .\docs\dia-01-inicio-alcance-resguardo.md -Pattern "Archivo|Archivos|C:\\VENTA-DE-PASAJES" -Context 0,4
-```
-
-Si aun asi necesitas retirar solo este documento de la practica, hacer primero una copia:
 
 ```powershell
-New-Item -ItemType Directory -Force -Path .\backups | Out-Null
-Copy-Item -LiteralPath .\docs\dia-01-inicio-alcance-resguardo.md -Destination .\backups\dia-01-inicio-alcance-resguardo-manual-backup.md -Force
-```
-
-Despues de respaldar, se podria eliminar manualmente el documento con:
-
-```powershell
-Remove-Item -LiteralPath .\docs\dia-01-inicio-alcance-resguardo.md -Force
-```
-
-## Guia manual desde cero
-
-> Estandarizacion documental agregada el 2026-09-16. Esta guia permite repetir el dia sin depender de Codex, usando el documento como fuente de verdad.
-
-### Paso 1 - Ubicarse en el proyecto
-
-```powershell
-cd C:\VENTA-DE-PASAJES
-```
-
-### Paso 2 - Leer el alcance del dia en el backlog
-
-```powershell
-Select-String -Path .\tareas.md -Pattern "Dia 1|Dia 01" -Context 0,40
-```
-
-### Paso 3 - Leer la documentacion del dia
-
-```powershell
-Get-Content -LiteralPath .\docs\dia-01-inicio-alcance-resguardo.md
-```
-
-### Paso 4 - Verificar archivos y rutas mencionadas
-
-```powershell
-Select-String -Path .\docs\dia-01-inicio-alcance-resguardo.md -Pattern "C:\\VENTA-DE-PASAJES" -AllMatches
-```
-
-Para cada ruta importante que aparezca en el documento:
-
-```powershell
-Test-Path -LiteralPath "<ruta-copiada-del-documento>"
-```
-
-### Paso 5 - Ejecutar comandos documentados
-
-Buscar bloques de comandos del documento y ejecutarlos en orden, validando el resultado de cada bloque antes de continuar:
-
-```powershell
-Select-String -Path .\docs\dia-01-inicio-alcance-resguardo.md -Pattern "```powershell|```text|mvn |npm |docker |gcloud |curl.exe|powershell " -Context 0,6
-```
-
-### Paso 6 - Registrar la repeticion en bitacora
-
-```powershell
-Add-Content -LiteralPath .\vitacora.md -Value "`nReplica manual Dia 1 - <fecha>: comandos ejecutados y resultado."
-```
-
-### Paso 7 - Validar criterio de avance
-
-Revisar la seccion de criterio de avance, resultado, estado final o pendientes del documento:
-
-```powershell
-Select-String -Path .\docs\dia-01-inicio-alcance-resguardo.md -Pattern "Criterio de avance|Resultado|Estado final|Pendiente|Pendientes" -Context 0,8
+Remove-Item -LiteralPath .\services\toolchain-demo-service\target -Recurse -Force
 ```

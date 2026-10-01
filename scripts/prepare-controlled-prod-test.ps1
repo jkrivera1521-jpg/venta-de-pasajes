@@ -7,6 +7,7 @@ param(
   [string]$ActPath = "docs\acta-prueba-productiva-controlada.md",
   [switch]$ConfirmMigrationApplied,
   [switch]$ConfirmBusinessGoNoGo,
+  [switch]$RecordRealExecution,
   [switch]$FailOnBlocker
 )
 
@@ -63,7 +64,21 @@ function Get-ServiceUrl {
     return ""
   }
 
-  return [string]$Service[0].url
+  return ([string]$Service[0].url).Trim()
+}
+
+function Format-PowerShellStringAssignment {
+  param(
+    [string]$Name,
+    [string]$Value
+  )
+
+  $CleanValue = ""
+  if ($null -ne $Value) {
+    $CleanValue = $Value.Trim().Replace('`', '``').Replace('"', '`"')
+  }
+
+  return '$' + $Name + ' = "' + $CleanValue + '"'
 }
 
 function Write-ControlledTestCommands {
@@ -88,18 +103,18 @@ function Write-ControlledTestCommands {
     "# Ejecutar solo despues de migracion final aprobada, GO/NO-GO de negocio y backup productivo.",
     "# Este archivo SI modifica produccion si se ejecuta.",
     "",
-    '$ProjectId = "' + $ProjectId + '"',
-    '$RunId = "' + $RunId + '"',
-    '$Marker = "' + $Marker + '"',
-    '$ActorUserId = "' + $ActorUserId + '"',
-    '$TestDate = "' + $TestDate + '"',
-    '$TestDepartureAt = "' + $TestDepartureAt + '"',
-    '$DispatchUrl = "' + $DispatchUrl + '"',
-    '$TicketingUrl = "' + $TicketingUrl + '"',
-    '$DocumentUrl = "' + $DocumentUrl + '"',
-    '$ReportingUrl = "' + $ReportingUrl + '"',
-    '$AuditUrl = "' + $AuditUrl + '"',
-    '$ShellUrl = "' + $ShellUrl + '"',
+    (Format-PowerShellStringAssignment -Name "ProjectId" -Value $ProjectId),
+    (Format-PowerShellStringAssignment -Name "RunId" -Value $RunId),
+    (Format-PowerShellStringAssignment -Name "Marker" -Value $Marker),
+    (Format-PowerShellStringAssignment -Name "ActorUserId" -Value $ActorUserId),
+    (Format-PowerShellStringAssignment -Name "TestDate" -Value $TestDate),
+    (Format-PowerShellStringAssignment -Name "TestDepartureAt" -Value $TestDepartureAt),
+    (Format-PowerShellStringAssignment -Name "DispatchUrl" -Value $DispatchUrl),
+    (Format-PowerShellStringAssignment -Name "TicketingUrl" -Value $TicketingUrl),
+    (Format-PowerShellStringAssignment -Name "DocumentUrl" -Value $DocumentUrl),
+    (Format-PowerShellStringAssignment -Name "ReportingUrl" -Value $ReportingUrl),
+    (Format-PowerShellStringAssignment -Name "AuditUrl" -Value $AuditUrl),
+    (Format-PowerShellStringAssignment -Name "ShellUrl" -Value $ShellUrl),
     '$OutputDir = "logs\prod-controlled-test"',
     'New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null',
     "",
@@ -435,14 +450,22 @@ Write-ControlledTestActDraft -Path $ResolvedActPath -RunId $RunId -Marker $Marke
 
 $ReadyForControlledTestPackage = $TechnicalBlockers.Count -eq 0
 $ReadyForRealControlledTest = $ReadyForControlledTestPackage -and $ExecutionBlockers.Count -eq 0
+$RealExecutionEvidencePath = Join-Path $ResolvedOutputDir "dia78-real-execution-evidence.json"
+$RealExecutionEvidenceExists = Test-Path -LiteralPath $RealExecutionEvidencePath
+
+if ([bool]$RecordRealExecution -and -not $RealExecutionEvidenceExists) {
+  $ExecutionBlockers.Add("No existe evidencia de ejecucion real Dia 78: $RealExecutionEvidencePath")
+}
+
+$RealTestExecuted = [bool]$RecordRealExecution -and $ReadyForRealControlledTest -and $RealExecutionEvidenceExists
 
 $Result = [pscustomobject]@{
   generated_at = (Get-Date).ToString("o")
   run_id = $RunId
   marker = $Marker
   ready_for_controlled_test_package = $ReadyForControlledTestPackage
-  ready_for_real_controlled_test = $ReadyForRealControlledTest
-  real_test_executed = $false
+  ready_for_real_controlled_test = ($ReadyForControlledTestPackage -and $ExecutionBlockers.Count -eq 0)
+  real_test_executed = $RealTestExecuted
   project_id = $ProjectId
   test_date = $TestDate
   test_departure_at = $TestDepartureAt
@@ -450,6 +473,7 @@ $Result = [pscustomobject]@{
     commands = $CommandsPath
     acta = $ResolvedActPath
     result = $ResultPath
+    real_execution_evidence = $RealExecutionEvidencePath
   }
   urls = [pscustomobject]$RequiredUrls
   checks = @($Checks)
@@ -468,8 +492,8 @@ Write-Host "Resultado JSON: $ResultPath"
 Write-Host "Comandos prueba controlada: $CommandsPath"
 Write-Host "Acta: $ResolvedActPath"
 Write-Host "Paquete de prueba listo: $ReadyForControlledTestPackage"
-Write-Host "Prueba real autorizada: $ReadyForRealControlledTest"
-Write-Host "Prueba real ejecutada: False"
+Write-Host "Prueba real autorizada: $($ReadyForControlledTestPackage -and $ExecutionBlockers.Count -eq 0)"
+Write-Host "Prueba real ejecutada: $RealTestExecuted"
 
 if ($Warnings.Count -gt 0) {
   Write-Host "Advertencias:"

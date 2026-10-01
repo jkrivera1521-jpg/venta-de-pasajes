@@ -8,7 +8,7 @@ Fecha de inicio: 2026-09-01
 
 Avance documentado:
 
-- Dias 1 a 78 documentados en `docs`.
+- Dias 1 a 90 documentados en `docs`.
 - Monorepo base preparado para desarrollo multi-modulo.
 - Toolchain backend Quarkus validada con servicio demo JVM y nativo.
 - Toolchain frontend Next.js/MFE validada con shell y MFE Identity demo.
@@ -45,6 +45,18 @@ Avance documentado:
 - Paquete de capacitacion operativa creado con manual de usuario, FAQ, registro de capacitacion y verificacion automatica.
 - Paquete de migracion final de datos preparado con SQL final, comandos productivos bloqueados por aprobacion y acta pendiente de firma.
 - Paquete de prueba productiva controlada preparado con comandos, acta y bloqueo hasta que la migracion final este aplicada y aprobada.
+- Paquete de puesta en marcha preparado con acta, registro de incidencias iniciales, monitoreo y bloqueo hasta cierre de Dia 77/Dia 78.
+- Paquete de soporte intensivo dia 1 preparado con reporte post-arranque, revision de errores, ventas, reportes y consumo Cloud SQL.
+- Paquete de soporte intensivo dia 2 preparado con feedback de boleteria, permisos, impresion, anulaciones y correcciones menores.
+- Paquete de soporte intensivo dia 3 preparado con estabilidad, latencia, costos preliminares, seguridad y cierre de incidencias.
+- Paquete de optimizacion de costos preparado con reporte mensual estimado, plan de ajustes, presupuesto y alertas.
+- Documentacion tecnica final generada con manual tecnico, inventario de servicios, bases, eventos, pipelines y diagramas finales.
+- Documentacion operativa final generada con manual operativo, guia rapida de boleteria y evidencia de fuentes verificadas.
+- Prueba de restauracion productiva controlada ejecutada en recursos temporales con RTO 17.43 min y RPO 8.43 h.
+- Revision de seguridad final cerrada con 6/6 areas listas, backends privados y 0 riesgos criticos abiertos.
+- Guia de crecimiento modular creada con plantillas reutilizables para nuevos microservicios Quarkus y nuevos MFEs Next.js.
+- Backlog futuro priorizado creado para facturacion electronica, caja avanzada, pagos online, encomiendas y venta web publica.
+- Cierre tecnico/documental del proyecto preparado; plataforma tecnica productiva funciona en Google Cloud, pero el cierre funcional 100% queda pendiente por migracion final, prueba controlada, go-live y soporte real.
 - Pendiente tecnico identificado: recompilacion nativa backend con Cloud SQL Socket Factory y GraalVM/Mandrel.
 - El sistema legacy se conserva en `legacy`.
 - Los respaldos iniciales se guardan en `backups`.
@@ -141,6 +153,37 @@ backups/
 - `docs/acta-validacion-migracion-final.md`: acta para aprobacion de datos migrados.
 - `docs/dia-78-prueba-productiva-controlada.md`: prueba productiva controlada, comandos, acta y reversa.
 - `docs/acta-prueba-productiva-controlada.md`: acta para salida controlada, venta, PDF, anulacion, reportes y logs.
+- `docs/dia-79-puesta-en-marcha.md`: puesta en marcha, accesos reales, monitoreo, incidencias y reversa.
+- `docs/acta-puesta-en-marcha.md`: acta para apertura productiva y decision de inicio.
+- `docs/registro-incidencias-iniciales.md`: registro operativo de incidencias del arranque.
+- `docs/dia-80-soporte-intensivo-dia-1.md`: soporte intensivo dia 1, revision operativa y reversa.
+- `docs/reporte-post-arranque-dia-1.md`: reporte post-arranque con errores, ventas, reportes, Cloud SQL y ajustes urgentes.
+- `docs/dia-81-soporte-intensivo-dia-2.md`: soporte intensivo dia 2, feedback, permisos, impresion, anulaciones y reversa.
+- `docs/reporte-post-arranque-dia-2.md`: reporte post-arranque dia 2 con estabilizacion operativa.
+- `docs/dia-82-soporte-intensivo-dia-3.md`: soporte intensivo dia 3, estabilidad, latencia, costos, seguridad y reversa.
+- `docs/reporte-post-arranque-dia-3.md`: reporte post-arranque dia 3 y decision de paso a soporte normal.
+- `docs/dia-83-optimizacion-costos.md`: optimizacion de costos, min instances, CPU/RAM, almacenamiento, logs, presupuesto y alertas.
+- `docs/reporte-costo-mensual-estimado.md`: reporte de costo mensual estimado y plan de ajustes de configuracion.
+- `docs/dia-84-documentacion-tecnica-final.md`: documentacion tecnica final, manual, diagramas, inventario y reversa.
+- `docs/manual-tecnico.md`: manual tecnico consolidado para mantenimiento del sistema.
+- `docs/diagramas-finales.md`: diagramas finales Mermaid de arquitectura, bases, eventos y despliegue.
+- `docs/dia-85-documentacion-operativa-final.md`: documentacion operativa final, manual, guia rapida y evidencia.
+- `docs/manual-operativo-final.md`: manual operativo consolidado para usuarios, supervisores y soporte.
+- `docs/guia-rapida-boleteria.md`: guia corta para venta, anulacion, reimpresion y cierre de turno.
+- `docs/dia-86-prueba-restauracion-produccion-controlada.md`: restauracion productiva controlada, RTO/RPO, validacion y reversa.
+- `docs/evidencia-restauracion-produccion-controlada.md`: evidencia de restauracion productiva temporal y metricas medidas.
+- `docs/procedimiento-restauracion-produccion.md`: procedimiento operativo para repetir la restauracion controlada.
+- `docs/dia-87-revision-seguridad-final.md`: revision final de roles, IAM, secretos, APIs, auditoria, backups y reversa.
+- `docs/informe-seguridad-final.md`: informe ejecutivo de seguridad final con 0 riesgos criticos abiertos.
+- `docs/dia-88-preparacion-crecimiento-modular.md`: preparacion de crecimiento modular, plantillas, generadores y reversa.
+- `docs/guia-crecimiento-modular.md`: guia para crear nuevos servicios Quarkus y nuevos MFEs Next.js.
+- `docs/dia-89-backlog-siguientes-modulos.md`: backlog de siguientes modulos, estimaciones iniciales y reversa.
+- `docs/backlog-futuro-priorizado.md`: orden recomendado de modulos futuros y MVP por modulo.
+- `docs/estimaciones-modulos-futuros.md`: esfuerzo inicial, tamano, score y supuestos por modulo futuro.
+- `docs/dia-90-cierre-proyecto.md`: cierre del proyecto, criterios, evidencias, acta y reversa.
+- `docs/acta-cierre-proyecto.md`: acta de cierre tecnico/documental condicionado y pendientes para cierre funcional.
+- `docs/plataforma-funcionando-google-cloud.md`: evidencia de plataforma tecnica productiva funcionando en Google Cloud.
+- `docs/backlog-evolucion.md`: resumen ejecutivo del backlog de evolucion posterior.
 - `docs/onpremise-offline-runbook.md`: guia para correr servicios sin dependencia de Google Cloud.
 - `docs/api-conventions.md`: convenciones REST.
 - `docs/naming-standards.md`: estandar de nombres.
@@ -158,6 +201,7 @@ backups/
 
 ## Proximos pasos
 
+- Ejecutar y aprobar migracion final, prueba productiva controlada, puesta en marcha y soporte post-arranque real para firmar cierre funcional 100%.
 - Conectar la entrada TLS con dominio real sobre `frontend-shell-prod`.
 - Integrar emision de boleto con generacion/descarga de comprobante.
 - Conectar outbox de eventos a Pub/Sub.

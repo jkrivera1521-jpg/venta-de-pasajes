@@ -1245,3 +1245,503 @@ Evidence:
 C:\VENTA-DE-PASAJES\docs\dia-78-prueba-productiva-controlada.md
 C:\VENTA-DE-PASAJES\logs\prod-controlled-test\dia78-controlled-prod-test-readiness.json
 ```
+
+## Dia 79 go-live package
+
+The go-live package prepares operational opening, access checklist and monitoring commands. It does not open production by itself:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-go-live-prod.ps1
+```
+
+Prepare the package:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-go-live-prod.ps1
+```
+
+Expected protected state while Day 77 and Day 78 are not approved:
+
+```text
+Paquete de puesta en marcha listo: True
+Puesta en marcha real autorizada: False
+Operacion real iniciada: False
+```
+
+When migration, controlled test and business opening are approved, regenerate with real Google emails:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-go-live-prod.ps1 `
+  -OperatorEmails "boleteria1@empresa.com","boleteria2@empresa.com" `
+  -SupervisorEmails "supervisor@empresa.com" `
+  -ConfirmMigrationApplied `
+  -ConfirmControlledTestApproved `
+  -ConfirmBusinessOpen
+```
+
+The generated monitoring command file is:
+
+```text
+C:\VENTA-DE-PASAJES\logs\go-live\dia79-go-live-commands.ps1
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-79-puesta-en-marcha.md
+C:\VENTA-DE-PASAJES\docs\acta-puesta-en-marcha.md
+C:\VENTA-DE-PASAJES\docs\registro-incidencias-iniciales.md
+C:\VENTA-DE-PASAJES\logs\go-live\dia79-go-live-readiness.json
+```
+
+## Dia 80 post-start day 1 support
+
+The Day 80 package prepares the first intensive support report and the evidence collection commands. It does not query real operation until Day 79 is opened:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-post-start-day1-report.ps1
+```
+
+Prepare the package:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-post-start-day1-report.ps1
+```
+
+Expected protected state while Day 79 is not open:
+
+```text
+Paquete soporte listo: True
+Revision real autorizada: False
+Revision real ejecutada: False
+```
+
+When production is open and Day 79 monitoring evidence exists:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-post-start-day1-report.ps1 `
+  -ConfirmGoLiveStarted `
+  -ConfirmBusinessOpen
+
+.\logs\post-start-day1\dia80-post-start-day1-commands.ps1
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-80-soporte-intensivo-dia-1.md
+C:\VENTA-DE-PASAJES\docs\reporte-post-arranque-dia-1.md
+C:\VENTA-DE-PASAJES\logs\post-start-day1\dia80-post-start-day1-readiness.json
+```
+
+## Dia 81 post-start day 2 support
+
+The Day 81 package prepares the second intensive support report. It reviews ticket-office feedback, minor fixes, permissions, printing and cancellations. It does not change permissions or tickets automatically:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-post-start-day2-report.ps1
+```
+
+Prepare the package:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-post-start-day2-report.ps1
+```
+
+Expected protected state while Day 80 is not closed:
+
+```text
+Paquete soporte dia 2 listo: True
+Revision real dia 2 autorizada: False
+Revision real dia 2 ejecutada: False
+```
+
+When Day 80 is closed and production remains open:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-post-start-day2-report.ps1 `
+  -ConfirmDay1Closed `
+  -ConfirmBusinessOpen
+
+.\logs\post-start-day2\dia81-post-start-day2-commands.ps1
+```
+
+Optional validation variables:
+
+```powershell
+$env:DIA81_DOCUMENT_ID = "<document-id-real>"
+$env:DIA81_CANCELLED_TICKET_ID = "<ticket-id-anulado>"
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-81-soporte-intensivo-dia-2.md
+C:\VENTA-DE-PASAJES\docs\reporte-post-arranque-dia-2.md
+C:\VENTA-DE-PASAJES\logs\post-start-day2\dia81-post-start-day2-readiness.json
+```
+
+## Dia 82 post-start day 3 support
+
+The Day 82 package prepares the third intensive support report and the decision gate for moving to normal support. It reviews service stability, latency, preliminary costs, security logs and incident closure:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-post-start-day3-report.ps1
+```
+
+Prepare the package:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-post-start-day3-report.ps1
+```
+
+Expected protected state while Day 81 is not closed:
+
+```text
+Paquete soporte dia 3 listo: True
+Decision soporte normal autorizada: False
+Revision real dia 3 ejecutada: False
+```
+
+When Day 81 is closed and business confirms stability:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-post-start-day3-report.ps1 `
+  -ConfirmDay2Closed `
+  -ConfirmBusinessStable
+
+.\logs\post-start-day3\dia82-post-start-day3-commands.ps1
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-82-soporte-intensivo-dia-3.md
+C:\VENTA-DE-PASAJES\docs\reporte-post-arranque-dia-3.md
+C:\VENTA-DE-PASAJES\logs\post-start-day3\dia82-post-start-day3-readiness.json
+```
+
+## Dia 83 cost optimization
+
+The Day 83 package prepares the production cost review. It checks Cloud Run min instances, CPU/RAM, Cloud SQL storage, log volume, and budget alerts. It does not apply Cloud Run, Cloud SQL, Logging or Billing changes automatically:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-cost-optimization-review.ps1
+```
+
+Prepare the package:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-cost-optimization-review.ps1
+```
+
+Expected protected state while Day 82 is not closed with real evidence:
+
+```text
+Paquete optimizacion costos listo: True
+Revision real costos autorizada: False
+Guardrails de configuracion OK: True
+Costo real mensual validado: False
+```
+
+When production is stable and Day 82 is closed:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-cost-optimization-review.ps1 `
+  -ConfirmProductionStable
+
+.\logs\cost-optimization\dia83-cost-optimization-commands.ps1
+```
+
+Create budget alerts only after confirming the real Billing account ID:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\logs\cost-optimization\dia83-budget-alert-template.ps1 `
+  -BillingAccountId "<billing-account-id-real>" `
+  -BudgetAmountUsd 150
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-83-optimizacion-costos.md
+C:\VENTA-DE-PASAJES\docs\reporte-costo-mensual-estimado.md
+C:\VENTA-DE-PASAJES\logs\cost-optimization\dia83-cost-optimization-readiness.json
+```
+
+## Dia 84 technical documentation
+
+The Day 84 package generates the final technical manual and diagrams from repository inventory: Cloud Run descriptors, Cloud SQL configuration, Pub/Sub configuration, OpenAPI files, database SQL files, event catalog and GitHub workflows.
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-technical-documentation.ps1
+```
+
+Generate the package:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-technical-documentation.ps1
+```
+
+Expected state:
+
+```text
+Documentacion tecnica lista: True
+Manual tecnico generado: True
+Diagramas finales generados: True
+Servicios inventariados: 12
+Bases inventariadas: 6
+OpenAPI inventariados: 6
+Eventos inventariados: 14
+Pipelines inventariados: 2
+Bloqueos tecnicos: 0
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-84-documentacion-tecnica-final.md
+C:\VENTA-DE-PASAJES\docs\manual-tecnico.md
+C:\VENTA-DE-PASAJES\docs\diagramas-finales.md
+C:\VENTA-DE-PASAJES\logs\technical-documentation\dia84-technical-documentation-readiness.json
+```
+
+## Dia 85 operational documentation
+
+The Day 85 package generates the final operational documentation for ticket-office users, supervisors, operational administrators and basic support. It uses verified repository sources and does not change cloud resources or runtime data.
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-operational-documentation.ps1
+```
+
+Generate the package:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-operational-documentation.ps1
+```
+
+Expected state:
+
+```text
+Documentacion operativa lista: True
+Manual operativo generado: True
+Guia rapida generada: True
+Fuentes verificadas: 9
+Bloqueos: 0
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-85-documentacion-operativa-final.md
+C:\VENTA-DE-PASAJES\docs\manual-operativo-final.md
+C:\VENTA-DE-PASAJES\docs\guia-rapida-boleteria.md
+C:\VENTA-DE-PASAJES\logs\operational-documentation\dia85-operational-documentation-readiness.json
+```
+
+## Dia 86 controlled production restore test
+
+The Day 86 package executes a controlled production restore into temporary resources. It restores the latest successful Cloud SQL production backup into `venta-pasajes-prod-restore-test`, validates restored databases and IAM DB users, validates a temporary document bucket, measures RTO/RPO, and removes temporary resources.
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-production-restore-test.ps1
+```
+
+Read-only readiness check:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-backup-restore-readiness.ps1 `
+  -Environment prod `
+  -CloudSqlInstanceName venta-pasajes-prod-sql `
+  -DocumentBucketName venta-pasajes-prod-documents `
+  -RestoreInstanceName venta-pasajes-prod-restore-test
+```
+
+Generate and refresh evidence:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-production-restore-test.ps1
+```
+
+Measured result:
+
+```text
+Paquete restauracion produccion listo: True
+Restauracion controlada ejecutada: True
+Criterio completo: True
+RPO horas: 8.43
+RTO productivo medido: 17.43 minutos
+Validacion bases: True
+Validacion documental: True
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-86-prueba-restauracion-produccion-controlada.md
+C:\VENTA-DE-PASAJES\docs\evidencia-restauracion-produccion-controlada.md
+C:\VENTA-DE-PASAJES\docs\procedimiento-restauracion-produccion.md
+C:\VENTA-DE-PASAJES\logs\production-restore-test\dia86-production-restore-readiness.json
+C:\VENTA-DE-PASAJES\logs\production-restore-test\dia86-production-restore-execution-evidence.json
+```
+
+## Dia 87 final security review
+
+The Day 87 package consolidates the final security evidence for production: functional roles, IAM, Secret Manager, API exposure, audit and backups/restore. It does not modify Google Cloud resources.
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-final-security-review.ps1
+```
+
+Generate and refresh the final report:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-final-security-review.ps1
+```
+
+Measured result:
+
+```text
+Revision seguridad final lista: True
+Riesgos criticos mitigados: True
+Riesgos criticos abiertos: 0
+Areas listas: 6/6
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-87-revision-seguridad-final.md
+C:\VENTA-DE-PASAJES\docs\informe-seguridad-final.md
+C:\VENTA-DE-PASAJES\logs\final-security\dia87-final-security-readiness.json
+C:\VENTA-DE-PASAJES\logs\final-security\dia87-final-security-findings.json
+```
+
+## Dia 88 modular growth preparation
+
+The Day 88 package prepares reusable paths for adding future modules. It validates the existing Quarkus service generator, adds a Next.js MFE generator, and creates reusable template entrypoints under `templates`.
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-modular-growth.ps1
+```
+
+Generate and refresh the modular growth guide:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-modular-growth.ps1
+```
+
+Measured result:
+
+```text
+Crecimiento modular listo: True
+Plantillas reutilizables listas: True
+DryRun Quarkus OK: True
+DryRun MFE OK: True
+Secciones guia faltantes: 0
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-88-preparacion-crecimiento-modular.md
+C:\VENTA-DE-PASAJES\docs\guia-crecimiento-modular.md
+C:\VENTA-DE-PASAJES\templates\README.md
+C:\VENTA-DE-PASAJES\templates\quarkus-service\template.json
+C:\VENTA-DE-PASAJES\templates\next-mfe\template.json
+C:\VENTA-DE-PASAJES\logs\modular-growth\dia88-modular-growth-readiness.json
+C:\VENTA-DE-PASAJES\logs\modular-growth\dia88-modular-growth-inventory.json
+```
+
+## Dia 89 future modules backlog
+
+The Day 89 package defines the recommended order for future modules and initial effort estimates. It does not create modules or cloud resources.
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-future-modules-backlog.ps1
+```
+
+Generate and refresh the future backlog:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-future-modules-backlog.ps1
+```
+
+Measured result:
+
+```text
+Backlog futuro listo: True
+Modulos priorizados: 5
+Prioridad 1: Facturacion electronica
+Secciones backlog faltantes: 0
+Secciones estimaciones faltantes: 0
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-89-backlog-siguientes-modulos.md
+C:\VENTA-DE-PASAJES\docs\backlog-futuro-priorizado.md
+C:\VENTA-DE-PASAJES\docs\estimaciones-modulos-futuros.md
+C:\VENTA-DE-PASAJES\logs\future-modules-backlog\dia89-future-modules-backlog-readiness.json
+C:\VENTA-DE-PASAJES\logs\future-modules-backlog\dia89-future-modules-backlog-inventory.json
+```
+
+## Dia 90 project closure
+
+The Day 90 package consolidates project closure evidence. It confirms that the technical platform is running in Google Cloud, while keeping the functional 100% closure blocked until final migration, controlled production test, go-live and real post-start support are executed and approved.
+
+```text
+C:\VENTA-DE-PASAJES\scripts\prepare-project-closure.ps1
+```
+
+Generate and refresh the closure package:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\prepare-project-closure.ps1
+```
+
+Measured result:
+
+```text
+Cierre tecnico/documental listo: True
+Plataforma funcionando en Google Cloud: True
+Operacion funcional 100%: False
+Estado de cierre: Cierre tecnico/documental condicionado
+Pendientes bloqueantes: 21
+```
+
+Evidence:
+
+```text
+C:\VENTA-DE-PASAJES\docs\dia-90-cierre-proyecto.md
+C:\VENTA-DE-PASAJES\docs\acta-cierre-proyecto.md
+C:\VENTA-DE-PASAJES\docs\plataforma-funcionando-google-cloud.md
+C:\VENTA-DE-PASAJES\docs\backlog-evolucion.md
+C:\VENTA-DE-PASAJES\logs\project-closure\dia90-project-closure-readiness.json
+C:\VENTA-DE-PASAJES\logs\project-closure\dia90-project-closure-inventory.json
+```
