@@ -375,6 +375,268 @@ gcloud config set run/region us-central1
 gcloud beta billing budgets create --billing-account=000000-000000-000000 --display-name=venta-pasajes-dev-monthly-budget --budget-amount=50USD --filter-projects=projects/venta-pasajes-dev --calendar-period=month --threshold-rule=percent=0.50,basis=current-spend --threshold-rule=percent=0.75,basis=current-spend --threshold-rule=percent=0.90,basis=forecasted-spend --threshold-rule=percent=1.00,basis=current-spend
 ```
 
+## Alternativa desde la consola web de Google Cloud
+
+Esta ruta sirve para hacer manualmente, desde el navegador, lo mismo que prepara `bootstrap-dev.ps1`: proyecto, billing, APIs base, region operativa y presupuesto.
+
+Importante: desde la interfaz web de Google Cloud no existe un modo `-DryRun`. Si se presiona `Crear`, `Vincular`, `Habilitar` o `Guardar`, el cambio se aplica realmente sobre Google Cloud. Para simular primero, usar el dry-run documentado en la seccion anterior.
+
+### Datos que se deben tener a mano
+
+| Dato | Valor usado en este proyecto |
+| --- | --- |
+| Proyecto real dev | `project-fbb34cd7-0b82-43e1-867` |
+| Nombre visible | `My First Project` en la consola actual; el nombre sugerido del estandar era `Venta de Pasajes Dev` |
+| Numero de proyecto | `230270000840` |
+| Billing account | `012A58-73A3EE-D43B8D` |
+| Region estandar del proyecto | `us-central1` |
+| Presupuesto esperado | `venta-pasajes-dev-monthly-budget` |
+| Monto de presupuesto | `50 USD` |
+
+### Paso W1 - Entrar y seleccionar el proyecto
+
+1. Abrir Google Cloud Console:
+
+```text
+https://console.cloud.google.com/
+```
+
+2. En el selector de proyecto, elegir:
+
+```text
+project-fbb34cd7-0b82-43e1-867
+```
+
+3. Confirmar en la pantalla de bienvenida o panel principal:
+
+```text
+ID del proyecto: project-fbb34cd7-0b82-43e1-867
+Numero de proyecto: 230270000840
+```
+
+Si se esta creando un ambiente dev desde cero y el proyecto aun no existe:
+
+1. Abrir el selector de proyecto.
+2. Seleccionar `Nuevo proyecto`.
+3. Usar un nombre como `Venta de Pasajes Dev`.
+4. Usar un Project ID unico. El ID sugerido `venta-pasajes-dev` puede estar ocupado globalmente, por eso en esta cuenta se termino usando `project-fbb34cd7-0b82-43e1-867`.
+5. Elegir organizacion o carpeta solo si la cuenta Google Cloud lo requiere.
+6. Crear el proyecto y seleccionarlo antes de seguir.
+
+### Paso W2 - Vincular facturacion
+
+Ruta en consola:
+
+```text
+Menu principal > Facturacion
+```
+
+Acciones:
+
+1. Verificar que el proyecto seleccionado sea `project-fbb34cd7-0b82-43e1-867`.
+2. Entrar a la seccion de proyectos vinculados o administracion de facturacion.
+3. Vincular el proyecto con la cuenta de facturacion:
+
+```text
+012A58-73A3EE-D43B8D
+```
+
+Validacion esperada:
+
+```text
+Facturacion: habilitada para el proyecto
+```
+
+Equivalente por comando, solo si se usa Cloud Shell dentro de la consola web:
+
+```bash
+PROJECT_ID="project-fbb34cd7-0b82-43e1-867"
+BILLING_ACCOUNT_ID="012A58-73A3EE-D43B8D"
+
+gcloud config set project "$PROJECT_ID"
+gcloud billing projects link "$PROJECT_ID" --billing-account="$BILLING_ACCOUNT_ID"
+gcloud billing projects describe "$PROJECT_ID"
+```
+
+### Paso W3 - Habilitar APIs base
+
+Ruta en consola:
+
+```text
+Menu principal > APIs y servicios > Biblioteca
+```
+
+Accion:
+
+Buscar y habilitar una por una las 15 APIs definidas en:
+
+```text
+C:\VENTA-DE-PASAJES\infra\gcloud\dev-apis.txt
+```
+
+Lista a habilitar:
+
+```text
+cloudresourcemanager.googleapis.com
+serviceusage.googleapis.com
+cloudbilling.googleapis.com
+billingbudgets.googleapis.com
+run.googleapis.com
+sqladmin.googleapis.com
+cloudbuild.googleapis.com
+artifactregistry.googleapis.com
+secretmanager.googleapis.com
+storage.googleapis.com
+pubsub.googleapis.com
+logging.googleapis.com
+monitoring.googleapis.com
+iam.googleapis.com
+iamcredentials.googleapis.com
+```
+
+Validacion esperada en:
+
+```text
+Menu principal > APIs y servicios > APIs y servicios habilitados
+```
+
+Debe verse cada API como habilitada para el proyecto.
+
+Equivalente por comando, solo si se usa Cloud Shell dentro de la consola web:
+
+```bash
+PROJECT_ID="project-fbb34cd7-0b82-43e1-867"
+
+gcloud services enable \
+  cloudresourcemanager.googleapis.com \
+  serviceusage.googleapis.com \
+  cloudbilling.googleapis.com \
+  billingbudgets.googleapis.com \
+  run.googleapis.com \
+  sqladmin.googleapis.com \
+  cloudbuild.googleapis.com \
+  artifactregistry.googleapis.com \
+  secretmanager.googleapis.com \
+  storage.googleapis.com \
+  pubsub.googleapis.com \
+  logging.googleapis.com \
+  monitoring.googleapis.com \
+  iam.googleapis.com \
+  iamcredentials.googleapis.com \
+  --project="$PROJECT_ID"
+
+gcloud services list --enabled --project="$PROJECT_ID" --format="value(config.name)" | sort
+```
+
+### Paso W4 - Fijar la region operativa
+
+En la interfaz web no hay un boton global equivalente a `gcloud config set run/region us-central1`. La region se elige al crear recursos regionales como Cloud Run, Cloud SQL, Artifact Registry o buckets.
+
+Para este proyecto, cuando la consola pregunte por region, usar:
+
+```text
+us-central1
+```
+
+Equivalente por comando, solo si se usa Cloud Shell dentro de la consola web:
+
+```bash
+gcloud config set run/region us-central1
+```
+
+### Paso W5 - Crear presupuesto y alertas
+
+Ruta en consola:
+
+```text
+Menu principal > Facturacion > Presupuestos y alertas
+```
+
+Acciones:
+
+1. Crear un presupuesto nuevo.
+2. Nombre del presupuesto:
+
+```text
+venta-pasajes-dev-monthly-budget
+```
+
+3. Alcance: seleccionar solo el proyecto:
+
+```text
+project-fbb34cd7-0b82-43e1-867
+```
+
+4. Periodo: mensual.
+5. Monto: `50 USD`.
+6. Reglas de alerta:
+
+| Porcentaje | Base |
+| --- | --- |
+| 50% | Gasto actual |
+| 75% | Gasto actual |
+| 90% | Gasto previsto |
+| 100% | Gasto actual |
+
+Validacion esperada:
+
+```text
+Presupuesto venta-pasajes-dev-monthly-budget creado y asociado al proyecto dev.
+```
+
+Equivalente por comando, solo si se usa Cloud Shell dentro de la consola web:
+
+```bash
+PROJECT_ID="project-fbb34cd7-0b82-43e1-867"
+BILLING_ACCOUNT_ID="012A58-73A3EE-D43B8D"
+
+gcloud beta billing budgets create \
+  --billing-account="$BILLING_ACCOUNT_ID" \
+  --display-name="venta-pasajes-dev-monthly-budget" \
+  --budget-amount=50USD \
+  --filter-projects="projects/$PROJECT_ID" \
+  --calendar-period=month \
+  --threshold-rule=percent=0.50,basis=current-spend \
+  --threshold-rule=percent=0.75,basis=current-spend \
+  --threshold-rule=percent=0.90,basis=forecasted-spend \
+  --threshold-rule=percent=1.00,basis=current-spend
+```
+
+### Paso W6 - Verificar desde la consola web
+
+Revisar estos puntos antes de considerar cerrado el Dia 12:
+
+| Validacion | Ruta en consola | Resultado esperado |
+| --- | --- | --- |
+| Proyecto seleccionado | Bienvenida o selector de proyecto | `project-fbb34cd7-0b82-43e1-867` |
+| Billing | `Facturacion` | Proyecto vinculado a billing |
+| APIs | `APIs y servicios > APIs y servicios habilitados` | Las 15 APIs requeridas estan habilitadas |
+| Presupuesto | `Facturacion > Presupuestos y alertas` | Existe `venta-pasajes-dev-monthly-budget` |
+| Region | Formularios de recursos regionales | Usar siempre `us-central1` |
+
+Validacion rapida por Cloud Shell:
+
+```bash
+PROJECT_ID="project-fbb34cd7-0b82-43e1-867"
+BILLING_ACCOUNT_ID="012A58-73A3EE-D43B8D"
+
+gcloud projects describe "$PROJECT_ID" --format="table(projectId,projectNumber,lifecycleState)"
+gcloud billing projects describe "$PROJECT_ID" --format="table(billingEnabled,billingAccountName)"
+gcloud services list --enabled --project="$PROJECT_ID" --format="value(config.name)" | sort
+gcloud beta billing budgets list --billing-account="$BILLING_ACCOUNT_ID" --filter='displayName=venta-pasajes-dev-monthly-budget' --format="table(displayName)"
+```
+
+### Paso W7 - Registrar el resultado en el repositorio
+
+Despues de hacerlo desde la consola web, registrar la evidencia localmente:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+Add-Content -LiteralPath .\vitacora.md -Value "`nDia 12 - Validacion por consola web Google Cloud: proyecto, billing, APIs y presupuesto verificados."
+```
+
+Si se desea validar desde Windows con el script del repositorio, usar la seccion `Ejecucion real`.
+
 ## Ejecucion real
 
 La ejecucion real quedo verificada con:
