@@ -18,6 +18,19 @@ Nota: durante Dia 15 se agrego `frontend-shell-run` para que el shell frontend t
 
 Verificacion final:
 
+Comando ejecutado para obtener este resultado:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-iam-dev.ps1 `
+  -ProjectId "project-fbb34cd7-0b82-43e1-867" `
+  -GcloudPath "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+```
+
+Resultado obtenido:
+
 ```json
 {"project_id":"project-fbb34cd7-0b82-43e1-867","project_number":"230270000840","matrix_path":"C:\\VENTA-DE-PASAJES\\infra\\gcloud\\iam-dev.json","service_accounts_expected":8,"service_accounts_found":8,"missing_accounts":[],"missing_project_bindings":[],"missing_service_account_bindings":[],"admin_groups_status":"defined_pending_google_workspace_or_cloud_identity","mfa_status":"manual_control_pending_or_external_to_project_iam","ready":true}
 ```
