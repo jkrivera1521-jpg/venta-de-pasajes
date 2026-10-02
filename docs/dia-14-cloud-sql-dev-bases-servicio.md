@@ -167,6 +167,285 @@ https://console.cloud.google.com/sql/instances/venta-pasajes-dev-sql/users?proje
 - Login con IAM database authentication: https://docs.cloud.google.com/sql/docs/postgres/iam-logins
 - Cloud SQL PostgreSQL FAQ/costos: https://docs.cloud.google.com/sql/docs/postgres/faq
 
+## Reversa real de Cloud SQL dev
+
+> No ejecutar esta seccion sobre el proyecto activo al 100%. Estos comandos eliminan recursos reales de Google Cloud y dejan sin base de datos a los microservicios dev.
+
+Esta reversa cubre lo creado o verificado por:
+
+| Archivo |
+| --- |
+| `C:\VENTA-DE-PASAJES\infra\gcloud\cloudsql-dev.json` |
+| `C:\VENTA-DE-PASAJES\infra\gcloud\bootstrap-cloudsql-dev.ps1` |
+| `C:\VENTA-DE-PASAJES\infra\gcloud\verify-cloudsql-dev.ps1` |
+
+Recursos cubiertos:
+
+| Recurso | Accion de reversa |
+| --- | --- |
+| Instancia Cloud SQL `venta-pasajes-dev-sql` | Desactivar deletion protection y eliminar instancia. |
+| Bases `identity_db`, `dispatch_db`, `ticketing_db`, `documents_db`, `reporting_db`, `audit_db` | Eliminar bases individualmente si se quiere reversa parcial. |
+| Usuarios IAM de base | Eliminar usuarios Cloud SQL IAM database user. |
+| IAM `roles/cloudsql.instanceUser` | Revocar rol aplicado por `bootstrap-cloudsql-dev.ps1`. |
+| IAM `roles/cloudsql.client` | Revocacion opcional; este rol viene de Dia 13, no estrictamente de Dia 14. |
+| Cloud SQL Auth Proxy | Limpiar procesos/contenedores locales solo si alguien los levanto para pruebas. Los tres archivos de Dia 14 no crean reglas permanentes del proxy. |
+
+### Paso RR1 - Preparar variables
+
+Ejecutar solo cuando se haya decidido destruir el ambiente Cloud SQL dev.
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+$ProjectId = "project-fbb34cd7-0b82-43e1-867"
+$InstanceName = "venta-pasajes-dev-sql"
+$Gcloud = "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+$ConfigPath = ".\infra\gcloud\cloudsql-dev.json"
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+
+$Confirm = "NO_EJECUTAR"
+if ($Confirm -ne "REVERSAR_DIA14_CLOUDSQL_DEV") {
+  throw "Proteccion activa. Cambia `$Confirm a REVERSAR_DIA14_CLOUDSQL_DEV solo si realmente vas a eliminar Cloud SQL dev."
+}
+```
+
+### Paso RR2 - Inventariar antes de borrar
+
+Estos comandos son de lectura. Sirven para confirmar que se esta apuntando al proyecto e instancia correctos.
+
+```powershell
+& $Gcloud config set project $ProjectId
+
+& $Gcloud sql instances describe $InstanceName `
+  --project=$ProjectId `
+  --format="table(name,state,region,databaseVersion,settings.tier,settings.deletionProtectionEnabled)"
+
+& $Gcloud sql databases list `
+  --instance=$InstanceName `
+  --project=$ProjectId `
+  --format="table(name,charset,collation)"
+
+& $Gcloud sql users list `
+  --instance=$InstanceName `
+  --project=$ProjectId `
+  --format="table(name,type)"
+
+& $Gcloud projects get-iam-policy $ProjectId `
+  --flatten="bindings[].members" `
+  --filter="bindings.role:roles/cloudsql.instanceUser OR bindings.role:roles/cloudsql.client" `
+  --format="table(bindings.role,bindings.members)"
+```
+
+### Paso RR3 - Detener consumidores antes de borrar
+
+Antes de borrar bases o instancia, detener servicios Cloud Run o procesos locales que sigan conectados a Cloud SQL.
+
+Consulta de servicios Cloud Run que pueden estar usando la instancia:
+
+```powershell
+& $Gcloud run services list `
+  --project=$ProjectId `
+  --region=us-central1 `
+  --format="table(metadata.name,status.url)"
+```
+
+Si se necesita dejar un servicio sin trafico o apagarlo operativamente, hacerlo desde Cloud Run antes de continuar. No borrar Cloud SQL mientras backends o migraciones sigan apuntando a `venta-pasajes-dev-sql`.
+
+### Paso RR4 - Limpiar Cloud SQL Auth Proxy local si existe
+
+Los archivos de Dia 14 no crean reglas permanentes de Cloud SQL Auth Proxy. Aun asi, si durante pruebas se levanto un proxy local o contenedor, limpiarlo antes de borrar la instancia.
+
+Contenedor usado por scripts posteriores de grants, si existiera:
+
+```powershell
+docker ps -a --filter "name=venta-pasajes-cloudsql-proxy-dev" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+docker rm -f venta-pasajes-cloudsql-proxy-dev
+```
+
+Red Docker usada por scripts posteriores de grants, si existiera:
+
+```powershell
+docker network ls --filter "name=venta-pasajes-cloudsql-grants"
+
+docker network rm venta-pasajes-cloudsql-grants
+```
+
+Proceso local de proxy, si alguien lo ejecuto manualmente:
+
+```powershell
+Get-CimInstance Win32_Process |
+  Where-Object { $_.CommandLine -match "cloud-sql-proxy|cloud_sql_proxy|venta-pasajes-dev-sql" } |
+  Select-Object ProcessId,CommandLine |
+  Format-List
+
+Stop-Process -Id <process-id> -Force
+```
+
+Reglas locales de firewall de Windows, solo si alguien las creo manualmente para el proxy:
+
+```powershell
+Get-NetFirewallRule |
+  Where-Object { $_.DisplayName -match "Cloud SQL|cloud-sql-proxy|venta-pasajes" } |
+  Select-Object DisplayName,Enabled,Direction,Action |
+  Format-Table -AutoSize
+
+Remove-NetFirewallRule -DisplayName "<nombre-exacto-de-la-regla>"
+```
+
+### Paso RR5 - Revocar IAM aplicado para acceso Cloud SQL
+
+`bootstrap-cloudsql-dev.ps1` aplica `roles/cloudsql.instanceUser` a los runtime service accounts. Esa es la revocacion estricta del Dia 14.
+
+```powershell
+$Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+
+foreach ($User in @($Config.iam_database_users)) {
+  $Member = "serviceAccount:$($User.service_account)"
+
+  & $Gcloud projects remove-iam-policy-binding $ProjectId `
+    --member=$Member `
+    --role="roles/cloudsql.instanceUser" `
+    --quiet
+}
+```
+
+Revocacion opcional de `roles/cloudsql.client`:
+
+```powershell
+# ATENCION:
+# roles/cloudsql.client viene de la matriz IAM del Dia 13.
+# Revocarlo puede romper servicios que aun necesiten conectarse a Cloud SQL.
+
+foreach ($User in @($Config.iam_database_users)) {
+  $Member = "serviceAccount:$($User.service_account)"
+
+  & $Gcloud projects remove-iam-policy-binding $ProjectId `
+    --member=$Member `
+    --role="roles/cloudsql.client" `
+    --quiet
+}
+```
+
+### Paso RR6 - Eliminar usuarios IAM de base de datos
+
+Estos son los usuarios tipo `cloud_iam_service_account` creados dentro de Cloud SQL.
+
+```powershell
+$Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+
+foreach ($User in @($Config.iam_database_users)) {
+  $CloudSqlUser = $User.cloud_sql_username
+
+  & $Gcloud sql users delete $CloudSqlUser `
+    --instance=$InstanceName `
+    --project=$ProjectId `
+    --quiet
+}
+```
+
+Usuarios esperados a eliminar:
+
+```text
+identity-service-run@project-fbb34cd7-0b82-43e1-867.iam
+dispatch-service-run@project-fbb34cd7-0b82-43e1-867.iam
+ticketing-service-run@project-fbb34cd7-0b82-43e1-867.iam
+document-service-run@project-fbb34cd7-0b82-43e1-867.iam
+reporting-service-run@project-fbb34cd7-0b82-43e1-867.iam
+audit-service-run@project-fbb34cd7-0b82-43e1-867.iam
+```
+
+### Paso RR7 - Eliminar bases de datos creadas
+
+Usar este paso si se quiere reversa parcial, dejando viva la instancia pero eliminando las bases por servicio.
+
+```powershell
+$Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+
+foreach ($Database in @($Config.databases)) {
+  & $Gcloud sql databases delete $Database.name `
+    --instance=$InstanceName `
+    --project=$ProjectId `
+    --quiet
+}
+```
+
+Bases esperadas a eliminar:
+
+```text
+identity_db
+dispatch_db
+ticketing_db
+documents_db
+reporting_db
+audit_db
+```
+
+Nota: si se elimina la instancia completa en el siguiente paso, Google Cloud elimina tambien las bases y usuarios contenidos en ella. Aun asi, se documenta la eliminacion individual para reversas parciales.
+
+### Paso RR8 - Desactivar deletion protection y eliminar instancia Cloud SQL
+
+La instancia fue creada con deletion protection habilitado. Para eliminarla primero hay que desactivar esa proteccion.
+
+```powershell
+& $Gcloud sql instances patch $InstanceName `
+  --project=$ProjectId `
+  --no-deletion-protection `
+  --quiet
+```
+
+Eliminar la instancia:
+
+```powershell
+& $Gcloud sql instances delete $InstanceName `
+  --project=$ProjectId `
+  --quiet
+```
+
+Esto elimina:
+
+- Instancia `venta-pasajes-dev-sql`.
+- Bases dentro de la instancia.
+- Usuarios Cloud SQL dentro de la instancia.
+- Configuracion de flags de esa instancia, incluido `cloudsql.iam_authentication=on`.
+
+### Paso RR9 - Validar reversa
+
+La instancia ya no debe existir:
+
+```powershell
+& $Gcloud sql instances describe $InstanceName `
+  --project=$ProjectId `
+  --format="value(name)"
+```
+
+Resultado esperado:
+
+```text
+ERROR: instance does not exist
+```
+
+Las asignaciones IAM del Dia 14 ya no deben aparecer:
+
+```powershell
+& $Gcloud projects get-iam-policy $ProjectId `
+  --flatten="bindings[].members" `
+  --filter="bindings.role:roles/cloudsql.instanceUser" `
+  --format="table(bindings.role,bindings.members)"
+```
+
+Resultado esperado para las service accounts de este dia:
+
+```text
+sin miembros identity/dispatch/ticketing/document/reporting/audit con roles/cloudsql.instanceUser
+```
+
+### Paso RR10 - Registrar la reversa
+
+```powershell
+Add-Content -LiteralPath .\vitacora.md -Value "`nReversa real Dia 14 Cloud SQL dev - <fecha>: instancia, bases, usuarios IAM DB y bindings Cloud SQL revertidos."
+```
+
 ## Reversa primero
 
 > Estandarizacion documental agregada el 2026-09-16 para que este dia tambien tenga una ruta segura de limpieza antes de repetir la practica.
