@@ -168,6 +168,578 @@ Google Cloud:
 
 La migracion fue validada contra PostgreSQL local temporal. No se aplico el DDL sobre Cloud SQL dev en este dia porque aun no hay un runner/rol de migracion con privilegios de esquema definido para ejecutar DDL de forma controlada.
 
+## Levantar `identity-service` y PostgreSQL localmente con Docker
+
+> Apartado operativo agregado para repetir la prueba de forma dockerizada. No fue ejecutado por Codex.
+>
+> Estos comandos levantan una base PostgreSQL local y el servicio `identity-service` como contenedor Docker. No usan Cloud SQL, Secret Manager ni recursos de Google Cloud.
+
+### Que se levanta
+
+| Recurso | Nombre local | Puerto host | Proposito |
+| --- | --- | --- | --- |
+| Red Docker | `venta-pasajes-identity-local` | No aplica | Permite que el contenedor del servicio vea a PostgreSQL por nombre DNS interno. |
+| Volumen Docker | `venta-pasajes-identity-pgdata` | No aplica | Persiste datos locales de PostgreSQL aunque se reinicien contenedores. |
+| PostgreSQL | `venta-pasajes-identity-db` | `55432 -> 5432` | Base local `identity_db`. |
+| Servicio Quarkus | `venta-pasajes-identity-service` | `18081 -> 8081` | API local de `identity-service`. |
+| Imagen JVM local | `identity-service:local` | No aplica | Imagen construida desde `services\identity-service`. |
+
+### Paso L1 - Ubicarse en el proyecto
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+```
+
+### Paso L2 - Compilar el servicio JVM
+
+Este paso genera `target\quarkus-app`, que es lo que copia el Dockerfile JVM.
+
+```powershell
+mvn -f .\services\identity-service\pom.xml test
+mvn -f .\services\identity-service\pom.xml package -DskipTests
+```
+
+Si el primer comando falla, no continuar. Primero corregir pruebas.
+
+### Paso L3 - Construir la imagen Docker local del servicio
+
+```powershell
+docker build --pull `
+  -f .\infra\docker\Dockerfile.quarkus-jvm `
+  -t identity-service:local `
+  .\services\identity-service
+```
+
+Validar que la imagen exista:
+
+```powershell
+docker image ls identity-service
+```
+
+### Paso L4 - Crear red y volumen local
+
+```powershell
+docker network create venta-pasajes-identity-local
+docker volume create venta-pasajes-identity-pgdata
+```
+
+Si Docker indica que la red o el volumen ya existen, continuar.
+
+### Paso L5 - Levantar PostgreSQL local dockerizado
+
+```powershell
+$LocalDbPassword = "IdentityLocal_ChangeMe_12345"
+
+docker run -d `
+  --name venta-pasajes-identity-db `
+  --network venta-pasajes-identity-local `
+  -e POSTGRES_DB=identity_db `
+  -e POSTGRES_USER=identity_user `
+  -e "POSTGRES_PASSWORD=$LocalDbPassword" `
+  -p 55432:5432 `
+  -v venta-pasajes-identity-pgdata:/var/lib/postgresql/data `
+  postgres:16-alpine
+```
+
+Esperar a que PostgreSQL este listo:
+
+```powershell
+for ($Attempt = 1; $Attempt -le 45; $Attempt++) {
+  docker exec venta-pasajes-identity-db pg_isready -U identity_user -d identity_db
+  if ($LASTEXITCODE -eq 0) { break }
+  Start-Sleep -Seconds 2
+}
+```
+
+### Paso L6 - Levantar `identity-service` dockerizado
+
+Este comando arranca el servicio con perfil `onprem`, lee secretos desde variables de entorno y aplica Flyway al iniciar.
+
+```powershell
+$LocalDbPassword = "IdentityLocal_ChangeMe_12345"
+
+docker run -d `
+  --name venta-pasajes-identity-service `
+  --network venta-pasajes-identity-local `
+  -p 18081:8081 `
+  -e QUARKUS_PROFILE=onprem `
+  -e QUARKUS_HTTP_PORT=8081 `
+  -e APP_ENV=local-docker `
+  -e APP_RUNTIME_TARGET=onprem `
+  -e APP_SECRETS_PROVIDER=env `
+  -e APP_DB_NAME=identity_db `
+  -e APP_DB_JDBC_URL=jdbc:postgresql://venta-pasajes-identity-db:5432/identity_db `
+  -e APP_DB_USERNAME=identity_user `
+  -e "APP_DB_PASSWORD=$LocalDbPassword" `
+  -e QUARKUS_FLYWAY_MIGRATE_AT_START=true `
+  -e APP_LOG_CONSOLE_JSON=false `
+  -e APP_JWT_SIGNING_SECRET=local-docker-jwt-signing-secret-change-me-32-bytes `
+  -e APP_PASSWORD_PEPPER=local-docker-password-pepper-change-me `
+  -e APP_RECOVERY_TOKEN_PEPPER=local-docker-recovery-token-pepper-change-me `
+  -e APP_REFRESH_TOKEN_PEPPER=local-docker-refresh-token-pepper-change-me `
+  -e APP_BOOTSTRAP_ADMIN_ENABLED=true `
+  -e APP_BOOTSTRAP_ADMIN_LOGIN=admin `
+  -e APP_BOOTSTRAP_ADMIN_EMAIL=admin@local.test `
+  -e APP_BOOTSTRAP_ADMIN_DISPLAY_NAME="Administrador Local" `
+  -e APP_BOOTSTRAP_ADMIN_PASSWORD=AdminLocal_ChangeMe_12345 `
+  identity-service:local
+```
+
+Notas importantes:
+
+- `APP_DB_JDBC_URL` usa el nombre del contenedor `venta-pasajes-identity-db`, no `localhost`, porque el servicio corre dentro de Docker.
+- `QUARKUS_FLYWAY_MIGRATE_AT_START=true` crea o actualiza las tablas locales al arrancar.
+- Las claves y contrasenas del ejemplo son solo locales. No copiarlas a produccion.
+- `APP_BOOTSTRAP_ADMIN_ENABLED=true` crea o asegura un usuario local `admin` para pruebas funcionales.
+
+### Paso L7 - Validar salud del servicio
+
+```powershell
+curl.exe -s http://localhost:18081/q/health/ready
+curl.exe -s http://localhost:18081/api/v1/identity/health
+```
+
+Resultado esperado:
+
+```text
+UP
+```
+
+El formato exacto puede ser JSON, pero debe indicar estado saludable.
+
+### Paso L8 - Validar que Flyway creo tablas en PostgreSQL
+
+```powershell
+docker exec -it venta-pasajes-identity-db `
+  psql -U identity_user -d identity_db -c "\dt"
+```
+
+Debe mostrar tablas como `users`, `roles`, `permissions`, `local_credentials`, `password_reset_tokens` y `flyway_schema_history`.
+
+### Paso L9 - Probar login local del admin bootstrap
+
+```powershell
+$LoginResponse = Invoke-RestMethod `
+  -Uri "http://localhost:18081/api/v1/identity/auth/local/login" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body (@{
+    login = "admin"
+    password = "AdminLocal_ChangeMe_12345"
+  } | ConvertTo-Json)
+
+$LoginResponse
+```
+
+Si el login responde `access_token`, probar `/me`:
+
+```powershell
+$Headers = @{ Authorization = "Bearer $($LoginResponse.access_token)" }
+
+Invoke-RestMethod `
+  -Uri "http://localhost:18081/api/v1/identity/me" `
+  -Method Get `
+  -Headers $Headers
+```
+
+### Paso L10 - Ver logs locales
+
+```powershell
+docker logs venta-pasajes-identity-db --tail 80
+docker logs venta-pasajes-identity-service --tail 120
+```
+
+### Paso L11 - Reiniciar solo el servicio despues de cambios de codigo
+
+Si cambias codigo Java y quieres probar de nuevo sin borrar la base:
+
+```powershell
+mvn -f .\services\identity-service\pom.xml test
+mvn -f .\services\identity-service\pom.xml package -DskipTests
+
+docker build --pull `
+  -f .\infra\docker\Dockerfile.quarkus-jvm `
+  -t identity-service:local `
+  .\services\identity-service
+
+docker rm -f venta-pasajes-identity-service
+
+$LocalDbPassword = "IdentityLocal_ChangeMe_12345"
+
+docker run -d `
+  --name venta-pasajes-identity-service `
+  --network venta-pasajes-identity-local `
+  -p 18081:8081 `
+  -e QUARKUS_PROFILE=onprem `
+  -e QUARKUS_HTTP_PORT=8081 `
+  -e APP_ENV=local-docker `
+  -e APP_RUNTIME_TARGET=onprem `
+  -e APP_SECRETS_PROVIDER=env `
+  -e APP_DB_NAME=identity_db `
+  -e APP_DB_JDBC_URL=jdbc:postgresql://venta-pasajes-identity-db:5432/identity_db `
+  -e APP_DB_USERNAME=identity_user `
+  -e "APP_DB_PASSWORD=$LocalDbPassword" `
+  -e QUARKUS_FLYWAY_MIGRATE_AT_START=true `
+  -e APP_LOG_CONSOLE_JSON=false `
+  -e APP_JWT_SIGNING_SECRET=local-docker-jwt-signing-secret-change-me-32-bytes `
+  -e APP_PASSWORD_PEPPER=local-docker-password-pepper-change-me `
+  -e APP_RECOVERY_TOKEN_PEPPER=local-docker-recovery-token-pepper-change-me `
+  -e APP_REFRESH_TOKEN_PEPPER=local-docker-refresh-token-pepper-change-me `
+  -e APP_BOOTSTRAP_ADMIN_ENABLED=true `
+  -e APP_BOOTSTRAP_ADMIN_LOGIN=admin `
+  -e APP_BOOTSTRAP_ADMIN_EMAIL=admin@local.test `
+  -e APP_BOOTSTRAP_ADMIN_DISPLAY_NAME="Administrador Local" `
+  -e APP_BOOTSTRAP_ADMIN_PASSWORD=AdminLocal_ChangeMe_12345 `
+  identity-service:local
+```
+
+### Paso L12 - Limpieza local
+
+Para detener todo sin borrar los datos de la base:
+
+```powershell
+docker rm -f venta-pasajes-identity-service
+docker rm -f venta-pasajes-identity-db
+docker network rm venta-pasajes-identity-local
+```
+
+Para borrar tambien la base local persistida y la imagen:
+
+```powershell
+docker rm -f venta-pasajes-identity-service
+docker rm -f venta-pasajes-identity-db
+docker volume rm venta-pasajes-identity-pgdata
+docker network rm venta-pasajes-identity-local
+docker image rm identity-service:local -f
+```
+
+## Publicar cambios de `identity-service` en produccion
+
+> Apartado operativo posterior al Dia 17. No fue ejecutado por Codex.
+>
+> Produccion ya esta funcionando. Por eso un cambio en `identity-service` no debe publicarse como "borrar y crear otra vez", sino como una nueva revision de Cloud Run con imagen nueva, validacion, cambio de trafico y rollback preparado.
+
+### Concepto: que significa reemplazar el servicio
+
+En Cloud Run, `identity-service-prod` no se reemplaza borrando el servicio. Lo correcto es:
+
+1. Compilar una imagen nueva de `identity-service`.
+2. Publicarla en Artifact Registry con un tag unico.
+3. Crear una nueva revision de `identity-service-prod` usando esa imagen.
+4. Probar la nueva revision sin enviarle trafico real.
+5. Mover trafico a la revision nueva solo si la prueba sale bien.
+6. Si algo falla, regresar el trafico a la revision anterior.
+
+El servicio productivo conserva:
+
+- el mismo nombre Cloud Run: `identity-service-prod`;
+- la misma URL base;
+- la misma service account: `identity-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com`;
+- la misma base: `identity_db` dentro de `venta-pasajes-prod-sql`;
+- los mismos secretos productivos `identity-service-prod__...`;
+- el mismo modelo privado, sin `allUsers`.
+
+Lo unico que cambia es la revision activa y la imagen que ejecuta esa revision.
+
+### Riesgo especial de `identity-service`
+
+`identity-service` controla login, JWT, usuarios, roles, permisos y recuperacion de contrasena. Un error aqui puede bloquear el ingreso al sistema completo.
+
+Antes de publicar, clasificar el cambio:
+
+| Tipo de cambio | Riesgo | Tratamiento |
+| --- | --- | --- |
+| Cambio interno sin migracion | Medio | Probar local, construir imagen, desplegar revision sin trafico y validar health/login. |
+| Cambio en endpoints usados por frontends | Alto | Validar shell/MFEs contra el nuevo contrato antes de mover trafico. |
+| Cambio en JWT, roles o permisos | Alto | Probar login, `/me`, permisos y flujo de usuario administrador. |
+| Cambio con migracion Flyway nueva | Muy alto | Crear backup Cloud SQL antes del despliegue. La migracion puede ejecutarse aunque la revision este sin trafico. |
+| Cambio destructivo de base, como `DROP`, `RENAME` o cambio incompatible | Critico | No publicar directo. Hacer migracion en dos fases compatible hacia atras. |
+
+### Paso P1 - Ubicarse en el proyecto
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+```
+
+### Paso P2 - Definir variables productivas
+
+Usar un tag unico por despliegue. No reutilizar `prod-backend-0.1.1-jvm` si estas publicando una correccion nueva.
+
+```powershell
+$ProjectId = "project-fbb34cd7-0b82-43e1-867"
+$Region = "us-central1"
+$Repository = "venta-pasajes-dev"
+$ServiceId = "identity-service"
+$CloudRunService = "identity-service-prod"
+$CloudSqlConnectionName = "project-fbb34cd7-0b82-43e1-867:us-central1:venta-pasajes-prod-sql"
+$GcloudPath = "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+
+$Tag = "identity-prod-" + (Get-Date -Format "yyyyMMdd-HHmm")
+$ArtifactImage = "$Region-docker.pkg.dev/$ProjectId/$Repository/${ServiceId}:$Tag"
+```
+
+### Paso P3 - Verificar estado local antes de construir
+
+```powershell
+git status --short
+mvn -f .\services\identity-service\pom.xml test
+mvn -f .\services\identity-service\pom.xml package -DskipTests
+```
+
+No continuar si las pruebas fallan.
+
+### Paso P4 - Probar el cambio localmente con Docker
+
+Ejecutar primero el apartado `Levantar identity-service y PostgreSQL localmente con Docker` de este mismo documento.
+
+Validaciones minimas:
+
+```powershell
+curl.exe -s http://localhost:18081/q/health/ready
+curl.exe -s http://localhost:18081/api/v1/identity/health
+```
+
+Si el cambio toca autenticacion:
+
+```powershell
+$LoginResponse = Invoke-RestMethod `
+  -Uri "http://localhost:18081/api/v1/identity/auth/local/login" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body (@{
+    login = "admin"
+    password = "AdminLocal_ChangeMe_12345"
+  } | ConvertTo-Json)
+
+$Headers = @{ Authorization = "Bearer $($LoginResponse.access_token)" }
+Invoke-RestMethod -Uri "http://localhost:18081/api/v1/identity/me" -Method Get -Headers $Headers
+```
+
+### Paso P5 - Crear evidencia del estado actual de produccion
+
+Antes de cambiar nada, guardar la revision e imagen actuales para rollback.
+
+```powershell
+New-Item -ItemType Directory -Force -Path .\logs\cloudrun-prod | Out-Null
+
+$SnapshotPath = ".\logs\cloudrun-prod\identity-service-prod-before-$Tag.json"
+
+& $GcloudPath run services describe $CloudRunService `
+  --project=$ProjectId `
+  --region=$Region `
+  --format=json |
+  Set-Content -LiteralPath $SnapshotPath -Encoding UTF8
+
+$Before = Get-Content -LiteralPath $SnapshotPath -Raw | ConvertFrom-Json
+$CurrentImage = [string]@($Before.spec.template.spec.containers)[0].image
+$CurrentTraffic = @($Before.status.traffic | Where-Object { $_.percent -gt 0 })
+$RollbackRevisions = ($CurrentTraffic | ForEach-Object { "$($_.revisionName)=$($_.percent)" }) -join ","
+
+[pscustomobject]@{
+  current_image = $CurrentImage
+  rollback_revisions = $RollbackRevisions
+  snapshot_path = $SnapshotPath
+} | Format-List
+```
+
+Guardar el valor de `rollback_revisions`. Si algo falla, ese valor permite devolver el trafico a la revision anterior.
+
+### Paso P6 - Crear backup si hay migraciones de base
+
+Revisar si agregaste migraciones nuevas:
+
+```powershell
+git diff --name-only HEAD -- .\services\identity-service\src\main\resources\db\migration
+```
+
+Si hay migracion nueva y vas a tocar produccion, crear backup antes de desplegar:
+
+```powershell
+& $GcloudPath sql backups create `
+  --project=$ProjectId `
+  --instance=venta-pasajes-prod-sql `
+  --description="pre-$CloudRunService-$Tag"
+```
+
+Importante:
+
+- una revision `--no-traffic` puede arrancar igual y ejecutar Flyway;
+- si `QUARKUS_FLYWAY_MIGRATE_AT_START=true`, la migracion puede aplicarse antes de mover trafico;
+- por eso el backup debe existir antes de crear la revision nueva;
+- una migracion productiva debe ser compatible con la version anterior mientras dure el rollback.
+
+### Paso P7 - Construir y publicar imagen productiva
+
+Este script usa la configuracion de `infra\cloudrun\prod-backend-services.json`, pero solo para `identity-service`.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-backend-jvm-images.ps1 `
+  -ConfigPath .\infra\cloudrun\prod-backend-services.json `
+  -ProjectId $ProjectId `
+  -Region $Region `
+  -Repository $Repository `
+  -ServiceIds identity-service `
+  -ImageTag $Tag `
+  -UseCleanWorkspace `
+  -Push
+```
+
+Validar que la imagen exista en Artifact Registry:
+
+```powershell
+& $GcloudPath artifacts docker images describe $ArtifactImage `
+  --project=$ProjectId `
+  --format="value(image_summary.digest)"
+```
+
+### Paso P8 - Crear revision nueva sin trafico real
+
+Este paso crea una nueva revision de `identity-service-prod` con la imagen nueva y etiqueta `candidate`, pero sin mover usuarios reales a esa revision.
+
+```powershell
+$ProdEnvVars = @(
+  "APP_ENV=prod",
+  "APP_RUNTIME_TARGET=gcp",
+  "APP_SECRETS_PROVIDER=google-secret-manager",
+  "GOOGLE_CLOUD_PROJECT=$ProjectId",
+  "QUARKUS_PROFILE=gcp",
+  "QUARKUS_HTTP_PORT=8081",
+  "CLOUD_SQL_CONNECTION_NAME=$CloudSqlConnectionName",
+  "APP_DB_JDBC_URL=jdbc:postgresql:///identity_db?cloudSqlInstance=$CloudSqlConnectionName&socketFactory=com.google.cloud.sql.postgres.SocketFactory&enableIamAuth=true&sslmode=disable",
+  "APP_DATABASE_SECRET_NAME=identity-service-prod__db-connection",
+  "APP_DB_USERNAME=identity-prod-run@$ProjectId.iam",
+  "QUARKUS_FLYWAY_MIGRATE_AT_START=true",
+  "QUARKUS_FLYWAY_BASELINE_ON_MIGRATE=true",
+  "APP_JWT_SIGNING_SECRET_NAME=identity-service-prod__jwt-signing-secret",
+  "APP_PASSWORD_PEPPER_SECRET_NAME=identity-service-prod__password-pepper",
+  "APP_RECOVERY_TOKEN_PEPPER_SECRET_NAME=identity-service-prod__recovery-token-pepper",
+  "APP_REFRESH_TOKEN_PEPPER_SECRET_NAME=identity-service-prod__refresh-token-pepper"
+) -join ","
+
+& $GcloudPath run deploy $CloudRunService `
+  --project=$ProjectId `
+  --region=$Region `
+  --platform=managed `
+  --image=$ArtifactImage `
+  --service-account="identity-prod-run@$ProjectId.iam.gserviceaccount.com" `
+  --port=8081 `
+  --cpu=1 `
+  --memory=512Mi `
+  --min-instances=0 `
+  --max-instances=2 `
+  --add-cloudsql-instances=$CloudSqlConnectionName `
+  --set-env-vars=$ProdEnvVars `
+  --no-allow-unauthenticated `
+  --tag=candidate `
+  --no-traffic
+```
+
+### Paso P9 - Obtener URL candidata y probar sin trafico real
+
+```powershell
+$AfterNoTraffic = & $GcloudPath run services describe $CloudRunService `
+  --project=$ProjectId `
+  --region=$Region `
+  --format=json |
+  ConvertFrom-Json
+
+$CandidateRevision = [string]$AfterNoTraffic.status.latestCreatedRevisionName
+$CandidateUrl = [string](@($AfterNoTraffic.status.traffic | Where-Object { $_.tag -eq "candidate" } | Select-Object -First 1).url)
+
+[pscustomobject]@{
+  candidate_revision = $CandidateRevision
+  candidate_url = $CandidateUrl
+} | Format-List
+```
+
+Probar health autenticado:
+
+```powershell
+$IdentityToken = & $GcloudPath auth print-identity-token
+
+curl.exe -s `
+  -H "Authorization: Bearer $IdentityToken" `
+  "$CandidateUrl/api/v1/identity/health"
+```
+
+Si el cambio toca autenticacion, probar tambien un flujo real controlado desde el frontend o desde una cuenta autorizada de prueba. No mover trafico solo por ver `Ready=True`.
+
+### Paso P10 - Mover trafico a la revision nueva
+
+Si la revision candidata paso las pruebas, mover el 100% del trafico:
+
+```powershell
+& $GcloudPath run services update-traffic $CloudRunService `
+  --project=$ProjectId `
+  --region=$Region `
+  --to-revisions="$CandidateRevision=100"
+```
+
+Validar:
+
+```powershell
+& $GcloudPath run services describe $CloudRunService `
+  --project=$ProjectId `
+  --region=$Region `
+  --format="table(status.traffic.revisionName,status.traffic.percent,status.traffic.tag)"
+```
+
+### Paso P11 - Verificacion productiva posterior
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-cloudrun-prod-backends.ps1 `
+  -ConfigPath .\infra\cloudrun\prod-backend-services.json `
+  -ProjectId $ProjectId `
+  -Region $Region `
+  -ImageTag $Tag `
+  -FailOnNotReady
+```
+
+Revisar tambien logs de la revision nueva:
+
+```powershell
+& $GcloudPath logging read `
+  "resource.type=cloud_run_revision AND resource.labels.service_name=$CloudRunService" `
+  --project=$ProjectId `
+  --limit=50 `
+  --format="table(timestamp,severity,textPayload)"
+```
+
+### Paso P12 - Rollback si algo falla
+
+Si despues de publicar aparecen errores de login, permisos, health o base de datos, regresar trafico al estado anterior:
+
+```powershell
+& $GcloudPath run services update-traffic $CloudRunService `
+  --project=$ProjectId `
+  --region=$Region `
+  --to-revisions=$RollbackRevisions
+```
+
+Validar que el servicio volvio a la revision anterior:
+
+```powershell
+& $GcloudPath run services describe $CloudRunService `
+  --project=$ProjectId `
+  --region=$Region `
+  --format="table(status.traffic.revisionName,status.traffic.percent,status.traffic.tag)"
+```
+
+Si el problema incluyo una migracion de base incompatible, el rollback de Cloud Run no deshace automaticamente la base de datos. En ese caso se debe decidir con el responsable de datos si se corrige hacia adelante o si se restaura Cloud SQL desde el backup creado en el Paso P6.
+
+### Resumen de decision para produccion
+
+| Pregunta | Si la respuesta es no |
+| --- | --- |
+| Las pruebas de `identity-service` pasan localmente? | No construir imagen productiva. |
+| La prueba Docker local con PostgreSQL funciona? | No publicar imagen. |
+| La imagen existe en Artifact Registry? | No desplegar Cloud Run. |
+| Existe snapshot de revision anterior? | No mover trafico. |
+| Hay backup si existen migraciones? | No crear revision nueva. |
+| La revision `candidate` responde health y login controlado? | No mover trafico. |
+| Se puede ejecutar rollback con `RollbackRevisions`? | No continuar sin capturar estado anterior. |
+
 ## Pendientes para dias posteriores
 
 - Dia 18: implementar autenticacion Google y local.
