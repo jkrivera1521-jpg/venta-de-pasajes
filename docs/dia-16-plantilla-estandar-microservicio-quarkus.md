@@ -79,6 +79,166 @@ Script creado:
 C:\VENTA-DE-PASAJES\scripts\new-quarkus-service.ps1
 ```
 
+## Descripcion detallada de archivos PowerShell agregados
+
+En el Dia 16 se agrego un unico archivo `.ps1` nuevo:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\new-quarkus-service.ps1
+```
+
+Los demas bloques `powershell` documentados en este dia son comandos de validacion ejecutados en consola; no son archivos `.ps1` adicionales.
+
+### `scripts\new-quarkus-service.ps1`
+
+Este script es un generador local de microservicios Quarkus. Su proposito es tomar la plantilla:
+
+```text
+C:\VENTA-DE-PASAJES\services\quarkus-service-template
+```
+
+y crear, a partir de ella, un nuevo servicio real dentro de:
+
+```text
+C:\VENTA-DE-PASAJES\services\<service-name>
+```
+
+No compila, no despliega, no crea bases de datos, no crea secretos y no llama a Google Cloud. Solo crea y adapta archivos locales del nuevo microservicio.
+
+#### Parametros
+
+| Parametro | Obligatorio | Ejemplo | Que controla |
+| --- | --- | --- | --- |
+| `-ServiceName` | Si | `identity-service` | Nombre del nuevo servicio. Debe empezar con letra minuscula, puede contener numeros y guiones, y debe terminar en `-service`. |
+| `-PackageSegment` | No | `identity` | Segmento final del paquete Java `com.ventapasajes.<segmento>`. Si no se envia, el script lo deriva del nombre del servicio. |
+| `-DatabaseName` | No | `identity_db` | Nombre de la base de datos que quedara configurado en `application.properties`. Si no se envia, usa `<packageSegment>_db`. |
+| `-HttpPort` | No | `8081` | Puerto HTTP por defecto que quedara en la configuracion del servicio. Si no se envia, usa `8080`. |
+| `-ProjectId` | No | `project-fbb34cd7-0b82-43e1-867` | Proyecto usado para armar el usuario IAM de Cloud SQL. No llama a Google Cloud; solo genera texto. |
+| `-DryRun` | No | `-DryRun` | No crea archivos. Solo imprime un JSON con lo que haria. |
+| `-Force` | No | `-Force` | Permite sobrescribir archivos generados si la carpeta destino ya existe y no esta vacia. Usarlo con cuidado. |
+
+#### Validaciones iniciales
+
+El script valida que:
+
+- `ServiceName` cumpla el patron `^[a-z][a-z0-9-]*-service$`.
+- `PackageSegment`, si se envia, cumpla el patron `^[a-z][a-z0-9]*$`.
+- Exista la plantilla `services\quarkus-service-template`.
+- La carpeta destino no tenga contenido previo, salvo que solo tenga `.gitkeep` o se use `-Force`.
+
+Ejemplo: `identity-service` es valido; `IdentityService`, `identity`, `identity_service` o `identity-service-api` no cumplen el patron esperado.
+
+#### Valores que calcula automaticamente
+
+Con esta entrada:
+
+```powershell
+.\scripts\new-quarkus-service.ps1 `
+  -ServiceName identity-service `
+  -PackageSegment identity `
+  -DatabaseName identity_db `
+  -HttpPort 8081
+```
+
+el script calcula:
+
+| Valor | Resultado |
+| --- | --- |
+| Dominio | `identity` |
+| Clase base en PascalCase | `Identity` |
+| Paquete Java | `com.ventapasajes.identity` |
+| Carpeta destino | `C:\VENTA-DE-PASAJES\services\identity-service` |
+| Usuario local/on-premise | `identity_user` |
+| Service account runtime esperada | `identity-service-run` |
+| Usuario IAM de Cloud SQL | `identity-service-run@project-fbb34cd7-0b82-43e1-867.iam` |
+| Secreto de conexion esperado | `identity-service__db-connection` |
+| Base path REST | `/api/v1/identity` |
+| Puerto HTTP | `8081` |
+
+#### Que hace en modo `-DryRun`
+
+Cuando se ejecuta con `-DryRun`, no escribe ni modifica archivos. Devuelve un JSON de simulacion con:
+
+- nombre del servicio;
+- paquete Java calculado;
+- base de datos;
+- puerto;
+- carpeta destino;
+- usuario IAM de Cloud SQL;
+- usuario local;
+- nombre del secreto;
+- base path de API;
+- si la carpeta destino ya existe;
+- si la carpeta destino solo tiene `.gitkeep`;
+- cantidad de elementos existentes en destino.
+
+Este modo sirve para validar que los nombres estan bien antes de crear archivos.
+
+#### Que hace cuando se ejecuta sin `-DryRun`
+
+Cuando se ejecuta realmente:
+
+1. Crea la carpeta destino `services\<service-name>`.
+2. Si la carpeta solo contenia `.gitkeep`, elimina ese `.gitkeep`.
+3. Copia todo el contenido de `services\quarkus-service-template`, excepto `target` y `.gitkeep`.
+4. Renombra la carpeta Java:
+
+```text
+src\main\java\com\ventapasajes\template
+src\test\java\com\ventapasajes\template
+```
+
+a:
+
+```text
+src\main\java\com\ventapasajes\<packageSegment>
+src\test\java\com\ventapasajes\<packageSegment>
+```
+
+5. Reemplaza textos dentro de archivos `.java`, `.xml`, `.properties`, `.md`, `.sql`, `.yml` y `.yaml`.
+6. Renombra archivos cuyo nombre contiene `Template`, por ejemplo `TemplateHealthResourceTest.java`.
+7. Devuelve un JSON final con los valores generados.
+
+#### Reemplazos principales
+
+| Texto de la plantilla | Texto generado |
+| --- | --- |
+| `quarkus-service-template` | Nombre del nuevo servicio, por ejemplo `identity-service`. |
+| `template_db` | Nombre de base, por ejemplo `identity_db`. |
+| `template_user` | Usuario local, por ejemplo `identity_user`. |
+| `template-service-run@project-fbb34cd7-0b82-43e1-867.iam` | Usuario IAM de Cloud SQL del nuevo servicio. |
+| `template-service__db-connection` | Nombre del secreto de conexion del nuevo servicio. |
+| `/api/v1/template` | Base path del nuevo dominio, por ejemplo `/api/v1/identity`. |
+| `QUARKUS_HTTP_PORT:8080` | Puerto configurado, por ejemplo `QUARKUS_HTTP_PORT:8081`. |
+| `com.ventapasajes.template` | Paquete Java del nuevo servicio. |
+| `Template` | Nombre PascalCase del dominio, por ejemplo `Identity`. |
+
+#### Archivos que normalmente quedan adaptados
+
+El script adapta principalmente:
+
+- `pom.xml`;
+- `README.md`;
+- `src\main\resources\application.properties`;
+- migracion inicial `src\main\resources\db\migration\V1__init_template.sql`;
+- recursos Java bajo `src\main\java`;
+- pruebas bajo `src\test\java`.
+
+#### Salida esperada
+
+Al finalizar, entrega un JSON parecido a:
+
+```json
+{"service_name":"identity-service","package":"com.ventapasajes.identity","database_name":"identity_db","http_port":8081,"target_root":"C:\\VENTA-DE-PASAJES\\services\\identity-service","cloud_sql_iam_user":"identity-service-run@project-fbb34cd7-0b82-43e1-867.iam","local_database_user":"identity_user","secret_name":"identity-service__db-connection","api_base_path":"/api/v1/identity","dry_run":false}
+```
+
+#### Riesgos y cuidados
+
+- No usar `-Force` si la carpeta destino contiene trabajo manual que no esta respaldado.
+- El script hace reemplazos de texto simples; por eso la plantilla debe conservar nombres controlados como `template`, `Template` y `quarkus-service-template`.
+- Despues de generar un servicio, ejecutar pruebas Maven del servicio creado.
+- Si el nuevo servicio requiere secretos, bases o IAM en Google Cloud, esos recursos se crean en dias posteriores o scripts de infraestructura; este generador no los crea.
+
 Uso previsto:
 
 ```powershell

@@ -26,24 +26,34 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-secret
 
 El script `verify-secrets-dev.ps1` obtiene el resultado asi:
 
-| Campo | De donde sale |
-| --- | --- |
-| `project_id` | Parametro `-ProjectId`, variable `GOOGLE_CLOUD_PROJECT`, configuracion activa de `gcloud` o `project_id` de `secrets-dev.json`. |
-| `config_path` | Ruta del catalogo declarativo `secrets-dev.json`. |
-| `secrets_expected` | Cantidad de entradas en `secrets-dev.json`. |
-| `secrets_found` | Conteo de secretos que responden OK a `gcloud secrets describe`. |
-| `missing_secrets` | Secretos del JSON que no existen en Secret Manager. |
-| `secrets_without_enabled_version` | Secretos sin versiones habilitadas segun `gcloud secrets versions list --filter=state=enabled`. |
-| `missing_accessor_bindings` | Bindings faltantes de `roles/secretmanager.secretAccessor` segun `gcloud secrets get-iam-policy`. |
-| `local_secret_findings` | Hallazgos sensibles locales revisados en `NOTAS.txt`, como token `gcloud` o password anotada. |
-| `ready` | `true` solo si no faltan secretos, versiones habilitadas, bindings IAM ni hallazgos locales sensibles. |
+| Campo                             | De donde sale                                                                                                                   |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `project_id`                      | Parametro `-ProjectId`, variable `GOOGLE_CLOUD_PROJECT`, configuracion activa de `gcloud` o `project_id` de `secrets-dev.json`. |
+| `config_path`                     | Ruta del catalogo declarativo `secrets-dev.json`.                                                                               |
+| `secrets_expected`                | Cantidad de entradas en `secrets-dev.json`.                                                                                     |
+| `secrets_found`                   | Conteo de secretos que responden OK a `gcloud secrets describe`.                                                                |
+| `missing_secrets`                 | Secretos del JSON que no existen en Secret Manager.                                                                             |
+| `secrets_without_enabled_version` | Secretos sin versiones habilitadas segun `gcloud secrets versions list --filter=state=enabled`.                                 |
+| `missing_accessor_bindings`       | Bindings faltantes de `roles/secretmanager.secretAccessor` segun `gcloud secrets get-iam-policy`.                               |
+| `local_secret_findings`           | Hallazgos sensibles locales revisados en `NOTAS.txt`, como token `gcloud` o password anotada.                                   |
+| `ready`                           | `true` solo si no faltan secretos, versiones habilitadas, bindings IAM ni hallazgos locales sensibles.                          |
 
 El script no imprime valores secretos. Solo valida existencia, versiones e IAM.
 
 Verificacion final de Secret Manager:
 
 ```json
-{"project_id":"project-fbb34cd7-0b82-43e1-867","config_path":"C:\\VENTA-DE-PASAJES\\infra\\gcloud\\secrets-dev.json","secrets_expected":15,"secrets_found":15,"missing_secrets":[],"secrets_without_enabled_version":[],"missing_accessor_bindings":[],"local_secret_findings":{},"ready":true}
+{
+	"project_id": "project-fbb34cd7-0b82-43e1-867",
+	"config_path": "C:\\VENTA-DE-PASAJES\\infra\\gcloud\\secrets-dev.json",
+	"secrets_expected": 15,
+	"secrets_found": 15,
+	"missing_secrets": [],
+	"secrets_without_enabled_version": [],
+	"missing_accessor_bindings": [],
+	"local_secret_findings": {},
+	"ready": true
+}
 ```
 
 Comando que genero la verificacion IAM posterior:
@@ -60,24 +70,36 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-iam-de
 
 El script `verify-iam-dev.ps1` obtiene el resultado asi:
 
-| Campo | De donde sale |
-| --- | --- |
-| `project_id` | Parametro `-ProjectId`, variable `GOOGLE_CLOUD_PROJECT`, configuracion activa de `gcloud` o `project_id` de `iam-dev.json`. |
-| `project_number` | `gcloud projects describe <project_id> --format=value(projectNumber)`. |
-| `matrix_path` | Ruta de la matriz IAM `iam-dev.json`. |
-| `service_accounts_expected` | Cantidad de cuentas definidas en `iam-dev.json`. |
-| `service_accounts_found` | Conteo de cuentas que existen segun `gcloud iam service-accounts describe`. |
-| `missing_accounts` | Cuentas de servicio definidas en la matriz que no existen en Google Cloud. |
-| `missing_project_bindings` | Roles de proyecto definidos en la matriz pero ausentes en `gcloud projects get-iam-policy`. |
-| `missing_service_account_bindings` | Permisos sobre cuentas de servicio, por ejemplo impersonacion, ausentes en `gcloud iam service-accounts get-iam-policy`. |
-| `admin_groups_status` | Estado documental: grupos definidos pero pendientes de Google Workspace o Cloud Identity. |
-| `mfa_status` | Estado documental: MFA depende de control externo al IAM del proyecto. |
-| `ready` | `true` solo si no faltan cuentas, roles de proyecto ni bindings sobre service accounts. |
+| Campo                              | De donde sale                                                                                                               |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `project_id`                       | Parametro `-ProjectId`, variable `GOOGLE_CLOUD_PROJECT`, configuracion activa de `gcloud` o `project_id` de `iam-dev.json`. |
+| `project_number`                   | `gcloud projects describe <project_id> --format=value(projectNumber)`.                                                      |
+| `matrix_path`                      | Ruta de la matriz IAM `iam-dev.json`.                                                                                       |
+| `service_accounts_expected`        | Cantidad de cuentas definidas en `iam-dev.json`.                                                                            |
+| `service_accounts_found`           | Conteo de cuentas que existen segun `gcloud iam service-accounts describe`.                                                 |
+| `missing_accounts`                 | Cuentas de servicio definidas en la matriz que no existen en Google Cloud.                                                  |
+| `missing_project_bindings`         | Roles de proyecto definidos en la matriz pero ausentes en `gcloud projects get-iam-policy`.                                 |
+| `missing_service_account_bindings` | Permisos sobre cuentas de servicio, por ejemplo impersonacion, ausentes en `gcloud iam service-accounts get-iam-policy`.    |
+| `admin_groups_status`              | Estado documental: grupos definidos pero pendientes de Google Workspace o Cloud Identity.                                   |
+| `mfa_status`                       | Estado documental: MFA depende de control externo al IAM del proyecto.                                                      |
+| `ready`                            | `true` solo si no faltan cuentas, roles de proyecto ni bindings sobre service accounts.                                     |
 
 Verificacion IAM posterior:
 
 ```json
-{"project_id":"project-fbb34cd7-0b82-43e1-867","project_number":"230270000840","matrix_path":"C:\\VENTA-DE-PASAJES\\infra\\gcloud\\iam-dev.json","service_accounts_expected":8,"service_accounts_found":8,"missing_accounts":[],"missing_project_bindings":[],"missing_service_account_bindings":[],"admin_groups_status":"defined_pending_google_workspace_or_cloud_identity","mfa_status":"manual_control_pending_or_external_to_project_iam","ready":true}
+{
+	"project_id": "project-fbb34cd7-0b82-43e1-867",
+	"project_number": "230270000840",
+	"matrix_path": "C:\\VENTA-DE-PASAJES\\infra\\gcloud\\iam-dev.json",
+	"service_accounts_expected": 8,
+	"service_accounts_found": 8,
+	"missing_accounts": [],
+	"missing_project_bindings": [],
+	"missing_service_account_bindings": [],
+	"admin_groups_status": "defined_pending_google_workspace_or_cloud_identity",
+	"mfa_status": "manual_control_pending_or_external_to_project_iam",
+	"ready": true
+}
 ```
 
 ## Secretos creados
@@ -114,8 +136,9 @@ Secretos de integracion:
 | `ticketing-service__payment-provider-api-key` | Placeholder generado | `ticketing-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` |
 | `document-service__document-signing-secret` | Generado | `document-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` |
 
-Los placeholders de integracion deben reemplazarse con una nueva version del secreto cuando se elija el proveedor real. No se deben escribir en archivos locales.
+Los placeholders de integracion deben reemplazarse con una nueva versión del secreto cuando se elija el proveedor real. No se deben escribir en archivos locales.
 
+PLACEHOLDERS = : es como dejar creado el casillero seguro donde luego irá la llave real.
 ## Complemento IAM
 
 Se agrego la service account:
@@ -135,37 +158,15 @@ Cloud Build deployer recibio `roles/iam.serviceAccountUser` sobre `frontend-shel
 
 ## Archivos creados o actualizados
 
-| Archivo | Proposito |
-| --- | --- |
-| `C:\VENTA-DE-PASAJES\infra\gcloud\secrets-dev.json` | Catalogo declarativo de secretos dev. |
-| `C:\VENTA-DE-PASAJES\infra\gcloud\bootstrap-secrets-dev.ps1` | Crea secretos, agrega version inicial y aplica IAM por secreto. |
-| `C:\VENTA-DE-PASAJES\infra\gcloud\verify-secrets-dev.ps1` | Verifica secretos, versiones, IAM y hallazgos locales sensibles. |
-| `C:\VENTA-DE-PASAJES\infra\gcloud\iam-dev.json` | Agrega `frontend-shell-run` a la matriz IAM. |
-| `C:\VENTA-DE-PASAJES\infra\env\backend-service.env.example` | Retira password placeholder y agrega referencias a Secret Manager. |
-| `C:\VENTA-DE-PASAJES\infra\env\frontend-app.env.example` | Retira `AUTH_SESSION_SECRET=change-me` y agrega referencia a Secret Manager. |
-| `C:\VENTA-DE-PASAJES\NOTAS.txt` | Redacta token gcloud y password local previamente anotados. |
-
-## Limpieza de secretos locales
-
-Se encontro informacion sensible en `C:\VENTA-DE-PASAJES\NOTAS.txt`:
-
-- Token temporal de `gcloud`.
-- Password anotada para el usuario `postgres`.
-
-Accion tomada:
-
-- Se reemplazo el archivo completo por una version saneada.
-- Se mantuvieron los comandos utiles.
-- No se conserva el token ni la password.
-
-Validacion:
-
-```powershell
-rg -n -i "ya29\.|PONER PASSWORD.*\(" NOTAS.txt
-rg -n -i "AUTH_SESSION_SECRET=change-me|QUARKUS_DATASOURCE_PASSWORD=change-me" infra\env
-```
-
-Resultado: sin coincidencias.
+| Archivo                                                      | Proposito                                                                    |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `C:\VENTA-DE-PASAJES\infra\gcloud\secrets-dev.json`          | Catalogo declarativo de secretos dev.                                        |
+| `C:\VENTA-DE-PASAJES\infra\gcloud\bootstrap-secrets-dev.ps1` | Crea secretos, agrega version inicial y aplica IAM por secreto.              |
+| `C:\VENTA-DE-PASAJES\infra\gcloud\verify-secrets-dev.ps1`    | Verifica secretos, versiones, IAM y hallazgos locales sensibles.             |
+| `C:\VENTA-DE-PASAJES\infra\gcloud\iam-dev.json`              | Agrega `frontend-shell-run` a la matriz IAM.                                 |
+| `C:\VENTA-DE-PASAJES\infra\env\backend-service.env.example`  | Retira password placeholder y agrega referencias a Secret Manager.           |
+| `C:\VENTA-DE-PASAJES\infra\env\frontend-app.env.example`     | Retira `AUTH_SESSION_SECRET=change-me` y agrega referencia a Secret Manager. |
+| `C:\VENTA-DE-PASAJES\NOTAS.txt`                              | Redacta token gcloud y password local previamente anotados.                  |
 
 ## Comandos ejecutados
 
@@ -285,6 +286,211 @@ gcloud secrets versions add document-service__document-signing-secret --project=
 gcloud secrets add-iam-policy-binding document-service__document-signing-secret --project=project-fbb34cd7-0b82-43e1-867 --member=serviceAccount:document-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com --role=roles/secretmanager.secretAccessor --quiet
 ```
 
+
+## Alternativa desde la consola web de Google Cloud
+
+> Esta seccion documenta como repetir manualmente desde la interfaz web lo que los scripts hicieron con `gcloud`. No fue ejecutada por Codex.
+
+### Paso W1 - Seleccionar el proyecto correcto
+
+1. Abrir Google Cloud Console.
+2. En el selector superior de proyecto, elegir:
+
+```text
+project-fbb34cd7-0b82-43e1-867
+```
+
+3. Confirmar que estas trabajando en el ambiente `dev`.
+
+### Paso W2 - Habilitar o revisar Secret Manager API
+
+1. Ir a `APIs y servicios`.
+2. Entrar a `Biblioteca`.
+3. Buscar `Secret Manager API`.
+4. Si aparece deshabilitada, seleccionar `Habilitar`.
+5. Si ya aparece habilitada, no hacer cambios.
+
+### Paso W3 - Crear la service account del frontend shell
+
+Este paso replica la parte IAM del dia donde se agrego `frontend-shell-run`.
+
+1. Ir a `IAM y administracion`.
+2. Entrar a `Cuentas de servicio`.
+3. Seleccionar `Crear cuenta de servicio`.
+4. Completar:
+
+| Campo | Valor |
+| --- | --- |
+| Nombre de cuenta de servicio | `frontend-shell runtime` |
+| ID de cuenta de servicio | `frontend-shell-run` |
+| Descripcion | `Runtime identity for frontend-shell in Cloud Run dev.` |
+
+5. En permisos de proyecto, asignar:
+
+| Rol | Proposito |
+| --- | --- |
+| `Logging > Logs Writer` | Permite escribir logs de runtime. |
+| `Monitoring > Monitoring Metric Writer` | Permite publicar metricas de runtime. |
+
+6. No crear llaves JSON para esta cuenta.
+
+### Paso W4 - Permitir impersonacion desde Cloud Build
+
+Este paso equivale al binding `roles/iam.serviceAccountUser` sobre `frontend-shell-run`.
+
+1. Ir a `IAM y administracion > Cuentas de servicio`.
+2. Abrir:
+
+```text
+frontend-shell-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com
+```
+
+3. Entrar a la pestana `Permisos`.
+4. Seleccionar `Conceder acceso`.
+5. En `Principales nuevos`, agregar:
+
+```text
+cloudbuild-deployer@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com
+```
+
+6. Asignar el rol:
+
+```text
+Service Accounts > Service Account User
+```
+
+7. Guardar.
+
+### Paso W5 - Crear los secretos desde Secret Manager
+
+Para cada secreto:
+
+1. Ir a `Seguridad > Secret Manager`.
+2. Seleccionar `Crear secreto`.
+3. En `Nombre`, copiar exactamente el nombre del secreto.
+4. En `Valor del secreto`, pegar el valor correspondiente.
+5. En replicacion, usar `Automatic`.
+6. En etiquetas, agregar:
+
+| Etiqueta | Valor |
+| --- | --- |
+| `app` | `venta-pasajes` |
+| `env` | `dev` |
+| `category` | Valor de la columna `Categoria`. |
+| `owner` | Valor de la columna `Owner`. |
+
+7. Crear el secreto.
+
+Catalogo completo:
+
+| Secreto | Categoria | Owner | Valor inicial |
+| --- | --- | --- | --- |
+| `identity-service__db-connection` | `database` | `identity-service` | JSON de conexion para `identity_db`. |
+| `dispatch-service__db-connection` | `database` | `dispatch-service` | JSON de conexion para `dispatch_db`. |
+| `ticketing-service__db-connection` | `database` | `ticketing-service` | JSON de conexion para `ticketing_db`. |
+| `document-service__db-connection` | `database` | `document-service` | JSON de conexion para `documents_db`. |
+| `reporting-service__db-connection` | `database` | `reporting-service` | JSON de conexion para `reporting_db`. |
+| `audit-service__db-connection` | `database` | `audit-service` | JSON de conexion para `audit_db`. |
+| `identity-service__jwt-signing-secret` | `session` | `identity-service` | Valor aleatorio base64url de 64 bytes. |
+| `identity-service__refresh-token-pepper` | `session` | `identity-service` | Valor aleatorio base64url de 64 bytes. |
+| `identity-service__password-pepper` | `session` | `identity-service` | Valor aleatorio base64url de 64 bytes. |
+| `identity-service__recovery-token-pepper` | `session` | `identity-service` | Valor aleatorio base64url de 64 bytes. |
+| `frontend-shell__session-secret` | `session` | `frontend-shell` | Valor aleatorio base64url de 64 bytes. |
+| `identity-service__google-oauth-client-secret` | `integration` | `identity-service` | Placeholder seguro base64url de 48 bytes hasta elegir proveedor real. |
+| `identity-service__email-provider-api-key` | `integration` | `identity-service` | Placeholder seguro base64url de 48 bytes hasta elegir proveedor real. |
+| `ticketing-service__payment-provider-api-key` | `integration` | `ticketing-service` | Placeholder seguro base64url de 48 bytes hasta elegir proveedor real. |
+| `document-service__document-signing-secret` | `integration` | `document-service` | Valor aleatorio base64url de 64 bytes. |
+
+No guardar los valores aleatorios en el repositorio ni en este documento. Generarlos con un gestor de contrasenas o herramienta segura, pegarlos una sola vez en la consola y conservarlos solo en Secret Manager.
+
+### Paso W6 - Payload JSON para secretos de base de datos
+
+Los secretos `*_db-connection` no guardan passwords. Guardan configuracion de conexion a Cloud SQL con IAM DB authentication.
+
+Usar esta plantilla, cambiando solo `database_name`, `database_user` y el nombre de base dentro de `jdbc_url`:
+
+```json
+{
+  "app_env": "dev",
+  "engine": "postgresql",
+  "database_name": "<database_name>",
+  "cloud_sql_instance": "venta-pasajes-dev-sql",
+  "cloud_sql_connection_name": "project-fbb34cd7-0b82-43e1-867:us-central1:venta-pasajes-dev-sql",
+  "cloud_sql_iam_authentication": true,
+  "database_user": "<database_user>",
+  "jdbc_url": "jdbc:postgresql:///<database_name>?cloudSqlInstance=project-fbb34cd7-0b82-43e1-867:us-central1:venta-pasajes-dev-sql&socketFactory=com.google.cloud.sql.postgres.SocketFactory&enableIamAuth=true&sslmode=disable",
+  "password_required": false
+}
+```
+
+Valores por servicio:
+
+| Secreto | `database_name` | `database_user` |
+| --- | --- | --- |
+| `identity-service__db-connection` | `identity_db` | `identity-service-run@project-fbb34cd7-0b82-43e1-867.iam` |
+| `dispatch-service__db-connection` | `dispatch_db` | `dispatch-service-run@project-fbb34cd7-0b82-43e1-867.iam` |
+| `ticketing-service__db-connection` | `ticketing_db` | `ticketing-service-run@project-fbb34cd7-0b82-43e1-867.iam` |
+| `document-service__db-connection` | `documents_db` | `document-service-run@project-fbb34cd7-0b82-43e1-867.iam` |
+| `reporting-service__db-connection` | `reporting_db` | `reporting-service-run@project-fbb34cd7-0b82-43e1-867.iam` |
+| `audit-service__db-connection` | `audit_db` | `audit-service-run@project-fbb34cd7-0b82-43e1-867.iam` |
+
+### Paso W7 - Conceder acceso por secreto
+
+Para cada secreto creado:
+
+1. Abrir el secreto en Secret Manager.
+2. Ir a la pestana `Permisos`.
+3. Seleccionar `Conceder acceso`.
+4. En `Principales nuevos`, agregar la cuenta de servicio correspondiente.
+5. En `Rol`, seleccionar:
+
+```text
+Secret Manager > Secret Manager Secret Accessor
+```
+
+6. Guardar.
+
+Matriz de acceso:
+
+| Secreto | Principal con acceso |
+| --- | --- |
+| `identity-service__db-connection` | `identity-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` |
+| `dispatch-service__db-connection` | `dispatch-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` |
+| `ticketing-service__db-connection` | `ticketing-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` |
+| `document-service__db-connection` | `document-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` |
+| `reporting-service__db-connection` | `reporting-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` |
+| `audit-service__db-connection` | `audit-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` |
+| `identity-service__jwt-signing-secret` | `identity-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` |
+| `identity-service__refresh-token-pepper` | `identity-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` |
+| `identity-service__password-pepper` | `identity-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` |
+| `identity-service__recovery-token-pepper` | `identity-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` |
+| `frontend-shell__session-secret` | `frontend-shell-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` |
+| `identity-service__google-oauth-client-secret` | `identity-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` |
+| `identity-service__email-provider-api-key` | `identity-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` |
+| `ticketing-service__payment-provider-api-key` | `ticketing-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` |
+| `document-service__document-signing-secret` | `document-service-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` |
+
+### Paso W8 - Revisar versiones habilitadas
+
+1. Abrir cada secreto.
+2. Entrar a la seccion de versiones.
+3. Confirmar que existe al menos una version habilitada.
+4. Si el valor inicial fue incorrecto, no editar el valor anterior. Crear una nueva version del secreto con el valor correcto y, si aplica, deshabilitar la version equivocada.
+
+### Paso W9 - Validacion visual esperada
+
+Al finalizar, desde la consola web deben cumplirse estas condiciones:
+
+| Recurso | Resultado esperado |
+| --- | --- |
+| Secret Manager | 15 secretos creados. |
+| Versiones | Cada secreto tiene al menos una version habilitada. |
+| Permisos por secreto | Cada secreto tiene `roles/secretmanager.secretAccessor` solo para su service account propietaria. |
+| Service account frontend | `frontend-shell-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` existe. |
+| Roles de frontend shell | `roles/logging.logWriter` y `roles/monitoring.metricWriter`. |
+| Impersonacion Cloud Build | `cloudbuild-deployer@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com` tiene `roles/iam.serviceAccountUser` sobre `frontend-shell-run`. |
+
+Despues de hacer la configuracion por consola web, se recomienda ejecutar `verify-secrets-dev.ps1` y `verify-iam-dev.ps1` para tener una validacion reproducible en JSON.
 ## Validacion
 
 - JSON de secretos: OK.
@@ -327,14 +533,8 @@ https://console.cloud.google.com/iam-admin/serviceaccounts?project=project-fbb34
 - Crear secretos: https://docs.cloud.google.com/secret-manager/docs/creating-and-accessing-secrets
 - Control de acceso a secretos: https://docs.cloud.google.com/secret-manager/docs/access-control
 
-## Reversa primero
 
-> Estandarizacion documental agregada el 2026-09-16 para que este dia tambien tenga una ruta segura de limpieza antes de repetir la practica.
-
-Este dia pertenece a la etapa inicial del proyecto. Antes de ejecutar una reversa, revisar si el archivo contiene recursos externos reales, como Google Cloud, Docker, bases de datos o imagenes publicadas. No ejecutar comandos destructivos si no estas seguro de que el recurso no esta siendo usado.
-
-### Reversa real de Secret Manager dev
-
+### Reversa efectiva de Secret Manager dev 
 > Advertencia: esta reversa elimina secretos reales de Google Secret Manager en el proyecto dev. No ejecutarla si Cloud Run, pipelines, pruebas o usuarios dependen de estos secretos. La eliminacion de un secreto tambien elimina sus versiones y sus bindings IAM asociados al secreto.
 
 Esta reversa cubre los secretos creados desde:
@@ -479,122 +679,27 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\bootstrap-sec
 powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-secrets-dev.ps1
 ```
 
-### Paso R1 - Ubicarse en el workspace
 
-```powershell
-cd C:\VENTA-DE-PASAJES
-```
 
-### Paso R2 - Revisar recursos o archivos mencionados
 
-```powershell
-Select-String -Path .\docs\dia-15-secret-manager-configuracion-segura.md -Pattern "C:\\VENTA-DE-PASAJES|docker|gcloud|mvn|npm|Remove-Item|delete|rm|Cloud SQL|Artifact Registry|Secret Manager" -Context 0,2
-```
+PROMPT: EXISTE EN google skills algún lab que me ayude mejorar o reforzar lo aplicado en el día 15 de este proyecto?
 
-### Paso R3 - Detener procesos locales si este dia levanto herramientas
+En **Google Cloud Skills Boost** hay labs que encajan muy bien con lo aplicado en el **Día 15 - Secret Manager y configuración segura**.
 
-```powershell
-Get-NetTCPConnection -LocalPort 3000,3001,3002,3003,8081,8082,8083,18083,18089,18096 -ErrorAction SilentlyContinue |
-  Select-Object LocalAddress,LocalPort,State,OwningProcess |
-  Format-Table -AutoSize
+El más directo es:
 
-Get-CimInstance Win32_Process -Filter "name = 'java.exe' or name = 'node.exe'" |
-  Select-Object ProcessId,CommandLine |
-  Format-List
-```
-
-Si identificas un proceso propio de la practica, detenerlo:
-
-```powershell
-Stop-Process -Id <process-id> -Force
-```
-
-### Paso R4 - Revisar contenedores temporales
-
-```powershell
-docker ps -a --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" |
-  Select-String -Pattern "venta-pasajes|identity|dispatch|ticketing|native|postgres"
-```
-
-Si el contenedor fue creado solo para repetir este dia y no se usa en otra practica:
-
-```powershell
-docker rm -f <container-name>
-```
-
-### Paso R5 - Reversa de archivos locales
-
-La reversa de archivos debe hacerse con control de cambios o backup. Este workspace inicio sin Git en los primeros dias, por eso no se recomienda borrar archivos a ciegas.
-
-```powershell
-Select-String -Path .\docs\dia-15-secret-manager-configuracion-segura.md -Pattern "Archivo|Archivos|C:\\VENTA-DE-PASAJES" -Context 0,4
-```
-
-Si aun asi necesitas retirar solo este documento de la practica, hacer primero una copia:
-
-```powershell
-New-Item -ItemType Directory -Force -Path .\backups | Out-Null
-Copy-Item -LiteralPath .\docs\dia-15-secret-manager-configuracion-segura.md -Destination .\backups\dia-15-secret-manager-configuracion-segura-manual-backup.md -Force
-```
-
-Despues de respaldar, se podria eliminar manualmente el documento con:
-
-```powershell
-Remove-Item -LiteralPath .\docs\dia-15-secret-manager-configuracion-segura.md -Force
-```
-
-## Guia manual desde cero
-
-> Estandarizacion documental agregada el 2026-09-16. Esta guia permite repetir el dia sin depender de Codex, usando el documento como fuente de verdad.
-
-### Paso 1 - Ubicarse en el proyecto
-
-```powershell
-cd C:\VENTA-DE-PASAJES
-```
-
-### Paso 2 - Leer el alcance del dia en el backlog
-
-```powershell
-Select-String -Path .\tareas.md -Pattern "Dia 15|Dia 15" -Context 0,40
-```
-
-### Paso 3 - Leer la documentacion del dia
-
-```powershell
-Get-Content -LiteralPath .\docs\dia-15-secret-manager-configuracion-segura.md
-```
-
-### Paso 4 - Verificar archivos y rutas mencionadas
-
-```powershell
-Select-String -Path .\docs\dia-15-secret-manager-configuracion-segura.md -Pattern "C:\\VENTA-DE-PASAJES" -AllMatches
-```
-
-Para cada ruta importante que aparezca en el documento:
-
-```powershell
-Test-Path -LiteralPath "<ruta-copiada-del-documento>"
-```
-
-### Paso 5 - Ejecutar comandos documentados
-
-Buscar bloques de comandos del documento y ejecutarlos en orden, validando el resultado de cada bloque antes de continuar:
-
-```powershell
-Select-String -Path .\docs\dia-15-secret-manager-configuracion-segura.md -Pattern "```powershell|```text|mvn |npm |docker |gcloud |curl.exe|powershell " -Context 0,6
-```
-
-### Paso 6 - Registrar la repeticion en bitacora
-
-```powershell
-Add-Content -LiteralPath .\vitacora.md -Value "`nReplica manual Dia 15 - <fecha>: comandos ejecutados y resultado."
-```
-
-### Paso 7 - Validar criterio de avance
-
-Revisar la seccion de criterio de avance, resultado, estado final o pendientes del documento:
-
-```powershell
-Select-String -Path .\docs\dia-15-secret-manager-configuracion-segura.md -Pattern "Criterio de avance|Resultado|Estado final|Pendiente|Pendientes" -Context 0,8
-```
+1. **Configuring and Using Credentials with Secret Manager**  -> OK 
+    Es el lab que más se parece al Día 15. Practica activar la API de Secret Manager, crear secretos, usar versiones, deshabilitar versiones anteriores y restaurar una versión previa. Esto refuerza justo la parte de creación, rotación y reversa de secretos que documentamos. [Ver lab](https://www.cloudskillsboost.google/catalog_lab/2887)
+    
+2. **Developer Essentials: Creating Secrets with Secret Manager**   -> Error no existe
+    Es más básico y corto. Sirve si quieres reforzar desde cero: crear un secreto, agregar una versión y acceder al valor desde Cloud Shell. [Ver lab](https://www.cloudskillsboost.google/catalog_lab/32467)
+    
+3. **Service Accounts and Roles: Fundamentals**    -> OK
+    Recomendado porque en el Día 15 no solo creamos secretos, también asignamos acceso a cuentas de servicio como `identity-service-run`, `ticketing-service-run`, etc. Este lab explica cuentas de servicio y roles IAM. [Ver lab](https://www.cloudskillsboost.google/paths/76/course_templates/770/labs/558281)
+    
+4. **Configuring IAM Permissions with gcloud**    -> Error no existe
+    Útil para entender mejor los bindings IAM, permisos, roles y uso de `gcloud`, especialmente cuando asignamos `roles/secretmanager.secretAccessor`. [Ver lab](https://www.cloudskillsboost.google/course_templates/702/labs/562137?locale=es)
+    
+5. **Developing Applications on Google Cloud: Deploying and Maintaining Your Application**  
+    Este no es solo Secret Manager, pero tiene una parte importante donde una aplicación usa secretos y una cuenta de servicio con permisos mínimos. Es bueno para conectar lo del Día 15 con uso real desde una app. [Ver lab](https://www.cloudskillsboost.google/paths/19/course_templates/874/labs/541142?locale=pl)   Error no existe
+    
