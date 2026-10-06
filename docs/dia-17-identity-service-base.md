@@ -426,6 +426,452 @@ docker network rm venta-pasajes-identity-local
 docker image rm identity-service:local -f
 ```
 
+## Probar `identity-service` localmente con compilacion nativa
+
+> Apartado operativo agregado para pruebas locales nativas. No fue ejecutado por Codex.
+>
+> Este flujo no es el recomendado para cada cambio pequeño. Usarlo cuando quieras validar que `identity-service` tambien funciona como binario nativo dentro de Docker.
+
+### Advertencias antes de compilar nativo
+
+La compilacion nativa es mucho mas pesada que la compilacion JVM.
+
+| Advertencia | Detalle |
+| --- | --- |
+| Tiempo | Puede tardar varios minutos. En equipos modestos puede superar 10, 20 o mas minutos. |
+| CPU y memoria | Usa bastante CPU y RAM porque GraalVM/Mandrel analiza la aplicacion completa. |
+| Docker obligatorio | Este proyecto compila nativo usando builder image de Quarkus/Mandrel en Docker. |
+| Internet | La primera vez puede descargar `quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-21` y capas base. |
+| Espacio en disco | Puede crear artefactos grandes en `target`, imagenes Docker y workspaces temporales. |
+| Fallos mas dificiles | Algunos errores nativos no aparecen en JVM, por ejemplo problemas de reflexion, inicializacion de clases o librerias no compatibles. |
+| No tocar produccion | Este apartado solo prueba localmente. No publica en Artifact Registry si no usas `-Push`. |
+
+Por eso el flujo normal de desarrollo local usa JVM. El flujo nativo se reserva para validaciones tecnicas puntuales o antes de decidir si una imagen nativa sera candidata para despliegue.
+
+### Que hace el flujo nativo
+
+El script:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\build-identity-service-native.ps1
+```
+
+hace lo siguiente:
+
+- toma `services\identity-service`;
+- opcionalmente copia el servicio a un workspace temporal limpio con `-UseCleanWorkspace`;
+- ejecuta Maven con perfil nativo;
+- usa el builder `quay.io/quarkus/ubi9-quarkus-mandrel-builder-image:jdk-21`;
+- genera un runner nativo en `target`;
+- construye una imagen Docker local;
+- etiqueta la imagen como `identity-service:<ImageTag>`;
+- solo publica en Artifact Registry si se agrega `-Push`.
+
+El script de prueba:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\verify-identity-service-native-local.ps1
+```
+
+hace una prueba local completa y temporal:
+
+- crea una red Docker temporal;
+- levanta PostgreSQL temporal;
+- levanta la imagen nativa de `identity-service`;
+- aplica Flyway;
+- valida `/q/health/ready`;
+- crea un admin bootstrap temporal;
+- prueba login local;
+- prueba `/api/v1/identity/me`;
+- elimina contenedores y red al finalizar.
+
+### Archivos y carpetas usados para publicar una imagen nativa en la nube
+
+La consola web de Google Cloud no compila automaticamente la carpeta local `C:\VENTA-DE-PASAJES`. Para desplegar por interfaz grafica, primero debe existir una imagen Docker publicada en Artifact Registry.
+
+En este proyecto, la imagen nativa de `identity-service` se construye desde estos archivos y carpetas:
+
+| Ruta | Para que se usa | Se sube directamente a Cloud Run? |
+| --- | --- | --- |
+| `C:\VENTA-DE-PASAJES\services\identity-service\pom.xml` | Define el proyecto Maven, Java 21, Quarkus, dependencias y perfil `native`. | No. Maven lo usa para compilar. |
+| `C:\VENTA-DE-PASAJES\services\identity-service\src\main\java` | Codigo fuente Java del microservicio. | No como carpeta. Se compila dentro del binario nativo. |
+| `C:\VENTA-DE-PASAJES\services\identity-service\src\main\resources\application.properties` | Configuracion de perfiles `local`, `onprem`, `gcp`, datasource, Flyway, secretos y logs. | No como archivo suelto. Queda empaquetado en la aplicacion. |
+| `C:\VENTA-DE-PASAJES\services\identity-service\src\main\resources\db\migration` | Migraciones Flyway de `identity_db`. | No como carpeta suelta. Se incluye como recurso de la aplicacion nativa. |
+| `C:\VENTA-DE-PASAJES\services\identity-service\src\main\docker\Dockerfile.native` | Dockerfile que empaqueta el runner nativo en una imagen Docker. | No. Docker lo usa para construir la imagen. |
+| `C:\VENTA-DE-PASAJES\scripts\build-identity-service-native.ps1` | Orquesta compilacion nativa, construccion Docker, tag local y push opcional a Artifact Registry. | No. Es herramienta local. |
+| `C:\VENTA-DE-PASAJES\scripts\verify-identity-service-native-local.ps1` | Prueba local temporal con PostgreSQL, Flyway, health, login y `/me`. | No. Es herramienta local de validacion. |
+| `C:\VENTA-DE-PASAJES\infra\cloudrun\prod-backend-services.json` | Fuente de verdad para comparar la configuracion productiva: nombre Cloud Run, puerto, service account, Cloud SQL, variables y secretos. | No automaticamente desde la consola. Se usa como checklist. |
+| `C:\VENTA-DE-PASAJES\infra\gcloud\secrets-prod.json` | Define los secretos productivos esperados y accessors. | No. Los valores viven en Secret Manager. |
+| `C:\VENTA-DE-PASAJES\services\identity-service\target` | Salida local de Maven si no usas workspace limpio. | No. Solo sirve para construir la imagen. |
+| `%TEMP%\venta-pasajes-identity-native-<PID>\identity-service` | Workspace temporal cuando se usa `-UseCleanWorkspace`. | No. Se elimina o queda como evidencia temporal local. |
+
+Lo que finalmente usa Cloud Run no es la carpeta del proyecto, sino esta imagen:
+
+```text
+us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/identity-service:<tag>
+```
+
+Ejemplo de tag nativo productivo:
+
+```text
+us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/identity-service:identity-prod-native-20261006-1200
+```
+
+### Paso previo obligatorio antes de usar la consola web
+
+Para que la consola web pueda desplegar una imagen, primero se debe publicar la imagen en Artifact Registry. Este paso sigue siendo local porque el navegador no puede tomar directamente tu carpeta `C:\VENTA-DE-PASAJES` ni tu imagen Docker local.
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+$ImageTag = "identity-prod-native-" + (Get-Date -Format "yyyyMMdd-HHmm")
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-identity-service-native.ps1 `
+  -ProjectId project-fbb34cd7-0b82-43e1-867 `
+  -Region us-central1 `
+  -Repository venta-pasajes-dev `
+  -ImageTag $ImageTag `
+  -UseCleanWorkspace `
+  -Push
+```
+
+Al finalizar, guardar la ruta de la imagen:
+
+```powershell
+$ImageUri = "us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/identity-service:$ImageTag"
+$ImageUri
+```
+
+Validar que existe:
+
+```powershell
+$GcloudPath = "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+
+& $GcloudPath artifacts docker images describe $ImageUri `
+  --project=project-fbb34cd7-0b82-43e1-867 `
+  --format="value(image_summary.digest)"
+```
+
+### Publicar por interfaz grafica de Google Cloud
+
+> Usar estos pasos solo despues de publicar la imagen en Artifact Registry.
+>
+> Para produccion real, preferir crear una revision candidata sin trafico y mover trafico solo despues de validar. Si la consola no muestra una opcion clara para evitar trafico inmediato, no continuar por interfaz grafica; usar el flujo por comandos de la seccion productiva.
+
+#### Paso G1 - Seleccionar proyecto
+
+1. Abrir `https://console.cloud.google.com/`.
+2. En el selector superior de proyecto, elegir:
+
+```text
+project-fbb34cd7-0b82-43e1-867
+```
+
+#### Paso G2 - Confirmar que la imagen existe en Artifact Registry
+
+1. Ir a `Artifact Registry`.
+2. Entrar en `Repositorios`.
+3. Abrir el repositorio:
+
+```text
+venta-pasajes-dev
+```
+
+4. Ubicacion esperada:
+
+```text
+us-central1
+```
+
+5. Abrir la imagen:
+
+```text
+identity-service
+```
+
+6. Confirmar que existe el tag que acabas de publicar, por ejemplo:
+
+```text
+identity-prod-native-20261006-1200
+```
+
+7. Copiar la ruta completa de la imagen. Debe verse similar a:
+
+```text
+us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/identity-service:identity-prod-native-20261006-1200
+```
+
+#### Paso G3 - Abrir el servicio productivo en Cloud Run
+
+1. Ir a `Cloud Run`.
+2. Entrar en `Servicios`.
+3. Verificar region:
+
+```text
+us-central1
+```
+
+4. Abrir:
+
+```text
+identity-service-prod
+```
+
+No crear un servicio nuevo si el objetivo es actualizar produccion. El servicio productivo ya existe; se debe crear una nueva revision.
+
+#### Paso G4 - Crear una nueva revision desde la imagen
+
+1. Dentro de `identity-service-prod`, elegir `Editar y desplegar nueva revision` o la opcion equivalente de nueva revision.
+2. En imagen de contenedor, pegar la imagen publicada:
+
+```text
+us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev/identity-service:<tag>
+```
+
+3. Configurar puerto del contenedor:
+
+```text
+8081
+```
+
+4. Configurar recursos igual que `infra\cloudrun\prod-backend-services.json`:
+
+```text
+CPU: 1
+Memoria: 512Mi
+Min instances: 0
+Max instances: 2
+```
+
+5. Configurar autenticacion:
+
+```text
+Requerir autenticacion
+```
+
+No permitir `allUsers`.
+
+6. Configurar identidad de servicio:
+
+```text
+identity-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com
+```
+
+#### Paso G5 - Configurar variables de entorno
+
+Estas variables deben quedar alineadas con `C:\VENTA-DE-PASAJES\infra\cloudrun\prod-backend-services.json`.
+
+```text
+APP_ENV=prod
+APP_RUNTIME_TARGET=gcp
+APP_SECRETS_PROVIDER=google-secret-manager
+GOOGLE_CLOUD_PROJECT=project-fbb34cd7-0b82-43e1-867
+QUARKUS_PROFILE=gcp
+QUARKUS_HTTP_PORT=8081
+CLOUD_SQL_CONNECTION_NAME=project-fbb34cd7-0b82-43e1-867:us-central1:venta-pasajes-prod-sql
+APP_DB_JDBC_URL=jdbc:postgresql:///identity_db?cloudSqlInstance=project-fbb34cd7-0b82-43e1-867:us-central1:venta-pasajes-prod-sql&socketFactory=com.google.cloud.sql.postgres.SocketFactory&enableIamAuth=true&sslmode=disable
+APP_DATABASE_SECRET_NAME=identity-service-prod__db-connection
+APP_DB_USERNAME=identity-prod-run@project-fbb34cd7-0b82-43e1-867.iam
+QUARKUS_FLYWAY_MIGRATE_AT_START=true
+QUARKUS_FLYWAY_BASELINE_ON_MIGRATE=true
+APP_JWT_SIGNING_SECRET_NAME=identity-service-prod__jwt-signing-secret
+APP_PASSWORD_PEPPER_SECRET_NAME=identity-service-prod__password-pepper
+APP_RECOVERY_TOKEN_PEPPER_SECRET_NAME=identity-service-prod__recovery-token-pepper
+APP_REFRESH_TOKEN_PEPPER_SECRET_NAME=identity-service-prod__refresh-token-pepper
+```
+
+Nota: estos valores son nombres y configuracion. No pegar secretos reales como texto plano en la revision.
+
+#### Paso G6 - Configurar Cloud SQL
+
+En la seccion de conexiones o Cloud SQL, agregar:
+
+```text
+project-fbb34cd7-0b82-43e1-867:us-central1:venta-pasajes-prod-sql
+```
+
+Esto debe coincidir con `CLOUD_SQL_CONNECTION_NAME`.
+
+#### Paso G7 - Revisar trafico antes de desplegar
+
+Si la consola muestra una opcion como `Enviar trafico inmediatamente` o `Servir esta revision inmediatamente`, desactivarla para crear una revision candidata sin trafico.
+
+Si la consola no permite desplegar sin trafico de forma clara, detener el proceso y usar los pasos por comandos de la seccion `Publicar cambios de identity-service en produccion`.
+
+#### Paso G8 - Desplegar revision candidata
+
+1. Revisar resumen final.
+2. Confirmar que:
+   - servicio: `identity-service-prod`;
+   - region: `us-central1`;
+   - imagen: `identity-service:<tag nuevo>`;
+   - autenticacion: requerida;
+   - service account: `identity-prod-run`;
+   - Cloud SQL: `venta-pasajes-prod-sql`;
+   - puerto: `8081`.
+3. Crear la revision.
+
+#### Paso G9 - Probar revision candidata
+
+Si la consola muestra una URL etiquetada de la revision candidata, probar health con identidad autenticada. Desde terminal:
+
+```powershell
+$GcloudPath = "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+$IdentityToken = & $GcloudPath auth print-identity-token
+$CandidateUrl = "<url-candidata-de-la-consola>"
+
+curl.exe -s `
+  -H "Authorization: Bearer $IdentityToken" `
+  "$CandidateUrl/api/v1/identity/health"
+```
+
+Si no tienes URL candidata, revisar la revision desde Cloud Run y confirmar que este `Ready`.
+
+#### Paso G10 - Mover trafico desde la consola
+
+Solo si las pruebas salieron bien:
+
+1. En `identity-service-prod`, ir a la pestana de `Revisiones` o `Trafico`.
+2. Seleccionar `Administrar trafico`.
+3. Asignar `100%` a la revision nueva.
+4. Guardar.
+5. Confirmar que la revision anterior queda sin trafico, pero no eliminarla todavia.
+
+#### Paso G11 - Rollback desde la consola
+
+Si algo falla:
+
+1. En `identity-service-prod`, ir a `Revisiones` o `Trafico`.
+2. Elegir `Administrar trafico`.
+3. Regresar `100%` a la revision anterior.
+4. Guardar.
+5. Validar health y login.
+
+Importante: si la revision nueva ejecuto una migracion Flyway incompatible, mover trafico hacia atras no revierte la base de datos. En ese caso se requiere decision tecnica sobre correccion hacia adelante o restauracion desde backup.
+
+### Referencias oficiales utiles
+
+- Google Cloud documenta que Cloud Run puede desplegar una nueva revision desde una imagen de contenedor existente y que las revisiones son inmutables: `https://docs.cloud.google.com/run/docs/deploying`.
+- Artifact Registry es el servicio usado para almacenar imagenes Docker/OCI y luego desplegarlas en Cloud Run: `https://docs.cloud.google.com/artifact-registry/docs/docker`.
+- Google Cloud tambien documenta el flujo de almacenar imagenes Docker en Artifact Registry antes de usarlas en otros servicios: `https://docs.cloud.google.com/artifact-registry/docs/docker/store-docker-container-images`.
+
+### Paso N1 - Ubicarse en el proyecto
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+```
+
+### Paso N2 - Verificar Docker y espacio basico
+
+```powershell
+docker version
+docker system df
+```
+
+Si Docker no responde, no continuar.
+
+### Paso N3 - Compilar nativo y crear imagen local
+
+Este paso puede tardar bastante.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-identity-service-native.ps1 `
+  -ProjectId project-fbb34cd7-0b82-43e1-867 `
+  -Region us-central1 `
+  -Repository venta-pasajes-dev `
+  -ImageTag local-native `
+  -UseCleanWorkspace
+```
+
+Resultado esperado al final:
+
+```json
+{
+  "service": "identity-service",
+  "local_image": "identity-service:local-native",
+  "ready": true
+}
+```
+
+Validar que la imagen exista:
+
+```powershell
+docker image ls identity-service
+```
+
+Debe aparecer:
+
+```text
+identity-service   local-native
+```
+
+### Paso N4 - Probar la imagen nativa localmente
+
+Este comando levanta base y servicio en contenedores temporales. Al terminar, limpia esos contenedores.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-identity-service-native-local.ps1 `
+  -ImageTag identity-service:local-native `
+  -HttpPort 18083 `
+  -DatabasePort 55435 `
+  -TimeoutSeconds 180
+```
+
+Resultado esperado:
+
+```json
+{
+  "service": "identity-service",
+  "runtime": "native-container",
+  "image": "identity-service:local-native",
+  "health_ready": "UP",
+  "token_returned": true,
+  "current_user": "admin",
+  "ready": true
+}
+```
+
+### Paso N5 - Interpretar el resultado
+
+Si `ready` es `true`, significa que la imagen nativa:
+
+- arranco correctamente;
+- pudo conectarse a PostgreSQL;
+- aplico Flyway;
+- respondio health;
+- ejecuto login local;
+- valido el usuario actual con JWT.
+
+Si falla, revisar el mensaje impreso por el script. El script muestra logs recientes del contenedor nativo antes de limpiar.
+
+### Paso N6 - Limpiar imagen nativa local si ya no se necesita
+
+La prueba temporal elimina contenedores, pero no elimina la imagen local.
+
+```powershell
+docker image rm identity-service:local-native -f
+```
+
+Si tambien quieres liberar espacio general de Docker, revisar primero:
+
+```powershell
+docker system df
+```
+
+No ejecutar limpiezas globales como `docker system prune -a` sin revisar, porque podrian eliminar imagenes de otros servicios del proyecto.
+
+### Cuando usar JVM y cuando usar nativo
+
+| Caso | Recomendacion |
+| --- | --- |
+| Estoy cambiando codigo y quiero validar rapido | Usar JVM local dockerizado. |
+| Estoy validando health, login y base antes de seguir desarrollando | Usar JVM. |
+| Estoy evaluando tiempo de arranque o consumo para Cloud Run | Probar nativo. |
+| Estoy cerca de publicar una imagen nativa | Ejecutar prueba nativa local completa. |
+| Falla nativo pero JVM funciona | No publicar nativo hasta corregir la causa. |
+| Solo quiero probar funcionalidad del servicio | No usar nativo; consume mas tiempo sin aportar mucho en esa etapa. |
+
 ## Publicar cambios de `identity-service` en produccion
 
 > Apartado operativo posterior al Dia 17. No fue ejecutado por Codex.
