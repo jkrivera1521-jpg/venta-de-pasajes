@@ -47,6 +47,374 @@ La migracion incluye:
 - `login_attempts`: auditoria de intentos de login.
 - `outbox_events`: eventos pendientes de publicacion.
 
+## Entender Flyway en este dia
+
+> Apartado pedagogico agregado para entender que hace Flyway, por que se uso en `identity-service`, que alternativas existen y como se podria hacer manualmente.
+
+### Que problema resuelve Flyway
+
+Una aplicacion no vive solo de codigo. Tambien necesita que la base de datos tenga tablas, indices, extensiones, constraints y datos iniciales compatibles con ese codigo.
+
+Sin una herramienta de migraciones, cada ambiente puede terminar diferente:
+
+- en tu maquina existe una tabla, pero en dev no;
+- en dev existe una columna, pero en produccion no;
+- alguien ejecuto un SQL manual y no quedo registrado;
+- el codigo espera una estructura y la base aun esta en una version anterior.
+
+Flyway resuelve esto tratando los cambios de base como archivos versionados dentro del proyecto. Cada cambio se guarda como un script SQL con version. Cuando la aplicacion arranca o cuando se ejecuta Flyway, la herramienta revisa que migraciones ya fueron aplicadas y aplica solo las pendientes.
+
+En palabras practicas: Flyway es como un historial controlado de cambios de base de datos.
+
+### Como funciona en general
+
+Flyway usa tres ideas principales:
+
+| Concepto | Explicacion sencilla |
+| --- | --- |
+| Migracion | Archivo SQL que cambia la base: crea tablas, agrega columnas, crea indices, inserta datos base, etc. |
+| Version | Numero que indica el orden de ejecucion. Ejemplo: `V1`, `V2`, `V3`. |
+| Tabla de historial | Tabla que Flyway crea en la base, normalmente `flyway_schema_history`, para saber que scripts ya se aplicaron. |
+
+El flujo normal es:
+
+1. Flyway se conecta a la base.
+2. Busca scripts en una carpeta configurada.
+3. Revisa `flyway_schema_history`.
+4. Detecta scripts pendientes.
+5. Los ejecuta en orden.
+6. Guarda en `flyway_schema_history` que version se aplico, cuando, con que checksum y si termino bien.
+
+Si un script ya aplicado se modifica despues, Flyway detecta que el checksum cambio y normalmente falla. Esto es bueno porque evita que una migracion historica cambie en silencio.
+
+Regla practica:
+
+```text
+Una migracion ya aplicada en un ambiente compartido no se edita. Se crea una nueva migracion.
+```
+
+### Como se nombra una migracion
+
+El formato usado por Flyway para migraciones versionadas es:
+
+```text
+V<version>__<descripcion>.sql
+```
+
+Ojo: entre la version y la descripcion van dos guiones bajos.
+
+Ejemplos:
+
+```text
+V1__identity_schema.sql
+V2__add_user_last_login_index.sql
+V3__create_refresh_tokens_table.sql
+```
+
+Flyway aplica primero `V1`, luego `V2`, luego `V3`.
+
+### Donde esta Flyway en `identity-service`
+
+En este proyecto Flyway entra por estos archivos:
+
+| Archivo | Que aporta |
+| --- | --- |
+| `C:\VENTA-DE-PASAJES\services\identity-service\pom.xml` | Incluye la dependencia `quarkus-flyway`. |
+| `C:\VENTA-DE-PASAJES\services\identity-service\src\main\resources\application.properties` | Configura donde estan las migraciones y si se ejecutan al arrancar. |
+| `C:\VENTA-DE-PASAJES\services\identity-service\src\main\resources\db\migration\V1__identity_schema.sql` | Primera migracion real de `identity_db`. |
+| `C:\VENTA-DE-PASAJES\scripts\verify-identity-service-local-db.ps1` | Levanta PostgreSQL temporal, arranca el servicio y valida que Flyway aplique la migracion. |
+
+Configuracion relevante:
+
+```properties
+quarkus.flyway.locations=db/migration
+quarkus.flyway.migrate-at-start=${QUARKUS_FLYWAY_MIGRATE_AT_START:false}
+quarkus.flyway.baseline-on-migrate=${QUARKUS_FLYWAY_BASELINE_ON_MIGRATE:false}
+```
+
+Esto significa:
+
+- `db/migration`: carpeta donde busca los SQL dentro de `src\main\resources`;
+- `QUARKUS_FLYWAY_MIGRATE_AT_START=true`: permite ejecutar migraciones automaticamente cuando arranca la aplicacion;
+- `baseline-on-migrate`: ayuda cuando se adopta Flyway sobre una base que ya tenia objetos, pero debe usarse con cuidado.
+
+En la validacion local del Dia 17, el script configura:
+
+```powershell
+$env:QUARKUS_FLYWAY_MIGRATE_AT_START = "true"
+```
+
+Por eso, cuando arranca `identity-service`, Quarkus ejecuta Flyway y Flyway aplica:
+
+```text
+C:\VENTA-DE-PASAJES\services\identity-service\src\main\resources\db\migration\V1__identity_schema.sql
+```
+
+### Que crea `V1__identity_schema.sql`
+
+La migracion inicial crea la base logica de identidad:
+
+- extensiones PostgreSQL `pgcrypto` y `citext`;
+- tabla `users`;
+- tabla `local_credentials`;
+- tabla `google_identities`;
+- tabla `internal_profiles`;
+- tablas de roles y permisos;
+- tabla de identidades autorizadas;
+- tabla de recuperacion de contrasena;
+- tabla de auditoria de login;
+- tabla de eventos pendientes.
+
+Ademas, Flyway crea o actualiza su propia tabla:
+
+```text
+flyway_schema_history
+```
+
+Esa tabla no es del negocio de venta de pasajes. Es control interno de Flyway.
+
+### Como aporta al Dia 17
+
+El objetivo del Dia 17 fue crear la base tecnica de `identity-service`. Flyway aporta en cuatro puntos:
+
+| Necesidad del Dia 17 | Como ayuda Flyway |
+| --- | --- |
+| Crear el esquema inicial de `identity_db` | Ejecuta `V1__identity_schema.sql`. |
+| Repetir la prueba desde cero | Si la base esta vacia, aplica la migracion y deja las mismas tablas. |
+| Saber que version de base tiene el ambiente | Consulta `flyway_schema_history`. |
+| Evitar cambios manuales invisibles | Si una migracion aplicada cambia, Flyway detecta diferencia de checksum. |
+
+Sin Flyway, el Dia 17 dependeria de que una persona copie y ejecute manualmente el SQL correcto en cada ambiente.
+
+### Como ver que Flyway ya aplico la migracion
+
+En una base local dockerizada:
+
+```powershell
+docker exec -it venta-pasajes-identity-db `
+  psql -U identity_user -d identity_db -c "select installed_rank, version, description, script, success from flyway_schema_history order by installed_rank;"
+```
+
+Resultado esperado parecido:
+
+```text
+installed_rank | version | description     | script                  | success
+1              | 1       | identity schema | V1__identity_schema.sql | t
+```
+
+Tambien puedes listar las tablas:
+
+```powershell
+docker exec -it venta-pasajes-identity-db `
+  psql -U identity_user -d identity_db -c "\dt"
+```
+
+Debe aparecer `flyway_schema_history` junto con las tablas de identidad.
+
+### Como agregaria un cambio nuevo con Flyway
+
+Ejemplo: quieres agregar un indice a `users.email`.
+
+No edites `V1__identity_schema.sql` si ya fue aplicado en otro ambiente.
+
+Crear un archivo nuevo:
+
+```text
+C:\VENTA-DE-PASAJES\services\identity-service\src\main\resources\db\migration\V2__add_users_email_index.sql
+```
+
+Contenido ejemplo:
+
+```sql
+CREATE INDEX IF NOT EXISTS ix_users_email ON users (email);
+```
+
+Luego probar localmente:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+mvn -f .\services\identity-service\pom.xml test
+mvn -f .\services\identity-service\pom.xml package -DskipTests
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-identity-service-local-db.ps1
+```
+
+Si la base local ya tenia `V1`, al arrancar con `QUARKUS_FLYWAY_MIGRATE_AT_START=true`, Flyway aplicara solo `V2`.
+
+### Que pasa si no quiero usar Flyway
+
+Se puede no usar Flyway, pero hay que reemplazarlo con otra forma disciplinada de controlar cambios de base. Si simplemente se ejecutan SQL manuales sin registro, el proyecto pierde trazabilidad.
+
+Alternativas:
+
+| Alternativa | Tipo | Ventaja | Costo o riesgo |
+| --- | --- | --- | --- |
+| Liquibase | Herramienta de migraciones | Muy completa, soporta XML/YAML/JSON/SQL y rollback declarativo en algunos casos. | Mas compleja que Flyway para empezar. |
+| Atlas | Herramienta de schema/migrations | Buen enfoque moderno para diff y versionado de esquemas. | Requiere adoptar otra herramienta y flujo. |
+| Sqitch | Herramienta de cambios SQL | Muy orientada a SQL y dependencias entre cambios. | Menos comun en ecosistema Quarkus. |
+| Migraciones manuales con scripts SQL | Procedimiento operativo | No agrega dependencia nueva. Facil de entender al inicio. | Alto riesgo de ambientes desalineados si no hay bitacora estricta. |
+| Hibernate `schema-management` automatico | Generacion desde entidades | Comodo para prototipos. | No recomendado para produccion porque puede cambiar estructura sin control operativo suficiente. |
+| Script propio de migraciones | Herramienta casera | Control total. | Hay que construir historial, validacion, orden, checksums, errores y rollback. Termina recreando parte de Flyway. |
+
+Para este proyecto, la alternativa mas cercana si no se quisiera Flyway seria Liquibase. La alternativa mas simple seria mantener scripts SQL manuales versionados y una bitacora de ejecucion por ambiente.
+
+### Como hacerlo manualmente en local sin Flyway
+
+Este camino sirve para aprender o para una emergencia controlada. No es el flujo recomendado para produccion.
+
+1. Levantar PostgreSQL local:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+$LocalDbPassword = "IdentityLocal_ChangeMe_12345"
+
+docker run -d `
+  --name venta-pasajes-identity-db-manual `
+  -e POSTGRES_DB=identity_db `
+  -e POSTGRES_USER=identity_user `
+  -e "POSTGRES_PASSWORD=$LocalDbPassword" `
+  -p 55436:5432 `
+  postgres:16-alpine
+```
+
+2. Esperar a que responda:
+
+```powershell
+for ($Attempt = 1; $Attempt -le 45; $Attempt++) {
+  docker exec venta-pasajes-identity-db-manual pg_isready -U identity_user -d identity_db
+  if ($LASTEXITCODE -eq 0) { break }
+  Start-Sleep -Seconds 2
+}
+```
+
+3. Ejecutar manualmente el SQL de la migracion:
+
+```powershell
+Get-Content -LiteralPath .\services\identity-service\src\main\resources\db\migration\V1__identity_schema.sql -Raw |
+  docker exec -i venta-pasajes-identity-db-manual psql -U identity_user -d identity_db
+```
+
+4. Validar tablas:
+
+```powershell
+docker exec -it venta-pasajes-identity-db-manual `
+  psql -U identity_user -d identity_db -c "\dt"
+```
+
+5. Arrancar el servicio sin que Flyway ejecute migraciones:
+
+```powershell
+$env:QUARKUS_PROFILE = "onprem"
+$env:QUARKUS_HTTP_PORT = "18084"
+$env:APP_ENV = "local-manual"
+$env:APP_RUNTIME_TARGET = "onprem"
+$env:APP_SECRETS_PROVIDER = "env"
+$env:APP_DB_NAME = "identity_db"
+$env:APP_DB_JDBC_URL = "jdbc:postgresql://localhost:55436/identity_db"
+$env:APP_DB_USERNAME = "identity_user"
+$env:APP_DB_PASSWORD = $LocalDbPassword
+$env:QUARKUS_FLYWAY_MIGRATE_AT_START = "false"
+$env:APP_LOG_CONSOLE_JSON = "false"
+
+java -jar .\services\identity-service\target\quarkus-app\quarkus-run.jar
+```
+
+6. Probar health desde otra terminal:
+
+```powershell
+curl.exe -s http://localhost:18084/q/health/ready
+```
+
+7. Limpiar:
+
+```powershell
+docker rm -f venta-pasajes-identity-db-manual
+```
+
+### Como hacerlo manualmente en Google Cloud SQL
+
+> No ejecutar estos pasos en produccion sin backup, ventana de cambio y aprobacion.
+>
+> Este apartado explica el procedimiento, no indica que deba ejecutarse ahora.
+
+Opcion por consola web:
+
+1. Ir a Google Cloud Console.
+2. Seleccionar el proyecto:
+
+```text
+project-fbb34cd7-0b82-43e1-867
+```
+
+3. Ir a `Cloud SQL`.
+4. Abrir la instancia correspondiente:
+   - dev: `venta-pasajes-dev-sql`;
+   - prod: `venta-pasajes-prod-sql`.
+5. Antes de produccion, crear backup manual de la instancia.
+6. Abrir `Cloud SQL Studio` o el editor SQL disponible.
+7. Seleccionar la base:
+
+```text
+identity_db
+```
+
+8. Copiar el contenido de:
+
+```text
+C:\VENTA-DE-PASAJES\services\identity-service\src\main\resources\db\migration\V1__identity_schema.sql
+```
+
+9. Ejecutarlo.
+10. Validar que existan tablas y extensiones esperadas.
+11. Registrar en bitacora:
+    - fecha;
+    - ambiente;
+    - archivo ejecutado;
+    - persona que lo ejecuto;
+    - resultado;
+    - backup asociado;
+    - evidencia de validacion.
+
+Opcion por archivo SQL e importacion:
+
+1. Subir el SQL a un bucket temporal controlado.
+2. Usar importacion de Cloud SQL hacia `identity_db`.
+3. Validar tablas.
+4. Borrar el archivo temporal del bucket si contiene informacion sensible o si ya no se requiere.
+
+### Si aplico manualmente y luego quiero volver a Flyway
+
+No mezclar manual y Flyway sin registrar el estado.
+
+Si ejecutaste `V1__identity_schema.sql` manualmente, la base ya tiene tablas, pero Flyway no necesariamente sabe que `V1` fue aplicada. Si luego arrancas con:
+
+```text
+QUARKUS_FLYWAY_MIGRATE_AT_START=true
+```
+
+Flyway podria intentar aplicar `V1` y fallar porque las tablas ya existen.
+
+Opciones seguras:
+
+- mantener Flyway apagado para ese ambiente y documentar todas las migraciones manuales;
+- crear una base limpia y dejar que Flyway aplique todo desde cero;
+- usar estrategia de baseline con cuidado, registrando que la base ya parte de una version determinada;
+- pedir revision tecnica antes de reactivar Flyway en una base manipulada manualmente.
+
+Para este proyecto, lo recomendado es:
+
+```text
+Usar Flyway para ambientes controlados y reservar ejecuciones manuales solo para emergencia o aprendizaje local.
+```
+
+### Referencias oficiales utiles
+
+- Flyway documenta que el comando `migrate` aplica el esquema hasta la ultima version y crea automaticamente la tabla de historial si no existe: `https://github.com/flyway/flyway/blob/main/documentation/Reference/Commands/Migrate.md`.
+- La documentacion de migraciones de Flyway explica migraciones versionadas, orden por version, checksum y tabla de historial: `https://documentation.red-gate.com/fd/migrations-271585107.html`.
+- Quarkus documenta que `quarkus.flyway.migrate-at-start=true` ejecuta Flyway al arrancar la aplicacion: `https://quarkus.io/guides/flyway`.
+
 ## Endpoints base
 
 Implementados como base tecnica:
