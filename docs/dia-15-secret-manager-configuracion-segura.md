@@ -12,11 +12,67 @@ Dia 15 completado y verificado en Google Cloud dev.
 
 Se crearon 15 secretos en Secret Manager con versiones iniciales. Cada secreto quedo con `roles/secretmanager.secretAccessor` asignado solo a la service account propietaria. Tambien se creo la service account `frontend-shell-run` para que el secreto de sesion del frontend tenga identidad runtime propia.
 
+Comando que genero la verificacion final de Secret Manager:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-secrets-dev.ps1 `
+  -ProjectId "project-fbb34cd7-0b82-43e1-867" `
+  -ConfigPath ".\infra\gcloud\secrets-dev.json" `
+  -GcloudPath "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+```
+
+El script `verify-secrets-dev.ps1` obtiene el resultado asi:
+
+| Campo | De donde sale |
+| --- | --- |
+| `project_id` | Parametro `-ProjectId`, variable `GOOGLE_CLOUD_PROJECT`, configuracion activa de `gcloud` o `project_id` de `secrets-dev.json`. |
+| `config_path` | Ruta del catalogo declarativo `secrets-dev.json`. |
+| `secrets_expected` | Cantidad de entradas en `secrets-dev.json`. |
+| `secrets_found` | Conteo de secretos que responden OK a `gcloud secrets describe`. |
+| `missing_secrets` | Secretos del JSON que no existen en Secret Manager. |
+| `secrets_without_enabled_version` | Secretos sin versiones habilitadas segun `gcloud secrets versions list --filter=state=enabled`. |
+| `missing_accessor_bindings` | Bindings faltantes de `roles/secretmanager.secretAccessor` segun `gcloud secrets get-iam-policy`. |
+| `local_secret_findings` | Hallazgos sensibles locales revisados en `NOTAS.txt`, como token `gcloud` o password anotada. |
+| `ready` | `true` solo si no faltan secretos, versiones habilitadas, bindings IAM ni hallazgos locales sensibles. |
+
+El script no imprime valores secretos. Solo valida existencia, versiones e IAM.
+
 Verificacion final de Secret Manager:
 
 ```json
 {"project_id":"project-fbb34cd7-0b82-43e1-867","config_path":"C:\\VENTA-DE-PASAJES\\infra\\gcloud\\secrets-dev.json","secrets_expected":15,"secrets_found":15,"missing_secrets":[],"secrets_without_enabled_version":[],"missing_accessor_bindings":[],"local_secret_findings":{},"ready":true}
 ```
+
+Comando que genero la verificacion IAM posterior:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-iam-dev.ps1 `
+  -ProjectId "project-fbb34cd7-0b82-43e1-867" `
+  -MatrixPath ".\infra\gcloud\iam-dev.json" `
+  -GcloudPath "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+```
+
+El script `verify-iam-dev.ps1` obtiene el resultado asi:
+
+| Campo | De donde sale |
+| --- | --- |
+| `project_id` | Parametro `-ProjectId`, variable `GOOGLE_CLOUD_PROJECT`, configuracion activa de `gcloud` o `project_id` de `iam-dev.json`. |
+| `project_number` | `gcloud projects describe <project_id> --format=value(projectNumber)`. |
+| `matrix_path` | Ruta de la matriz IAM `iam-dev.json`. |
+| `service_accounts_expected` | Cantidad de cuentas definidas en `iam-dev.json`. |
+| `service_accounts_found` | Conteo de cuentas que existen segun `gcloud iam service-accounts describe`. |
+| `missing_accounts` | Cuentas de servicio definidas en la matriz que no existen en Google Cloud. |
+| `missing_project_bindings` | Roles de proyecto definidos en la matriz pero ausentes en `gcloud projects get-iam-policy`. |
+| `missing_service_account_bindings` | Permisos sobre cuentas de servicio, por ejemplo impersonacion, ausentes en `gcloud iam service-accounts get-iam-policy`. |
+| `admin_groups_status` | Estado documental: grupos definidos pero pendientes de Google Workspace o Cloud Identity. |
+| `mfa_status` | Estado documental: MFA depende de control externo al IAM del proyecto. |
+| `ready` | `true` solo si no faltan cuentas, roles de proyecto ni bindings sobre service accounts. |
 
 Verificacion IAM posterior:
 
@@ -276,6 +332,152 @@ https://console.cloud.google.com/iam-admin/serviceaccounts?project=project-fbb34
 > Estandarizacion documental agregada el 2026-09-16 para que este dia tambien tenga una ruta segura de limpieza antes de repetir la practica.
 
 Este dia pertenece a la etapa inicial del proyecto. Antes de ejecutar una reversa, revisar si el archivo contiene recursos externos reales, como Google Cloud, Docker, bases de datos o imagenes publicadas. No ejecutar comandos destructivos si no estas seguro de que el recurso no esta siendo usado.
+
+### Reversa real de Secret Manager dev
+
+> Advertencia: esta reversa elimina secretos reales de Google Secret Manager en el proyecto dev. No ejecutarla si Cloud Run, pipelines, pruebas o usuarios dependen de estos secretos. La eliminacion de un secreto tambien elimina sus versiones y sus bindings IAM asociados al secreto.
+
+Esta reversa cubre los secretos creados desde:
+
+```text
+C:\VENTA-DE-PASAJES\infra\gcloud\secrets-dev.json
+C:\VENTA-DE-PASAJES\infra\gcloud\bootstrap-secrets-dev.ps1
+C:\VENTA-DE-PASAJES\infra\gcloud\verify-secrets-dev.ps1
+```
+
+No borra cuentas de servicio, no revierte `iam-dev.json`, no elimina archivos locales y no toca Cloud SQL. Su alcance es solo Secret Manager dev.
+
+#### Paso SR1 - Preparar variables
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+$ProjectId = "project-fbb34cd7-0b82-43e1-867"
+$ConfigPath = ".\infra\gcloud\secrets-dev.json"
+$GcloudPath = "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+
+Test-Path -LiteralPath $ConfigPath
+Test-Path -LiteralPath $GcloudPath
+```
+
+#### Paso SR2 - Listar los secretos que se eliminarian
+
+```powershell
+$Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+$SecretIds = @($Config.secrets | ForEach-Object { [string]$_.id })
+
+$SecretIds |
+  ForEach-Object {
+    [pscustomobject]@{
+      Secret = $_
+      Exists = (& $GcloudPath secrets describe $_ --project=$ProjectId --format="value(name)" 2>$null) -ne $null
+    }
+  } |
+  Format-Table -AutoSize
+```
+
+Resultado esperado antes de borrar: 15 filas y `Exists=True` en los secretos que todavia existen.
+
+#### Paso SR3 - Guardar evidencia no sensible antes de borrar
+
+Este paso no descarga valores secretos. Solo guarda metadatos, versiones e IAM policy de cada secreto para auditoria.
+
+```powershell
+$EvidenceDir = ".\logs\reversa-dia15-secret-manager-dev"
+New-Item -ItemType Directory -Force -Path $EvidenceDir | Out-Null
+
+$SecretIds | Set-Content -LiteralPath (Join-Path $EvidenceDir "secret-ids.txt")
+
+foreach ($SecretId in $SecretIds) {
+  & $GcloudPath secrets describe $SecretId `
+    --project=$ProjectId `
+    --format=json |
+    Set-Content -LiteralPath (Join-Path $EvidenceDir "$SecretId.describe.json")
+
+  & $GcloudPath secrets versions list $SecretId `
+    --project=$ProjectId `
+    --format=json |
+    Set-Content -LiteralPath (Join-Path $EvidenceDir "$SecretId.versions.json")
+
+  & $GcloudPath secrets get-iam-policy $SecretId `
+    --project=$ProjectId `
+    --format=json |
+    Set-Content -LiteralPath (Join-Path $EvidenceDir "$SecretId.iam-policy.json")
+}
+```
+
+#### Paso SR4 - Eliminar todos los secretos del Dia 15
+
+Ejecutar solo cuando estes seguro de revertir Secret Manager dev.
+
+```powershell
+foreach ($SecretId in $SecretIds) {
+  Write-Host "Deleting Secret Manager secret: $SecretId"
+  & $GcloudPath secrets delete $SecretId `
+    --project=$ProjectId `
+    --quiet
+
+  if ($LASTEXITCODE -ne 0) {
+    throw "No se pudo eliminar el secreto: $SecretId"
+  }
+}
+```
+
+Secretos cubiertos por esta reversa:
+
+| Secreto | Categoria |
+| --- | --- |
+| `identity-service__db-connection` | Base de datos |
+| `dispatch-service__db-connection` | Base de datos |
+| `ticketing-service__db-connection` | Base de datos |
+| `document-service__db-connection` | Base de datos |
+| `reporting-service__db-connection` | Base de datos |
+| `audit-service__db-connection` | Base de datos |
+| `identity-service__jwt-signing-secret` | Seguridad/sesion |
+| `identity-service__refresh-token-pepper` | Seguridad/sesion |
+| `identity-service__password-pepper` | Seguridad/sesion |
+| `identity-service__recovery-token-pepper` | Seguridad/sesion |
+| `frontend-shell__session-secret` | Seguridad/sesion |
+| `identity-service__google-oauth-client-secret` | Integracion placeholder |
+| `identity-service__email-provider-api-key` | Integracion placeholder |
+| `ticketing-service__payment-provider-api-key` | Integracion placeholder |
+| `document-service__document-signing-secret` | Integracion/documentos |
+
+#### Paso SR5 - Validar que ya no existan
+
+```powershell
+$Validation = foreach ($SecretId in $SecretIds) {
+  & $GcloudPath secrets describe $SecretId --project=$ProjectId --format="value(name)" 1>$null 2>$null
+
+  [pscustomobject]@{
+    Secret = $SecretId
+    Deleted = ($LASTEXITCODE -ne 0)
+  }
+}
+
+$Validation | Format-Table -AutoSize
+
+if (($Validation | Where-Object { -not $_.Deleted }).Count -gt 0) {
+  throw "Uno o mas secretos siguen existiendo en Secret Manager."
+}
+```
+
+#### Paso SR6 - Registrar la reversa en bitacora
+
+```powershell
+Add-Content -LiteralPath .\vitacora.md -Value "`nReversa Dia 15 Secret Manager dev - $(Get-Date -Format s): secretos dev eliminados desde secrets-dev.json. Evidencia no sensible en logs\reversa-dia15-secret-manager-dev."
+```
+
+#### Paso SR7 - Como reconstruir despues de la reversa
+
+Si necesitas recrear los secretos despues de eliminarlos:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\bootstrap-secrets-dev.ps1
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\infra\gcloud\verify-secrets-dev.ps1
+```
 
 ### Paso R1 - Ubicarse en el workspace
 
