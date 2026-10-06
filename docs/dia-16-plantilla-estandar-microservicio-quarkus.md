@@ -641,6 +641,323 @@ Resultado: la carpeta `C:\VENTA-DE-PASAJES` no esta inicializada como repositori
 
 Este dia pertenece a la etapa inicial del proyecto. Antes de ejecutar una reversa, revisar si el archivo contiene recursos externos reales, como Google Cloud, Docker, bases de datos o imagenes publicadas. No ejecutar comandos destructivos si no estas seguro de que el recurso no esta siendo usado.
 
+### Reversa efectiva del servicio de ejemplo `catalog-service` - no ejecutada
+
+> Estado: documentada para uso manual futuro. No fue ejecutada por Codex.
+>
+> Advertencia: esta reversa borra recursos locales y remotos creados al seguir el apartado `Paso a paso para crear, probar y publicar un nuevo servicio`. No ejecutarla si `catalog-service` ya fue convertido en un microservicio real del proyecto.
+
+Esta reversa cubre lo creado por los pasos N1 a N13:
+
+- contenedor local de smoke test;
+- imagen Docker local;
+- tag local apuntando a Artifact Registry;
+- imagen/tag publicado en Artifact Registry;
+- servicio temporal de Cloud Run `catalog-service-smoke`;
+- carpeta local `C:\VENTA-DE-PASAJES\services\catalog-service`.
+
+No elimina bases Cloud SQL, secretos, service accounts ni entradas de `infra\cloudrun\dev-services.json`, salvo en los pasos opcionales marcados al final, porque esos recursos no se crean en el paso a paso base.
+
+#### Paso NR1 - Definir variables de reversa
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+$ProjectRoot = "C:\VENTA-DE-PASAJES"
+$ServiceName = "catalog-service"
+$Domain = "catalog"
+$DatabaseName = "catalog_db"
+$ImageTag = "0.1.0-jvm"
+$Region = "us-central1"
+$ProjectId = "project-fbb34cd7-0b82-43e1-867"
+$Repository = "venta-pasajes-dev"
+$GcloudPath = "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+
+$ServiceRoot = Join-Path $ProjectRoot "services\$ServiceName"
+$LocalImage = "${ServiceName}:${ImageTag}"
+$ArtifactImage = "$Region-docker.pkg.dev/$ProjectId/$Repository/${ServiceName}:${ImageTag}"
+$ContainerName = "$ServiceName-local-smoke"
+$CloudRunService = "$ServiceName-smoke"
+```
+
+#### Paso NR2 - Revisar que se esta apuntando al servicio correcto
+
+```powershell
+[pscustomobject]@{
+  service_name = $ServiceName
+  service_root = $ServiceRoot
+  local_image = $LocalImage
+  artifact_image = $ArtifactImage
+  container_name = $ContainerName
+  cloud_run_service = $CloudRunService
+} | Format-List
+```
+
+Validar visualmente que todos los valores apunten a `catalog-service`.
+
+#### Paso NR3 - Detener proceso Java local si quedo abierto
+
+```powershell
+$ServiceJarFragment = "services\$ServiceName\target\quarkus-app\quarkus-run.jar"
+
+Get-CimInstance Win32_Process -Filter "name = 'java.exe'" |
+  Where-Object { $_.CommandLine -like "*$ServiceJarFragment*" } |
+  Select-Object ProcessId,CommandLine |
+  Format-List
+```
+
+Si aparece un proceso de `catalog-service`, detenerlo:
+
+```powershell
+Get-CimInstance Win32_Process -Filter "name = 'java.exe'" |
+  Where-Object { $_.CommandLine -like "*$ServiceJarFragment*" } |
+  ForEach-Object {
+    Stop-Process -Id $_.ProcessId -Force
+  }
+```
+
+#### Paso NR4 - Eliminar contenedor local de smoke test
+
+```powershell
+docker ps -a --filter "name=$ContainerName" --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
+
+docker rm -f $ContainerName
+```
+
+Si Docker responde que no existe el contenedor, continuar con el siguiente paso.
+
+#### Paso NR5 - Eliminar servicio temporal de Cloud Run
+
+Este servicio solo existe si ejecutaste el Paso N12.
+
+```powershell
+& $GcloudPath run services describe $CloudRunService `
+  --project=$ProjectId `
+  --region=$Region `
+  --format="value(metadata.name)"
+```
+
+Si existe, eliminarlo:
+
+```powershell
+& $GcloudPath run services delete $CloudRunService `
+  --project=$ProjectId `
+  --region=$Region `
+  --quiet
+```
+
+Validar que ya no existe:
+
+```powershell
+& $GcloudPath run services describe $CloudRunService `
+  --project=$ProjectId `
+  --region=$Region `
+  --format="value(metadata.name)"
+```
+
+El resultado esperado despues de borrar es un error de recurso no encontrado.
+
+#### Paso NR6 - Eliminar imagen publicada en Artifact Registry
+
+Este paso elimina la imagen/tag remoto subido con `docker push`.
+
+```powershell
+& $GcloudPath artifacts docker images describe $ArtifactImage `
+  --project=$ProjectId `
+  --format="value(image_summary.digest)"
+```
+
+Si la imagen existe, eliminarla:
+
+```powershell
+& $GcloudPath artifacts docker images delete $ArtifactImage `
+  --project=$ProjectId `
+  --delete-tags `
+  --quiet
+```
+
+Validar que ya no existe:
+
+```powershell
+& $GcloudPath artifacts docker images describe $ArtifactImage `
+  --project=$ProjectId `
+  --format="value(image_summary.digest)"
+```
+
+El resultado esperado despues de borrar es un error de imagen no encontrada.
+
+#### Paso NR7 - Eliminar imagenes Docker locales
+
+```powershell
+docker image ls $ServiceName
+docker image ls "$Region-docker.pkg.dev/$ProjectId/$Repository/$ServiceName"
+```
+
+Eliminar tags locales:
+
+```powershell
+docker image rm $LocalImage $ArtifactImage -f
+```
+
+Si alguno de los tags no existe, Docker puede mostrar error para ese tag; validar que no queden imagenes:
+
+```powershell
+docker image ls $ServiceName
+docker image ls "$Region-docker.pkg.dev/$ProjectId/$Repository/$ServiceName"
+```
+
+#### Paso NR8 - Eliminar la carpeta local del microservicio generado
+
+Este paso elimina:
+
+```text
+C:\VENTA-DE-PASAJES\services\catalog-service
+```
+
+Incluye una verificacion de seguridad para impedir borrar una ruta fuera de `C:\VENTA-DE-PASAJES\services`.
+
+```powershell
+$ServicesRoot = [System.IO.Path]::GetFullPath((Join-Path $ProjectRoot "services"))
+$ExpectedServiceRoot = [System.IO.Path]::GetFullPath((Join-Path $ServicesRoot $ServiceName))
+
+if ($ServiceName -ne "catalog-service") {
+  throw "Esta reversa esta escrita para catalog-service. Revisa ServiceName antes de borrar."
+}
+
+if (-not (Test-Path -LiteralPath $ExpectedServiceRoot)) {
+  Write-Host "No existe la carpeta local del servicio: $ExpectedServiceRoot"
+}
+else {
+  $ResolvedServiceRoot = [System.IO.Path]::GetFullPath((Resolve-Path -LiteralPath $ExpectedServiceRoot).Path)
+  $ResolvedParent = [System.IO.Path]::GetFullPath((Split-Path -Parent $ResolvedServiceRoot))
+
+  if (-not $ResolvedServiceRoot.StartsWith($ServicesRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Ruta fuera de services. No se elimina: $ResolvedServiceRoot"
+  }
+
+  if ($ResolvedParent -ne $ServicesRoot) {
+    throw "La carpeta no cuelga directamente de services. No se elimina: $ResolvedServiceRoot"
+  }
+
+  if ((Split-Path -Leaf $ResolvedServiceRoot) -ne $ServiceName) {
+    throw "La carpeta final no coincide con ServiceName. No se elimina: $ResolvedServiceRoot"
+  }
+
+  Remove-Item -LiteralPath $ResolvedServiceRoot -Recurse -Force
+}
+```
+
+Validar que ya no existe:
+
+```powershell
+Test-Path -LiteralPath "C:\VENTA-DE-PASAJES\services\catalog-service"
+```
+
+Resultado esperado:
+
+```text
+False
+```
+
+#### Paso NR9 - Revisar logs o planes generados
+
+Si usaste `scripts\build-backend-jvm-images.ps1`, pudo actualizar:
+
+```text
+C:\VENTA-DE-PASAJES\logs\backend-jvm-images\build-backend-jvm-images.plan.json
+```
+
+Ese archivo puede contener evidencia de otros servicios, por eso no se elimina automaticamente. Revisarlo antes de borrarlo:
+
+```powershell
+Test-Path -LiteralPath ".\logs\backend-jvm-images\build-backend-jvm-images.plan.json"
+Get-Content -LiteralPath ".\logs\backend-jvm-images\build-backend-jvm-images.plan.json" -ErrorAction SilentlyContinue
+```
+
+Si confirma que solo contiene evidencia descartable del servicio de ejemplo:
+
+```powershell
+Remove-Item -LiteralPath ".\logs\backend-jvm-images\build-backend-jvm-images.plan.json" -Force
+```
+
+#### Paso NR10 - Opcional si integraste formalmente el servicio al ambiente dev
+
+Estos pasos no aplican al paso a paso base. Solo usarlos si despues agregaste `catalog-service` a infraestructura real.
+
+Revisar si el servicio fue registrado en Cloud Run config:
+
+```powershell
+Select-String -Path .\infra\cloudrun\dev-services.json -Pattern "catalog-service" -Context 2,4
+```
+
+Si aparece, retirar manualmente la entrada JSON correspondiente y validar que el JSON sigue siendo valido:
+
+```powershell
+Get-Content -LiteralPath .\infra\cloudrun\dev-services.json -Raw | ConvertFrom-Json | Out-Null
+```
+
+Si creaste un secreto de conexion:
+
+```powershell
+& $GcloudPath secrets delete "catalog-service__db-connection" `
+  --project=$ProjectId `
+  --quiet
+```
+
+Si creaste una service account runtime:
+
+```powershell
+& $GcloudPath iam service-accounts delete "catalog-service-run@$ProjectId.iam.gserviceaccount.com" `
+  --project=$ProjectId `
+  --quiet
+```
+
+Si creaste base Cloud SQL `catalog_db`, revisar primero:
+
+```powershell
+& $GcloudPath sql databases list `
+  --project=$ProjectId `
+  --instance="venta-pasajes-dev-sql" `
+  --filter="name=$DatabaseName"
+```
+
+Eliminar solo si fue creada para esta prueba:
+
+```powershell
+& $GcloudPath sql databases delete $DatabaseName `
+  --project=$ProjectId `
+  --instance="venta-pasajes-dev-sql" `
+  --quiet
+```
+
+#### Paso NR11 - Validacion final de limpieza
+
+```powershell
+[pscustomobject]@{
+  local_service_folder_exists = Test-Path -LiteralPath "C:\VENTA-DE-PASAJES\services\catalog-service"
+  local_container = (docker ps -a --filter "name=$ContainerName" --format "{{.Names}}")
+  local_image = (docker image ls $ServiceName --format "{{.Repository}}:{{.Tag}}")
+} | Format-List
+
+& $GcloudPath run services describe $CloudRunService `
+  --project=$ProjectId `
+  --region=$Region `
+  --format="value(metadata.name)"
+
+& $GcloudPath artifacts docker images describe $ArtifactImage `
+  --project=$ProjectId `
+  --format="value(image_summary.digest)"
+```
+
+Resultados esperados:
+
+- `local_service_folder_exists = False`;
+- sin contenedor local;
+- sin imagen local;
+- Cloud Run devuelve no encontrado;
+- Artifact Registry devuelve imagen no encontrada.
+
 ### Paso R1 - Ubicarse en el workspace
 
 ```powershell
