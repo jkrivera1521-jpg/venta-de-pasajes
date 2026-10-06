@@ -263,6 +263,306 @@ Validacion en modo seco para `identity-service`:
 {"service_name":"identity-service","package":"com.ventapasajes.identity","database_name":"identity_db","http_port":8081,"target_root":"C:\\VENTA-DE-PASAJES\\services\\identity-service","cloud_sql_iam_user":"identity-service-run@project-fbb34cd7-0b82-43e1-867.iam","secret_name":"identity-service__db-connection","api_base_path":"/api/v1/identity","target_exists":true,"only_gitkeep":true,"dry_run":true}
 ```
 
+## Paso a paso para crear, probar y publicar un nuevo servicio
+
+> Esta guia es operacional y no fue ejecutada por Codex. Usar nombres reales del nuevo dominio antes de copiar comandos.
+
+Ejemplo usado en esta guia:
+
+| Variable | Valor de ejemplo |
+| --- | --- |
+| Servicio | `catalog-service` |
+| Dominio | `catalog` |
+| Paquete Java | `com.ventapasajes.catalog` |
+| Base de datos | `catalog_db` |
+| Puerto local JVM | `18091` |
+| Tag de imagen | `0.1.0-jvm` |
+
+### Paso N1 - Definir variables de trabajo
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+$ServiceName = "catalog-service"
+$Domain = "catalog"
+$PackageSegment = "catalog"
+$DatabaseName = "catalog_db"
+$HttpPort = 18091
+$ImageTag = "0.1.0-jvm"
+
+$ProjectId = "project-fbb34cd7-0b82-43e1-867"
+$Region = "us-central1"
+$Repository = "venta-pasajes-dev"
+$GcloudPath = "C:\ProgramData\chocolatey\lib\gcloudsdk\tools\google-cloud-sdk\bin\gcloud.cmd"
+$env:CLOUDSDK_PYTHON = "C:\Python312\python.exe"
+```
+
+### Paso N2 - Simular la creacion del servicio
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\new-quarkus-service.ps1 `
+  -DryRun `
+  -ServiceName $ServiceName `
+  -PackageSegment $PackageSegment `
+  -DatabaseName $DatabaseName `
+  -HttpPort 8080 `
+  -ProjectId $ProjectId
+```
+
+Revisar que el JSON devuelto tenga:
+
+- `package` correcto;
+- `database_name` correcto;
+- `secret_name` esperado;
+- `api_base_path` esperado;
+- `target_root` dentro de `C:\VENTA-DE-PASAJES\services`.
+
+### Paso N3 - Crear el servicio desde la plantilla
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\new-quarkus-service.ps1 `
+  -ServiceName $ServiceName `
+  -PackageSegment $PackageSegment `
+  -DatabaseName $DatabaseName `
+  -HttpPort 8080 `
+  -ProjectId $ProjectId
+```
+
+Validar que los archivos base existan:
+
+```powershell
+Test-Path -LiteralPath ".\services\$ServiceName\pom.xml"
+Test-Path -LiteralPath ".\services\$ServiceName\src\main\resources\application.properties"
+Test-Path -LiteralPath ".\services\$ServiceName\src\main\java\com\ventapasajes\$PackageSegment"
+Test-Path -LiteralPath ".\services\$ServiceName\src\test\java\com\ventapasajes\$PackageSegment"
+```
+
+### Paso N4 - Ejecutar pruebas unitarias/locales
+
+```powershell
+mvn -f ".\services\$ServiceName\pom.xml" test
+```
+
+Resultado esperado:
+
+```text
+BUILD SUCCESS
+```
+
+Estas pruebas validan el endpoint funcional `/api/v1/<dominio>/health`, los endpoints `/q/health/live`, `/q/health/ready` y el documento OpenAPI. En perfil `test` el health check automatico del datasource queda desactivado para no depender de PostgreSQL local.
+
+### Paso N5 - Empaquetar el servicio Quarkus JVM
+
+```powershell
+mvn -f ".\services\$ServiceName\pom.xml" package -DskipTests
+```
+
+Validar que existe el paquete Quarkus:
+
+```powershell
+Test-Path -LiteralPath ".\services\$ServiceName\target\quarkus-app\quarkus-run.jar"
+```
+
+### Paso N6 - Probar localmente con Java
+
+Esta prueba arranca el servicio desde el paquete JVM generado. Para smoke test local sin PostgreSQL se desactiva el health check automatico del datasource.
+
+```powershell
+$env:QUARKUS_HTTP_PORT = "$HttpPort"
+$env:QUARKUS_DATASOURCE_HEALTH_ENABLED = "false"
+$env:QUARKUS_FLYWAY_MIGRATE_AT_START = "false"
+
+$Process = Start-Process `
+  -FilePath "java" `
+  -ArgumentList @("-jar", ".\services\$ServiceName\target\quarkus-app\quarkus-run.jar") `
+  -PassThru `
+  -WindowStyle Hidden
+
+Start-Sleep -Seconds 8
+
+curl.exe -s "http://localhost:$HttpPort/api/v1/$Domain/health"
+curl.exe -s "http://localhost:$HttpPort/q/health/ready"
+curl.exe -s "http://localhost:$HttpPort/q/openapi"
+
+Stop-Process -Id $Process.Id -Force
+```
+
+Resultado esperado en el endpoint funcional:
+
+```json
+{"status":"ok","service":"catalog-service","runtime":"quarkus"}
+```
+
+### Paso N7 - Generar imagen Docker JVM local
+
+La imagen JVM usa el Dockerfile comun:
+
+```text
+C:\VENTA-DE-PASAJES\infra\docker\Dockerfile.quarkus-jvm
+```
+
+Construir imagen:
+
+```powershell
+$LocalImage = "${ServiceName}:${ImageTag}"
+
+docker build --pull `
+  -f .\infra\docker\Dockerfile.quarkus-jvm `
+  -t $LocalImage `
+  ".\services\$ServiceName"
+```
+
+Validar la imagen:
+
+```powershell
+docker image inspect $LocalImage --format "{{.Id}} {{.Size}} {{.Architecture}}/{{.Os}}"
+```
+
+### Paso N8 - Probar localmente con Docker
+
+```powershell
+$ContainerName = "$ServiceName-local-smoke"
+
+docker rm -f $ContainerName 2>$null
+
+docker run -d `
+  --name $ContainerName `
+  -p "${HttpPort}:8080" `
+  -e APP_ENV=local `
+  -e APP_RUNTIME_TARGET=local `
+  -e APP_SECRETS_PROVIDER=env `
+  -e QUARKUS_DATASOURCE_HEALTH_ENABLED=false `
+  -e QUARKUS_FLYWAY_MIGRATE_AT_START=false `
+  $LocalImage
+
+Start-Sleep -Seconds 8
+
+curl.exe -s "http://localhost:$HttpPort/api/v1/$Domain/health"
+curl.exe -s "http://localhost:$HttpPort/q/health/ready"
+
+docker logs $ContainerName --tail 80
+docker rm -f $ContainerName
+```
+
+### Paso N9 - Etiquetar imagen para Artifact Registry
+
+```powershell
+$ArtifactImage = "$Region-docker.pkg.dev/$ProjectId/$Repository/${ServiceName}:${ImageTag}"
+
+docker tag $LocalImage $ArtifactImage
+```
+
+### Paso N10 - Autenticar Docker contra Artifact Registry
+
+```powershell
+& $GcloudPath auth configure-docker "$Region-docker.pkg.dev" --quiet
+```
+
+Si el repositorio no existiera, crearlo una sola vez:
+
+```powershell
+& $GcloudPath artifacts repositories create $Repository `
+  --project=$ProjectId `
+  --location=$Region `
+  --repository-format=docker `
+  --description="Venta de Pasajes development Docker images"
+```
+
+En este proyecto el repositorio esperado es:
+
+```text
+us-central1-docker.pkg.dev/project-fbb34cd7-0b82-43e1-867/venta-pasajes-dev
+```
+
+### Paso N11 - Subir la imagen a Google Cloud
+
+```powershell
+docker push $ArtifactImage
+```
+
+Validar que la imagen existe en Artifact Registry:
+
+```powershell
+& $GcloudPath artifacts docker images describe $ArtifactImage `
+  --project=$ProjectId `
+  --format="value(image_summary.digest)"
+```
+
+### Paso N12 - Smoke test remoto en Cloud Run
+
+Este smoke test despliega temporalmente la imagen en Cloud Run para validar que arranca fuera de la maquina local. No sustituye la integracion real del servicio al ambiente dev.
+
+Para un servicio nuevo de verdad, antes del despliegue productivo o dev formal se debe:
+
+- agregarlo a `infra\cloudrun\dev-services.json`;
+- crear su service account runtime;
+- crear su base de datos si aplica;
+- crear su secreto `*_db-connection`;
+- asignar IAM minimo;
+- decidir si usara Cloud SQL.
+
+Smoke remoto temporal:
+
+```powershell
+$CloudRunService = "$ServiceName-smoke"
+
+& $GcloudPath run deploy $CloudRunService `
+  --project=$ProjectId `
+  --region=$Region `
+  --platform=managed `
+  --image=$ArtifactImage `
+  --port=8080 `
+  --allow-unauthenticated `
+  --set-env-vars="APP_ENV=dev,APP_RUNTIME_TARGET=gcp,APP_SECRETS_PROVIDER=env,QUARKUS_DATASOURCE_HEALTH_ENABLED=false,QUARKUS_FLYWAY_MIGRATE_AT_START=false"
+
+$RemoteUrl = & $GcloudPath run services describe $CloudRunService `
+  --project=$ProjectId `
+  --region=$Region `
+  --format="value(status.url)"
+
+curl.exe -s "$RemoteUrl/api/v1/$Domain/health"
+curl.exe -s "$RemoteUrl/q/health/ready"
+```
+
+Resultado esperado:
+
+```json
+{"status":"ok","service":"catalog-service","runtime":"quarkus"}
+```
+
+Si el smoke test fue temporal, eliminar el servicio de prueba cuando termines:
+
+```powershell
+& $GcloudPath run services delete $CloudRunService `
+  --project=$ProjectId `
+  --region=$Region `
+  --quiet
+```
+
+### Paso N13 - Alternativa usando script existente
+
+Existe un script para construir y subir imagenes JVM:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\build-backend-jvm-images.ps1
+```
+
+Pero este script solo acepta servicios registrados como backend en:
+
+```text
+C:\VENTA-DE-PASAJES\infra\cloudrun\dev-services.json
+```
+
+Cuando el nuevo servicio ya este registrado en ese archivo, se puede usar:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-backend-jvm-images.ps1 `
+  -ServiceIds $ServiceName `
+  -ImageTag $ImageTag `
+  -UseCleanWorkspace `
+  -Push
+```
+
 ## Incidencia corregida
 
 La primera ejecucion de pruebas fallo porque `/q/health/ready` incluia el health check automatico del datasource e intentaba conectarse a `localhost:5432`.
