@@ -203,11 +203,16 @@ Si el primer comando falla, no continuar. Primero corregir pruebas.
 
 ### Paso L3 - Construir la imagen Docker local del servicio
 
+En este repositorio no se debe construir esta imagen con `docker build` directo desde `services\identity-service`, porque `services\identity-service\.dockerignore` excluye `target/*`. Eso hace que Docker no vea `target\quarkus-app` aunque Maven lo haya generado.
+
+Usar el script del monorepo, que crea un contexto temporal correcto y deja la imagen local `identity-service:local`.
+
 ```powershell
-docker build --pull `
-  -f .\infra\docker\Dockerfile.quarkus-jvm `
-  -t identity-service:local `
-  .\services\identity-service
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-backend-jvm-images.ps1 `
+  -ConfigPath .\infra\cloudrun\dev-services.json `
+  -ServiceIds identity-service `
+  -ImageTag local `
+  -UseCleanWorkspace
 ```
 
 Validar que la imagen exista:
@@ -215,6 +220,14 @@ Validar que la imagen exista:
 ```powershell
 docker image ls identity-service
 ```
+
+Resultado esperado:
+
+```text
+identity-service   local
+```
+
+Si al ejecutar el Paso L6 aparece `Unable to find image 'identity-service:local' locally`, significa que este Paso L3 no se ejecuto o fallo antes de crear la imagen.
 
 ### Paso L4 - Crear red y volumen local
 
@@ -355,12 +368,12 @@ Si cambias codigo Java y quieres probar de nuevo sin borrar la base:
 
 ```powershell
 mvn -f .\services\identity-service\pom.xml test
-mvn -f .\services\identity-service\pom.xml package -DskipTests
 
-docker build --pull `
-  -f .\infra\docker\Dockerfile.quarkus-jvm `
-  -t identity-service:local `
-  .\services\identity-service
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-backend-jvm-images.ps1 `
+  -ConfigPath .\infra\cloudrun\dev-services.json `
+  -ServiceIds identity-service `
+  -ImageTag local `
+  -UseCleanWorkspace
 
 docker rm -f venta-pasajes-identity-service
 
