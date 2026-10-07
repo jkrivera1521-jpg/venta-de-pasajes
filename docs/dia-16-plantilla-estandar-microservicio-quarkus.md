@@ -1,10 +1,10 @@
-# Dia 16 - Plantilla estandar de microservicio Quarkus
+# Dia 16 - Plantilla estándar de microservicio Quarkus
 
 Fecha: 2026-09-02
 
 ## Objetivo
 
-Crear una plantilla reutilizable para construir microservicios backend Quarkus con el mismo estandar tecnico: REST, persistencia, migraciones, OpenAPI, health checks y logs JSON.
+Crear una plantilla reutilizable para construir microservicios backend Quarkus con el mismo estándar técnico: REST, persistencia, migraciones, OpenAPI, health checks y logs JSON.
 
 ## Resultado ejecutivo
 
@@ -12,7 +12,7 @@ Dia 16 completado.
 
 Se creo la plantilla base `C:\VENTA-DE-PASAJES\services\quarkus-service-template` y el generador `C:\VENTA-DE-PASAJES\scripts\new-quarkus-service.ps1`.
 
-La plantilla compila, ejecuta pruebas y genera paquete Quarkus. Tambien permite crear servicios nuevos rapidamente sin repetir configuracion base.
+La plantilla compila, ejecuta pruebas y genera paquete Quarkus. También permite crear servicios nuevos rápidamente sin repetir configuración base.
 
 ## Stack incluido
 
@@ -229,7 +229,18 @@ El script adapta principalmente:
 Al finalizar, entrega un JSON parecido a:
 
 ```json
-{"service_name":"identity-service","package":"com.ventapasajes.identity","database_name":"identity_db","http_port":8081,"target_root":"C:\\VENTA-DE-PASAJES\\services\\identity-service","cloud_sql_iam_user":"identity-service-run@project-fbb34cd7-0b82-43e1-867.iam","local_database_user":"identity_user","secret_name":"identity-service__db-connection","api_base_path":"/api/v1/identity","dry_run":false}
+{
+	"service_name": "identity-service",
+	"package": "com.ventapasajes.identity",
+	"database_name": "identity_db",
+	"http_port": 8081,
+	"target_root": "C:\\VENTA-DE-PASAJES\\services\\identity-service",
+	"cloud_sql_iam_user": "identity-service-run@project-fbb34cd7-0b82-43e1-867.iam",
+	"local_database_user": "identity_user",
+	"secret_name": "identity-service__db-connection",
+	"api_base_path": "/api/v1/identity",
+	"dry_run": false
+}
 ```
 
 #### Riesgos y cuidados
@@ -260,23 +271,35 @@ El generador:
 Validacion en modo seco para `identity-service`:
 
 ```json
-{"service_name":"identity-service","package":"com.ventapasajes.identity","database_name":"identity_db","http_port":8081,"target_root":"C:\\VENTA-DE-PASAJES\\services\\identity-service","cloud_sql_iam_user":"identity-service-run@project-fbb34cd7-0b82-43e1-867.iam","secret_name":"identity-service__db-connection","api_base_path":"/api/v1/identity","target_exists":true,"only_gitkeep":true,"dry_run":true}
+{
+	"service_name": "identity-service",
+	"package": "com.ventapasajes.identity",
+	"database_name": "identity_db",
+	"http_port": 8081,
+	"target_root": "C:\\VENTA-DE-PASAJES\\services\\identity-service",
+	"cloud_sql_iam_user": "identity-service-run@project-fbb34cd7-0b82-43e1-867.iam",
+	"secret_name": "identity-service__db-connection",
+	"api_base_path": "/api/v1/identity",
+	"target_exists": true,
+	"only_gitkeep": true,
+	"dry_run": true
+}
 ```
 
 ## Paso a paso para crear, probar y publicar un nuevo servicio
 
-> Esta guia es operacional y no fue ejecutada por Codex. Usar nombres reales del nuevo dominio antes de copiar comandos.
+> Esta guia es operacional. Usar nombres reales del nuevo dominio antes de copiar comandos.
 
-Ejemplo usado en esta guia:
+Ejemplo usado en esta guía:
 
-| Variable | Valor de ejemplo |
-| --- | --- |
-| Servicio | `catalog-service` |
-| Dominio | `catalog` |
-| Paquete Java | `com.ventapasajes.catalog` |
-| Base de datos | `catalog_db` |
-| Puerto local JVM | `18091` |
-| Tag de imagen | `0.1.0-jvm` |
+| Variable         | Valor de ejemplo           |
+| ---------------- | -------------------------- |
+| Servicio         | `catalog-service`          |
+| Dominio          | `catalog`                  |
+| Paquete Java     | `com.ventapasajes.catalog` |
+| Base de datos    | `catalog_db`               |
+| Puerto local JVM | `18091`                    |
+| Tag de imagen    | `0.1.0-jvm`                |
 
 ### Paso N1 - Definir variables de trabajo
 
@@ -527,7 +550,11 @@ curl.exe -s "$RemoteUrl/q/health/ready"
 Resultado esperado:
 
 ```json
-{"status":"ok","service":"catalog-service","runtime":"quarkus"}
+{
+	"status": "ok",
+	"service": "catalog-service",
+	"runtime": "quarkus"
+}
 ```
 
 Si el smoke test fue temporal, eliminar el servicio de prueba cuando termines:
@@ -635,15 +662,10 @@ Resultado: la carpeta `C:\VENTA-DE-PASAJES` no esta inicializada como repositori
 - Convertir el DDL del dominio identidad en migraciones reales.
 - Agregar endpoints funcionales de identidad segun contratos OpenAPI.
 
-## Reversa primero
-
-> Estandarizacion documental agregada el 2026-09-16 para que este dia tambien tenga una ruta segura de limpieza antes de repetir la practica.
-
-Este dia pertenece a la etapa inicial del proyecto. Antes de ejecutar una reversa, revisar si el archivo contiene recursos externos reales, como Google Cloud, Docker, bases de datos o imagenes publicadas. No ejecutar comandos destructivos si no estas seguro de que el recurso no esta siendo usado.
 
 ### Reversa efectiva del servicio de ejemplo `catalog-service` - no ejecutada
 
-> Estado: documentada para uso manual futuro. No fue ejecutada por Codex.
+> Estado: documentada para uso manual futuro.
 >
 > Advertencia: esta reversa borra recursos locales y remotos creados al seguir el apartado `Paso a paso para crear, probar y publicar un nuevo servicio`. No ejecutarla si `catalog-service` ya fue convertido en un microservicio real del proyecto.
 
@@ -957,123 +979,3 @@ Resultados esperados:
 - sin imagen local;
 - Cloud Run devuelve no encontrado;
 - Artifact Registry devuelve imagen no encontrada.
-
-### Paso R1 - Ubicarse en el workspace
-
-```powershell
-cd C:\VENTA-DE-PASAJES
-```
-
-### Paso R2 - Revisar recursos o archivos mencionados
-
-```powershell
-Select-String -Path .\docs\dia-16-plantilla-estandar-microservicio-quarkus.md -Pattern "C:\\VENTA-DE-PASAJES|docker|gcloud|mvn|npm|Remove-Item|delete|rm|Cloud SQL|Artifact Registry|Secret Manager" -Context 0,2
-```
-
-### Paso R3 - Detener procesos locales si este dia levanto herramientas
-
-```powershell
-Get-NetTCPConnection -LocalPort 3000,3001,3002,3003,8081,8082,8083,18083,18089,18096 -ErrorAction SilentlyContinue |
-  Select-Object LocalAddress,LocalPort,State,OwningProcess |
-  Format-Table -AutoSize
-
-Get-CimInstance Win32_Process -Filter "name = 'java.exe' or name = 'node.exe'" |
-  Select-Object ProcessId,CommandLine |
-  Format-List
-```
-
-Si identificas un proceso propio de la practica, detenerlo:
-
-```powershell
-Stop-Process -Id <process-id> -Force
-```
-
-### Paso R4 - Revisar contenedores temporales
-
-```powershell
-docker ps -a --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" |
-  Select-String -Pattern "venta-pasajes|identity|dispatch|ticketing|native|postgres"
-```
-
-Si el contenedor fue creado solo para repetir este dia y no se usa en otra practica:
-
-```powershell
-docker rm -f <container-name>
-```
-
-### Paso R5 - Reversa de archivos locales
-
-La reversa de archivos debe hacerse con control de cambios o backup. Este workspace inicio sin Git en los primeros dias, por eso no se recomienda borrar archivos a ciegas.
-
-```powershell
-Select-String -Path .\docs\dia-16-plantilla-estandar-microservicio-quarkus.md -Pattern "Archivo|Archivos|C:\\VENTA-DE-PASAJES" -Context 0,4
-```
-
-Si aun asi necesitas retirar solo este documento de la practica, hacer primero una copia:
-
-```powershell
-New-Item -ItemType Directory -Force -Path .\backups | Out-Null
-Copy-Item -LiteralPath .\docs\dia-16-plantilla-estandar-microservicio-quarkus.md -Destination .\backups\dia-16-plantilla-estandar-microservicio-quarkus-manual-backup.md -Force
-```
-
-Despues de respaldar, se podria eliminar manualmente el documento con:
-
-```powershell
-Remove-Item -LiteralPath .\docs\dia-16-plantilla-estandar-microservicio-quarkus.md -Force
-```
-
-## Guia manual desde cero
-
-> Estandarizacion documental agregada el 2026-09-16. Esta guia permite repetir el dia sin depender de Codex, usando el documento como fuente de verdad.
-
-### Paso 1 - Ubicarse en el proyecto
-
-```powershell
-cd C:\VENTA-DE-PASAJES
-```
-
-### Paso 2 - Leer el alcance del dia en el backlog
-
-```powershell
-Select-String -Path .\tareas.md -Pattern "Dia 16|Dia 16" -Context 0,40
-```
-
-### Paso 3 - Leer la documentacion del dia
-
-```powershell
-Get-Content -LiteralPath .\docs\dia-16-plantilla-estandar-microservicio-quarkus.md
-```
-
-### Paso 4 - Verificar archivos y rutas mencionadas
-
-```powershell
-Select-String -Path .\docs\dia-16-plantilla-estandar-microservicio-quarkus.md -Pattern "C:\\VENTA-DE-PASAJES" -AllMatches
-```
-
-Para cada ruta importante que aparezca en el documento:
-
-```powershell
-Test-Path -LiteralPath "<ruta-copiada-del-documento>"
-```
-
-### Paso 5 - Ejecutar comandos documentados
-
-Buscar bloques de comandos del documento y ejecutarlos en orden, validando el resultado de cada bloque antes de continuar:
-
-```powershell
-Select-String -Path .\docs\dia-16-plantilla-estandar-microservicio-quarkus.md -Pattern "```powershell|```text|mvn |npm |docker |gcloud |curl.exe|powershell " -Context 0,6
-```
-
-### Paso 6 - Registrar la repeticion en bitacora
-
-```powershell
-Add-Content -LiteralPath .\vitacora.md -Value "`nReplica manual Dia 16 - <fecha>: comandos ejecutados y resultado."
-```
-
-### Paso 7 - Validar criterio de avance
-
-Revisar la seccion de criterio de avance, resultado, estado final o pendientes del documento:
-
-```powershell
-Select-String -Path .\docs\dia-16-plantilla-estandar-microservicio-quarkus.md -Pattern "Criterio de avance|Resultado|Estado final|Pendiente|Pendientes" -Context 0,8
-```
