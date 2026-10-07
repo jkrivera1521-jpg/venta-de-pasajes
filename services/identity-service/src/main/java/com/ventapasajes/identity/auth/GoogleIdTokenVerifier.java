@@ -1,10 +1,10 @@
 package com.ventapasajes.identity.auth;
 
+import java.io.InputStream;
 import java.math.BigInteger;
+import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.Signature;
@@ -16,6 +16,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 
+import org.jboss.logging.Logger;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -29,7 +30,9 @@ import jakarta.inject.Inject;
 @ApplicationScoped
 public class GoogleIdTokenVerifier {
 
-    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private static final Logger LOG = Logger.getLogger(GoogleIdTokenVerifier.class);
+    private static final int JWKS_CONNECT_TIMEOUT_MS = 5000;
+    private static final int JWKS_READ_TIMEOUT_MS = 5000;
 
     @Inject
     ObjectMapper objectMapper;
@@ -153,12 +156,7 @@ public class GoogleIdTokenVerifier {
 
     private JsonNode findJwk(String keyId) {
         try {
-            HttpRequest request = HttpRequest.newBuilder(URI.create(jwksUrl)).GET().build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() >= 400) {
-                throw ApiException.unauthorized("GOOGLE_JWKS_UNAVAILABLE", "Google signing keys are unavailable.");
-            }
-            JsonNode keys = objectMapper.readTree(response.body()).path("keys");
+            JsonNode keys = loadGoogleSigningKeys().path("keys");
             for (JsonNode key : keys) {
                 if (keyId.equals(key.path("kid").asText())) {
                     return key;
@@ -168,7 +166,22 @@ public class GoogleIdTokenVerifier {
         } catch (ApiException exception) {
             throw exception;
         } catch (Exception exception) {
+            LOG.warnf(exception, "Google signing keys could not be loaded from %s.", jwksUrl);
             throw ApiException.unauthorized("GOOGLE_JWKS_UNAVAILABLE", "Google signing keys could not be loaded.");
+        }
+    }
+
+    private JsonNode loadGoogleSigningKeys() throws Exception {
+        URLConnection connection = URI.create(jwksUrl).toURL().openConnection();
+        connection.setConnectTimeout(JWKS_CONNECT_TIMEOUT_MS);
+        connection.setReadTimeout(JWKS_READ_TIMEOUT_MS);
+
+        if (connection instanceof HttpURLConnection httpConnection && httpConnection.getResponseCode() >= 400) {
+            throw ApiException.unauthorized("GOOGLE_JWKS_UNAVAILABLE", "Google signing keys are unavailable.");
+        }
+
+        try (InputStream inputStream = connection.getInputStream()) {
+            return objectMapper.readTree(inputStream);
         }
     }
 

@@ -14,6 +14,7 @@ import com.ventapasajes.identity.api.dto.PasswordForgotRequest;
 import com.ventapasajes.identity.api.dto.PasswordResetRequest;
 import com.ventapasajes.identity.api.dto.ReplaceUserRolesRequest;
 import com.ventapasajes.identity.api.dto.RoleCreateRequest;
+import com.ventapasajes.identity.api.dto.RoleUpdateRequest;
 import com.ventapasajes.identity.api.dto.UserCreateRequest;
 import com.ventapasajes.identity.api.dto.UserUpdateRequest;
 import com.ventapasajes.identity.auth.RequestIdentity;
@@ -165,6 +166,24 @@ public class IdentityBaseResource {
         return Response.created(URI.create("/api/v1/identity/roles/" + response.id()))
                 .entity(response)
                 .build();
+    }
+
+    @PATCH
+    @Path("/roles/{roleId}")
+    @RequiresPermission("identity.roles.manage")
+    @Operation(summary = "Partially update one role and optionally replace its permissions.")
+    @APIResponse(responseCode = "200", description = "Role updated.")
+    public Response updateRole(@PathParam("roleId") String roleId, RoleUpdateRequest request) {
+        return Response.ok(identityService.updateRole(parseUuid(roleId, "roleId"), request, false)).build();
+    }
+
+    @PUT
+    @Path("/roles/{roleId}")
+    @RequiresPermission("identity.roles.manage")
+    @Operation(summary = "Replace one role definition and its permissions.")
+    @APIResponse(responseCode = "200", description = "Role replaced.")
+    public Response replaceRole(@PathParam("roleId") String roleId, RoleUpdateRequest request) {
+        return Response.ok(identityService.updateRole(parseUuid(roleId, "roleId"), request, true)).build();
     }
 
     @GET

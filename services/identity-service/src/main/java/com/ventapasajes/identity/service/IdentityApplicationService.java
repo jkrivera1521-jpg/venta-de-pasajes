@@ -29,6 +29,7 @@ import com.ventapasajes.identity.api.dto.PermissionResponse;
 import com.ventapasajes.identity.api.dto.ReplaceUserRolesRequest;
 import com.ventapasajes.identity.api.dto.RoleCreateRequest;
 import com.ventapasajes.identity.api.dto.RoleResponse;
+import com.ventapasajes.identity.api.dto.RoleUpdateRequest;
 import com.ventapasajes.identity.api.dto.UserCreateRequest;
 import com.ventapasajes.identity.api.dto.UserResponse;
 import com.ventapasajes.identity.api.dto.UserUpdateRequest;
@@ -255,6 +256,41 @@ public class IdentityApplicationService {
         role.active = true;
         role.persist();
         replaceRolePermissions(role.id, safeList(request.permissionCodes()));
+        return toRoleResponse(role);
+    }
+
+    @Transactional
+    public RoleResponse updateRole(UUID roleId, RoleUpdateRequest request, boolean replaceMissingFields) {
+        request = requirePayload(request);
+        Role role = requireRole(roleId);
+
+        if (request.code() != null || replaceMissingFields) {
+            String code = required(request.code(), "code").toUpperCase(Locale.ROOT);
+            Role existing = Role.find("code = ?1 and id <> ?2", code, role.id).firstResult();
+            if (existing != null) {
+                throw ApiException.conflict("ROLE_ALREADY_EXISTS", "A role already exists with the same code.");
+            }
+            role.code = code;
+        }
+
+        if (request.name() != null || replaceMissingFields) {
+            role.name = required(request.name(), "name");
+        }
+
+        if (request.description() != null || replaceMissingFields) {
+            role.description = normalizeNullable(request.description());
+        }
+
+        if (request.active() != null || replaceMissingFields) {
+            role.active = request.active() == null || request.active();
+        }
+
+        role.persist();
+
+        if (request.permissionCodes() != null || replaceMissingFields) {
+            replaceRolePermissions(role.id, safeList(request.permissionCodes()));
+        }
+
         return toRoleResponse(role);
     }
 
@@ -600,6 +636,14 @@ public class IdentityApplicationService {
         Role role = Role.find("code", code).firstResult();
         if (role == null) {
             throw ApiException.notFound("ROLE_NOT_FOUND", "Role was not found: " + code + ".");
+        }
+        return role;
+    }
+
+    private Role requireRole(UUID roleId) {
+        Role role = Role.findById(roleId);
+        if (role == null) {
+            throw ApiException.notFound("ROLE_NOT_FOUND", "Role was not found.");
         }
         return role;
     }

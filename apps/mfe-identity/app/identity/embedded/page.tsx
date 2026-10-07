@@ -15,11 +15,13 @@ import {
   LogIn,
   LogOut,
   MailCheck,
+  Pencil,
   RefreshCw,
   ShieldCheck,
   UserCheck,
   UserPlus,
-  Users
+  Users,
+  X
 } from "lucide-react";
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -128,6 +130,16 @@ const identityQueryKeys = {
   session: (token: string) => ["identity", "session", token] as const
 };
 
+function emptyRoleForm() {
+  return {
+    active: true,
+    code: "",
+    description: "",
+    name: "",
+    permission_codes: [] as string[]
+  };
+}
+
 function parseApiError(payload: unknown, fallback: string) {
   if (payload && typeof payload === "object" && "error" in payload) {
     const error = (payload as { error?: { message?: unknown } }).error;
@@ -234,12 +246,8 @@ export default function EmbeddedIdentity() {
     email: "",
     role_code: "TICKET_SELLER"
   });
-  const [roleForm, setRoleForm] = useState({
-    code: "",
-    description: "",
-    name: "",
-    permission_codes: [] as string[]
-  });
+  const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
+  const [roleForm, setRoleForm] = useState(emptyRoleForm);
   const [forgotForm, setForgotForm] = useState({ login_or_email: "" });
   const [resetForm, setResetForm] = useState({ token: "", new_password: "" });
   const googleScriptLoading = useRef<Promise<void> | null>(null);
@@ -501,20 +509,49 @@ export default function EmbeddedIdentity() {
     }, "Correo Google vinculado");
   }
 
-  async function createRole(event: FormEvent<HTMLFormElement>) {
+  function selectRoleForEdit(role: Role) {
+    setEditingRoleId(role.id);
+    setRoleForm({
+      active: role.active,
+      code: role.code,
+      description: role.description ?? "",
+      name: role.name,
+      permission_codes: role.permissions
+    });
+    setStatusMessage(`Editando rol: ${role.code}`);
+  }
+
+  function clearRoleForm() {
+    setEditingRoleId(null);
+    setRoleForm(emptyRoleForm());
+  }
+
+  async function submitRole(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!accessToken) {
       return;
     }
 
     await runAction(async () => {
-      await apiRequest<Role>("/roles", {
-        body: JSON.stringify(roleForm),
-        method: "POST"
+      const payload = {
+        active: roleForm.active,
+        code: roleForm.code,
+        description: roleForm.description,
+        name: roleForm.name,
+        permission_codes: roleForm.permission_codes
+      };
+      await apiRequest<Role>(editingRoleId ? `/roles/${editingRoleId}` : "/roles", {
+        body: JSON.stringify(editingRoleId ? payload : {
+          code: payload.code,
+          description: payload.description,
+          name: payload.name,
+          permission_codes: payload.permission_codes
+        }),
+        method: editingRoleId ? "PUT" : "POST"
       }, accessToken);
-      setRoleForm({ code: "", description: "", name: "", permission_codes: [] });
+      clearRoleForm();
       await queryClient.invalidateQueries({ queryKey: identityQueryKeys.sessionRoot });
-    }, "Rol creado");
+    }, editingRoleId ? "Rol actualizado" : "Rol creado");
   }
 
   async function requestPasswordRecovery(event: FormEvent<HTMLFormElement>) {
@@ -930,6 +967,7 @@ export default function EmbeddedIdentity() {
                     <th>Nombre</th>
                     <th>Permisos</th>
                     <th>Estado</th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -941,6 +979,13 @@ export default function EmbeddedIdentity() {
                       <td>
                         <span className={role.active ? "pill pill-ok" : "pill pill-wait"}>{role.active ? "ACTIVE" : "INACTIVE"}</span>
                       </td>
+                      <td>
+                        <div className="row-actions">
+                          <button onClick={() => selectRoleForEdit(role)} title={`Editar rol ${role.code}`} type="button">
+                            <Pencil aria-hidden="true" size={16} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -948,14 +993,18 @@ export default function EmbeddedIdentity() {
             </div>
           </section>
 
-          <form className="form-panel" onSubmit={createRole}>
+          <form className="form-panel" onSubmit={submitRole}>
             <div className="panel-heading">
               <ShieldCheck aria-hidden="true" size={19} />
-              <h2>Nuevo rol</h2>
+              <h2>{editingRoleId ? "Editar rol" : "Nuevo rol"}</h2>
             </div>
             <label>
               Codigo
-              <input onChange={(event) => setRoleForm((current) => ({ ...current, code: event.target.value }))} value={roleForm.code} />
+              <input
+                disabled={Boolean(editingRoleId)}
+                onChange={(event) => setRoleForm((current) => ({ ...current, code: event.target.value }))}
+                value={roleForm.code}
+              />
             </label>
             <label>
               Nombre
@@ -977,10 +1026,26 @@ export default function EmbeddedIdentity() {
                 </label>
               ))}
             </div>
+            {editingRoleId ? (
+              <label className="checkbox-line">
+                <input
+                  checked={roleForm.active}
+                  onChange={(event) => setRoleForm((current) => ({ ...current, active: event.target.checked }))}
+                  type="checkbox"
+                />
+                <span>Rol activo</span>
+              </label>
+            ) : null}
             <button className="primary-action" disabled={busy} type="submit">
               <ShieldCheck aria-hidden="true" size={17} />
-              <span>Crear rol</span>
+              <span>{editingRoleId ? "Actualizar rol" : "Crear rol"}</span>
             </button>
+            {editingRoleId ? (
+              <button className="secondary-action" disabled={busy} onClick={clearRoleForm} type="button">
+                <X aria-hidden="true" size={17} />
+                <span>Cancelar edicion</span>
+              </button>
+            ) : null}
           </form>
         </section>
       ) : null}

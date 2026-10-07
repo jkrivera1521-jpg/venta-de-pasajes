@@ -40,6 +40,28 @@ class IdentityBaseResourceTest {
     }
 
     @Test
+    void updateRoleEndpointRequiresBearerToken() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("{}")
+                .when().patch("/api/v1/identity/roles/00000000-0000-0000-0000-000000000001")
+                .then()
+                .statusCode(401)
+                .body("error.code", is("UNAUTHORIZED"));
+    }
+
+    @Test
+    void replaceRoleEndpointRequiresBearerToken() {
+        given()
+                .contentType(ContentType.JSON)
+                .body("{}")
+                .when().put("/api/v1/identity/roles/00000000-0000-0000-0000-000000000001")
+                .then()
+                .statusCode(401)
+                .body("error.code", is("UNAUTHORIZED"));
+    }
+
+    @Test
     void logoutEndpointRequiresBearerToken() {
         given()
                 .when().post("/api/v1/identity/auth/logout")

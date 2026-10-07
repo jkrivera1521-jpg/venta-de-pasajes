@@ -13,6 +13,7 @@ import com.ventapasajes.identity.api.dto.PermissionResponse;
 import com.ventapasajes.identity.api.dto.ReplaceUserRolesRequest;
 import com.ventapasajes.identity.api.dto.RoleCreateRequest;
 import com.ventapasajes.identity.api.dto.RoleResponse;
+import com.ventapasajes.identity.api.dto.RoleUpdateRequest;
 import com.ventapasajes.identity.api.dto.StatusReasonRequest;
 import com.ventapasajes.identity.api.dto.UserCreateRequest;
 import com.ventapasajes.identity.api.dto.UserResponse;
@@ -37,6 +38,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
         ReplaceUserRolesRequest.class,
         RoleCreateRequest.class,
         RoleResponse.class,
+        RoleUpdateRequest.class,
         StatusReasonRequest.class,
         UserCreateRequest.class,
         UserResponse.class,
