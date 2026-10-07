@@ -443,6 +443,176 @@ POST /api/v1/identity/password/reset
 
 Los endpoints funcionales distintos de health devuelven `501 NOT_IMPLEMENTED` hasta el Dia 18.
 
+## Ver endpoints en Swagger UI
+
+`identity-service` si expone documentacion OpenAPI/Swagger. Si no ves los endpoints, normalmente no es porque falten en el codigo, sino por una de estas causas:
+
+- el servicio no esta levantado;
+- estas entrando a una URL incorrecta;
+- estas usando una imagen Docker vieja;
+- estas entrando a Cloud Run productivo privado sin autenticacion;
+- el navegador quedo apuntando a otro puerto.
+
+### Rutas correctas
+
+La configuracion real esta en:
+
+```text
+C:\VENTA-DE-PASAJES\services\identity-service\src\main\resources\application.properties
+```
+
+Valores relevantes:
+
+```properties
+quarkus.http.port=${QUARKUS_HTTP_PORT:8081}
+quarkus.http.non-application-root-path=/q
+quarkus.smallrye-openapi.path=/q/openapi
+quarkus.swagger-ui.always-include=true
+quarkus.swagger-ui.path=/q/swagger-ui
+```
+
+Por eso las rutas correctas son:
+
+| Forma de levantar el servicio | Swagger UI | OpenAPI crudo |
+| --- | --- | --- |
+| JVM local en puerto por defecto | `http://localhost:8081/q/swagger-ui` | `http://localhost:8081/q/openapi` |
+| Docker local del apartado L | `http://localhost:18081/q/swagger-ui` | `http://localhost:18081/q/openapi` |
+| Nativo local del apartado N | `http://localhost:18083/q/swagger-ui` | `http://localhost:18083/q/openapi` |
+
+No usar:
+
+```text
+http://localhost:18081/swagger-ui
+http://localhost:18081/openapi
+```
+
+En este proyecto la raiz tecnica de Quarkus es `/q`.
+
+### Validar si el servicio esta levantado
+
+Para Docker local:
+
+```powershell
+docker ps -a --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}" |
+  Select-String -Pattern "venta-pasajes-identity|identity-service"
+```
+
+Debe existir un contenedor parecido a:
+
+```text
+venta-pasajes-identity-service   identity-service:local   Up ...   0.0.0.0:18081->8081/tcp
+```
+
+Validar health:
+
+```powershell
+curl.exe -s http://localhost:18081/q/health/ready
+curl.exe -s http://localhost:18081/api/v1/identity/health
+```
+
+Si aparece conexion rechazada, el servicio no esta corriendo en ese puerto.
+
+### Validar que OpenAPI contiene endpoints
+
+```powershell
+curl.exe -s http://localhost:18081/q/openapi |
+  Select-String -Pattern "/api/v1/identity"
+```
+
+Debe mostrar rutas como:
+
+```text
+/api/v1/identity/auth/local/login
+/api/v1/identity/me
+/api/v1/identity/users
+/api/v1/identity/roles
+/api/v1/identity/permissions
+```
+
+Si `q/openapi` muestra endpoints pero Swagger UI no, el problema esta en la pantalla del navegador o cache. Probar refrescar con `Ctrl+F5` o abrir la URL en una ventana privada.
+
+### Si el servicio esta apagado
+
+Volver a levantar la base y el servicio usando el apartado `Levantar identity-service y PostgreSQL localmente con Docker`.
+
+Si la base local ya esta levantada y solo falta el servicio:
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+
+$LocalDbPassword = "IdentityLocal_ChangeMe_12345"
+
+docker run -d `
+  --name venta-pasajes-identity-service `
+  --network venta-pasajes-identity-local `
+  -p 18081:8081 `
+  -e QUARKUS_PROFILE=onprem `
+  -e QUARKUS_HTTP_PORT=8081 `
+  -e APP_ENV=local-docker `
+  -e APP_RUNTIME_TARGET=onprem `
+  -e APP_SECRETS_PROVIDER=env `
+  -e APP_DB_NAME=identity_db `
+  -e APP_DB_JDBC_URL=jdbc:postgresql://venta-pasajes-identity-db:5432/identity_db `
+  -e APP_DB_USERNAME=identity_user `
+  -e "APP_DB_PASSWORD=$LocalDbPassword" `
+  -e QUARKUS_FLYWAY_MIGRATE_AT_START=true `
+  -e APP_LOG_CONSOLE_JSON=false `
+  -e APP_JWT_SIGNING_SECRET=local-docker-jwt-signing-secret-change-me-32-bytes `
+  -e APP_PASSWORD_PEPPER=local-docker-password-pepper-change-me `
+  -e APP_RECOVERY_TOKEN_PEPPER=local-docker-recovery-token-pepper-change-me `
+  -e APP_REFRESH_TOKEN_PEPPER=local-docker-refresh-token-pepper-change-me `
+  -e APP_BOOTSTRAP_ADMIN_ENABLED=true `
+  -e APP_BOOTSTRAP_ADMIN_LOGIN=admin `
+  -e APP_BOOTSTRAP_ADMIN_EMAIL=admin@local.test `
+  -e APP_BOOTSTRAP_ADMIN_DISPLAY_NAME="Administrador Local" `
+  -e APP_BOOTSTRAP_ADMIN_PASSWORD=AdminLocal_ChangeMe_12345 `
+  identity-service:local
+```
+
+### Si la imagen local esta desactualizada
+
+Si agregaste endpoints o cambiaste codigo Java, reconstruir la imagen antes de abrir Swagger:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-backend-jvm-images.ps1 `
+  -ConfigPath .\infra\cloudrun\dev-services.json `
+  -ServiceIds identity-service `
+  -ImageTag local `
+  -UseCleanWorkspace
+```
+
+Luego recrear el contenedor:
+
+```powershell
+docker rm -f venta-pasajes-identity-service
+```
+
+Y levantarlo otra vez con el comando anterior.
+
+### Donde estan declarados los endpoints
+
+Los endpoints se detectan desde clases JAX-RS:
+
+| Archivo | Que aporta al Swagger |
+| --- | --- |
+| `C:\VENTA-DE-PASAJES\services\identity-service\src\main\java\com\ventapasajes\identity\api\IdentityHealthResource.java` | `GET /api/v1/identity/health`. |
+| `C:\VENTA-DE-PASAJES\services\identity-service\src\main\java\com\ventapasajes\identity\api\IdentityBaseResource.java` | Login, Google exchange, logout, `/me`, usuarios, roles, permisos, identidades autorizadas y recuperacion de contrasena. |
+
+Swagger no inventa endpoints. Lee las anotaciones y rutas del codigo, por ejemplo:
+
+```java
+@Path("/api/v1/identity")
+```
+
+y los metodos anotados con:
+
+```java
+@GET
+@POST
+@PATCH
+@PUT
+```
+
 ## Comandos ejecutados
 
 Revision del alcance:
