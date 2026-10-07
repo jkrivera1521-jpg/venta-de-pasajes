@@ -27,11 +27,25 @@ class IdentityMigrationContractTest {
         assertContains(sql, "password_changed_at");
     }
 
+    @Test
+    void googleIdentitiesCompatibilityMigrationAddsAuditColumns() throws IOException {
+        String sql = readMigration("/db/migration/V2__google_identities_audit_columns.sql");
+
+        assertContains(sql, "ALTER TABLE google_identities");
+        assertContains(sql, "ADD COLUMN IF NOT EXISTS created_at");
+        assertContains(sql, "ADD COLUMN IF NOT EXISTS updated_at");
+        assertContains(sql, "trg_google_identities_updated_at");
+    }
+
     private static String readMigration() throws IOException {
+        return readMigration("/db/migration/V1__identity_schema.sql");
+    }
+
+    private static String readMigration(String resourcePath) throws IOException {
         try (InputStream stream = IdentityMigrationContractTest.class
-                .getResourceAsStream("/db/migration/V1__identity_schema.sql")) {
+                .getResourceAsStream(resourcePath)) {
             if (stream == null) {
-                throw new IOException("Migration resource was not found.");
+                throw new IOException("Migration resource was not found: " + resourcePath);
             }
             return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         }
