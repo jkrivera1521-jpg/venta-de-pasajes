@@ -47,6 +47,265 @@ La migracion incluye:
 - `login_attempts`: auditoria de intentos de login.
 - `outbox_events`: eventos pendientes de publicacion.
 
+## Levantar `identity-service` y PostgreSQL localmente con Docker
+
+> Apartado operativo agregado para repetir la prueba de forma dockerizada. No fue ejecutado por Codex.
+>
+> Estos comandos levantan una base PostgreSQL local y el servicio `identity-service` como contenedor Docker. No usan Cloud SQL, Secret Manager ni recursos de Google Cloud.
+
+### Que se levanta
+
+| Recurso | Nombre local | Puerto host | Proposito |
+| --- | --- | --- | --- |
+| Red Docker | `venta-pasajes-identity-local` | No aplica | Permite que el contenedor del servicio vea a PostgreSQL por nombre DNS interno. |
+| Volumen Docker | `venta-pasajes-identity-pgdata` | No aplica | Persiste datos locales de PostgreSQL aunque se reinicien contenedores. |
+| PostgreSQL | `venta-pasajes-identity-db` | `55432 -> 5432` | Base local `identity_db`. |
+| Servicio Quarkus | `venta-pasajes-identity-service` | `18081 -> 8081` | API local de `identity-service`. |
+| Imagen JVM local | `identity-service:local` | No aplica | Imagen construida desde `services\identity-service`. |
+
+### Paso L1 - Ubicarse en el proyecto
+
+```powershell
+cd C:\VENTA-DE-PASAJES
+```
+
+### Paso L2 - Compilar el servicio JVM
+
+Este paso genera `target\quarkus-app`, que es lo que copia el Dockerfile JVM.
+
+```powershell
+mvn -f .\services\identity-service\pom.xml test
+mvn -f .\services\identity-service\pom.xml package -DskipTests
+```
+
+Si el primer comando falla, no continuar. Primero corregir pruebas.
+
+### Paso L3 - Construir la imagen Docker local del servicio
+
+En este repositorio no se debe construir esta imagen con `docker build` directo desde `services\identity-service`, porque `services\identity-service\.dockerignore` excluye `target/*`. Eso hace que Docker no vea `target\quarkus-app` aunque Maven lo haya generado.
+
+Usar el script del monorepo, que crea un contexto temporal correcto y deja la imagen local `identity-service:local`.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-backend-jvm-images.ps1 `
+  -ConfigPath .\infra\cloudrun\dev-services.json `
+  -ServiceIds identity-service `
+  -ImageTag local `
+  -UseCleanWorkspace
+```
+
+Validar que la imagen exista:
+
+```powershell
+docker image ls identity-service
+```
+
+Resultado esperado:
+
+```text
+identity-service   local
+```
+
+Si al ejecutar el Paso L6 aparece `Unable to find image 'identity-service:local' locally`, significa que este Paso L3 no se ejecuto o fallo antes de crear la imagen.
+
+### Paso L4 - Crear red y volumen local
+
+```powershell
+docker network create venta-pasajes-identity-local
+docker volume create venta-pasajes-identity-pgdata
+```
+
+Si Docker indica que la red o el volumen ya existen, continuar.
+
+### Paso L5 - Levantar PostgreSQL local dockerizado
+
+```powershell
+$LocalDbPassword = "IdentityLocal_ChangeMe_12345"
+
+docker run -d `
+  --name venta-pasajes-identity-db `
+  --network venta-pasajes-identity-local `
+  -e POSTGRES_DB=identity_db `
+  -e POSTGRES_USER=identity_user `
+  -e "POSTGRES_PASSWORD=$LocalDbPassword" `
+  -p 55432:5432 `
+  -v venta-pasajes-identity-pgdata:/var/lib/postgresql/data `
+  postgres:16-alpine
+```
+
+Esperar a que PostgreSQL este listo:
+
+```powershell
+for ($Attempt = 1; $Attempt -le 45; $Attempt++) {
+  docker exec venta-pasajes-identity-db pg_isready -U identity_user -d identity_db
+  if ($LASTEXITCODE -eq 0) { break }
+  Start-Sleep -Seconds 2
+}
+```
+
+### Paso L6 - Levantar `identity-service` dockerizado
+
+Este comando arranca el servicio con perfil `onprem`, lee secretos desde variables de entorno y aplica Flyway al iniciar.
+
+```powershell
+$LocalDbPassword = "IdentityLocal_ChangeMe_12345"
+
+docker run -d `
+  --name venta-pasajes-identity-service `
+  --network venta-pasajes-identity-local `
+  -p 18081:8081 `
+  -e QUARKUS_PROFILE=onprem `
+  -e QUARKUS_HTTP_PORT=8081 `
+  -e APP_ENV=local-docker `
+  -e APP_RUNTIME_TARGET=onprem `
+  -e APP_SECRETS_PROVIDER=env `
+  -e APP_DB_NAME=identity_db `
+  -e APP_DB_JDBC_URL=jdbc:postgresql://venta-pasajes-identity-db:5432/identity_db `
+  -e APP_DB_USERNAME=identity_user `
+  -e "APP_DB_PASSWORD=$LocalDbPassword" `
+  -e QUARKUS_FLYWAY_MIGRATE_AT_START=true `
+  -e APP_LOG_CONSOLE_JSON=false `
+  -e APP_JWT_SIGNING_SECRET=local-docker-jwt-signing-secret-change-me-32-bytes `
+  -e APP_PASSWORD_PEPPER=local-docker-password-pepper-change-me `
+  -e APP_RECOVERY_TOKEN_PEPPER=local-docker-recovery-token-pepper-change-me `
+  -e APP_REFRESH_TOKEN_PEPPER=local-docker-refresh-token-pepper-change-me `
+  -e APP_BOOTSTRAP_ADMIN_ENABLED=true `
+  -e APP_BOOTSTRAP_ADMIN_LOGIN=admin `
+  -e APP_BOOTSTRAP_ADMIN_EMAIL=admin@local.test `
+  -e APP_BOOTSTRAP_ADMIN_DISPLAY_NAME="Administrador Local" `
+  -e APP_BOOTSTRAP_ADMIN_PASSWORD=AdminLocal_ChangeMe_12345 `
+  identity-service:local
+```
+
+Notas importantes:
+
+- `APP_DB_JDBC_URL` usa el nombre del contenedor `venta-pasajes-identity-db`, no `localhost`, porque el servicio corre dentro de Docker.
+- `QUARKUS_FLYWAY_MIGRATE_AT_START=true` crea o actualiza las tablas locales al arrancar.
+- Las claves y contrasenas del ejemplo son solo locales. No copiarlas a produccion.
+- `APP_BOOTSTRAP_ADMIN_ENABLED=true` crea o asegura un usuario local `admin` para pruebas funcionales.
+
+### Paso L7 - Validar salud del servicio
+
+```powershell
+curl.exe -s http://localhost:18081/q/health/ready
+curl.exe -s http://localhost:18081/api/v1/identity/health
+```
+
+Resultado esperado:
+
+```text
+UP
+```
+
+El formato exacto puede ser JSON, pero debe indicar estado saludable.
+
+### Paso L8 - Validar que Flyway creo tablas en PostgreSQL
+
+```powershell
+docker exec -it venta-pasajes-identity-db `
+  psql -U identity_user -d identity_db -c "\dt"
+```
+
+Debe mostrar tablas como `users`, `roles`, `permissions`, `local_credentials`, `password_reset_tokens` y `flyway_schema_history`.
+
+### Paso L9 - Probar login local del admin bootstrap
+
+```powershell
+$LoginResponse = Invoke-RestMethod `
+  -Uri "http://localhost:18081/api/v1/identity/auth/local/login" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body (@{
+    login = "admin"
+    password = "AdminLocal_ChangeMe_12345"
+  } | ConvertTo-Json)
+
+$LoginResponse
+```
+
+Si el login responde `access_token`, probar `/me`:
+
+```powershell
+$Headers = @{ Authorization = "Bearer $($LoginResponse.access_token)" }
+
+Invoke-RestMethod `
+  -Uri "http://localhost:18081/api/v1/identity/me" `
+  -Method Get `
+  -Headers $Headers
+```
+
+### Paso L10 - Ver logs locales
+
+```powershell
+docker logs venta-pasajes-identity-db --tail 80
+docker logs venta-pasajes-identity-service --tail 120
+```
+
+### Paso L11 - Reiniciar solo el servicio despues de cambios de codigo
+
+Si cambias codigo Java y quieres probar de nuevo sin borrar la base:
+
+```powershell
+mvn -f .\services\identity-service\pom.xml test
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-backend-jvm-images.ps1 `
+  -ConfigPath .\infra\cloudrun\dev-services.json `
+  -ServiceIds identity-service `
+  -ImageTag local `
+  -UseCleanWorkspace
+
+docker rm -f venta-pasajes-identity-service
+
+$LocalDbPassword = "IdentityLocal_ChangeMe_12345"
+
+docker run -d `
+  --name venta-pasajes-identity-service `
+  --network venta-pasajes-identity-local `
+  -p 18081:8081 `
+  -e QUARKUS_PROFILE=onprem `
+  -e QUARKUS_HTTP_PORT=8081 `
+  -e APP_ENV=local-docker `
+  -e APP_RUNTIME_TARGET=onprem `
+  -e APP_SECRETS_PROVIDER=env `
+  -e APP_DB_NAME=identity_db `
+  -e APP_DB_JDBC_URL=jdbc:postgresql://venta-pasajes-identity-db:5432/identity_db `
+  -e APP_DB_USERNAME=identity_user `
+  -e "APP_DB_PASSWORD=$LocalDbPassword" `
+  -e QUARKUS_FLYWAY_MIGRATE_AT_START=true `
+  -e APP_LOG_CONSOLE_JSON=false `
+  -e APP_JWT_SIGNING_SECRET=local-docker-jwt-signing-secret-change-me-32-bytes `
+  -e APP_PASSWORD_PEPPER=local-docker-password-pepper-change-me `
+  -e APP_RECOVERY_TOKEN_PEPPER=local-docker-recovery-token-pepper-change-me `
+  -e APP_REFRESH_TOKEN_PEPPER=local-docker-refresh-token-pepper-change-me `
+  -e APP_BOOTSTRAP_ADMIN_ENABLED=true `
+  -e APP_BOOTSTRAP_ADMIN_LOGIN=admin `
+  -e APP_BOOTSTRAP_ADMIN_EMAIL=admin@local.test `
+  -e APP_BOOTSTRAP_ADMIN_DISPLAY_NAME="Administrador Local" `
+  -e APP_BOOTSTRAP_ADMIN_PASSWORD=AdminLocal_ChangeMe_12345 `
+  identity-service:local
+```
+
+### Paso L12 - Limpieza local
+
+Para detener todo sin borrar los datos de la base:
+
+```powershell
+docker rm -f venta-pasajes-identity-service
+docker rm -f venta-pasajes-identity-db
+docker network rm venta-pasajes-identity-local
+```
+
+Para borrar tambien la base local persistida y la imagen:
+
+```powershell
+docker rm -f venta-pasajes-identity-service
+docker rm -f venta-pasajes-identity-db
+docker volume rm venta-pasajes-identity-pgdata
+docker network rm venta-pasajes-identity-local
+docker image rm identity-service:local -f
+```
+
+
 ## Entender Flyway en este dia
 
 > Apartado pedagogico agregado para entender que hace Flyway, por que se uso en `identity-service`, que alternativas existen y como se podria hacer manualmente.
@@ -1362,263 +1621,6 @@ Google Cloud:
 
 La migracion fue validada contra PostgreSQL local temporal. No se aplico el DDL sobre Cloud SQL dev en este dia porque aun no hay un runner/rol de migracion con privilegios de esquema definido para ejecutar DDL de forma controlada.
 
-## Levantar `identity-service` y PostgreSQL localmente con Docker
-
-> Apartado operativo agregado para repetir la prueba de forma dockerizada. No fue ejecutado por Codex.
->
-> Estos comandos levantan una base PostgreSQL local y el servicio `identity-service` como contenedor Docker. No usan Cloud SQL, Secret Manager ni recursos de Google Cloud.
-
-### Que se levanta
-
-| Recurso | Nombre local | Puerto host | Proposito |
-| --- | --- | --- | --- |
-| Red Docker | `venta-pasajes-identity-local` | No aplica | Permite que el contenedor del servicio vea a PostgreSQL por nombre DNS interno. |
-| Volumen Docker | `venta-pasajes-identity-pgdata` | No aplica | Persiste datos locales de PostgreSQL aunque se reinicien contenedores. |
-| PostgreSQL | `venta-pasajes-identity-db` | `55432 -> 5432` | Base local `identity_db`. |
-| Servicio Quarkus | `venta-pasajes-identity-service` | `18081 -> 8081` | API local de `identity-service`. |
-| Imagen JVM local | `identity-service:local` | No aplica | Imagen construida desde `services\identity-service`. |
-
-### Paso L1 - Ubicarse en el proyecto
-
-```powershell
-cd C:\VENTA-DE-PASAJES
-```
-
-### Paso L2 - Compilar el servicio JVM
-
-Este paso genera `target\quarkus-app`, que es lo que copia el Dockerfile JVM.
-
-```powershell
-mvn -f .\services\identity-service\pom.xml test
-mvn -f .\services\identity-service\pom.xml package -DskipTests
-```
-
-Si el primer comando falla, no continuar. Primero corregir pruebas.
-
-### Paso L3 - Construir la imagen Docker local del servicio
-
-En este repositorio no se debe construir esta imagen con `docker build` directo desde `services\identity-service`, porque `services\identity-service\.dockerignore` excluye `target/*`. Eso hace que Docker no vea `target\quarkus-app` aunque Maven lo haya generado.
-
-Usar el script del monorepo, que crea un contexto temporal correcto y deja la imagen local `identity-service:local`.
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-backend-jvm-images.ps1 `
-  -ConfigPath .\infra\cloudrun\dev-services.json `
-  -ServiceIds identity-service `
-  -ImageTag local `
-  -UseCleanWorkspace
-```
-
-Validar que la imagen exista:
-
-```powershell
-docker image ls identity-service
-```
-
-Resultado esperado:
-
-```text
-identity-service   local
-```
-
-Si al ejecutar el Paso L6 aparece `Unable to find image 'identity-service:local' locally`, significa que este Paso L3 no se ejecuto o fallo antes de crear la imagen.
-
-### Paso L4 - Crear red y volumen local
-
-```powershell
-docker network create venta-pasajes-identity-local
-docker volume create venta-pasajes-identity-pgdata
-```
-
-Si Docker indica que la red o el volumen ya existen, continuar.
-
-### Paso L5 - Levantar PostgreSQL local dockerizado
-
-```powershell
-$LocalDbPassword = "IdentityLocal_ChangeMe_12345"
-
-docker run -d `
-  --name venta-pasajes-identity-db `
-  --network venta-pasajes-identity-local `
-  -e POSTGRES_DB=identity_db `
-  -e POSTGRES_USER=identity_user `
-  -e "POSTGRES_PASSWORD=$LocalDbPassword" `
-  -p 55432:5432 `
-  -v venta-pasajes-identity-pgdata:/var/lib/postgresql/data `
-  postgres:16-alpine
-```
-
-Esperar a que PostgreSQL este listo:
-
-```powershell
-for ($Attempt = 1; $Attempt -le 45; $Attempt++) {
-  docker exec venta-pasajes-identity-db pg_isready -U identity_user -d identity_db
-  if ($LASTEXITCODE -eq 0) { break }
-  Start-Sleep -Seconds 2
-}
-```
-
-### Paso L6 - Levantar `identity-service` dockerizado
-
-Este comando arranca el servicio con perfil `onprem`, lee secretos desde variables de entorno y aplica Flyway al iniciar.
-
-```powershell
-$LocalDbPassword = "IdentityLocal_ChangeMe_12345"
-
-docker run -d `
-  --name venta-pasajes-identity-service `
-  --network venta-pasajes-identity-local `
-  -p 18081:8081 `
-  -e QUARKUS_PROFILE=onprem `
-  -e QUARKUS_HTTP_PORT=8081 `
-  -e APP_ENV=local-docker `
-  -e APP_RUNTIME_TARGET=onprem `
-  -e APP_SECRETS_PROVIDER=env `
-  -e APP_DB_NAME=identity_db `
-  -e APP_DB_JDBC_URL=jdbc:postgresql://venta-pasajes-identity-db:5432/identity_db `
-  -e APP_DB_USERNAME=identity_user `
-  -e "APP_DB_PASSWORD=$LocalDbPassword" `
-  -e QUARKUS_FLYWAY_MIGRATE_AT_START=true `
-  -e APP_LOG_CONSOLE_JSON=false `
-  -e APP_JWT_SIGNING_SECRET=local-docker-jwt-signing-secret-change-me-32-bytes `
-  -e APP_PASSWORD_PEPPER=local-docker-password-pepper-change-me `
-  -e APP_RECOVERY_TOKEN_PEPPER=local-docker-recovery-token-pepper-change-me `
-  -e APP_REFRESH_TOKEN_PEPPER=local-docker-refresh-token-pepper-change-me `
-  -e APP_BOOTSTRAP_ADMIN_ENABLED=true `
-  -e APP_BOOTSTRAP_ADMIN_LOGIN=admin `
-  -e APP_BOOTSTRAP_ADMIN_EMAIL=admin@local.test `
-  -e APP_BOOTSTRAP_ADMIN_DISPLAY_NAME="Administrador Local" `
-  -e APP_BOOTSTRAP_ADMIN_PASSWORD=AdminLocal_ChangeMe_12345 `
-  identity-service:local
-```
-
-Notas importantes:
-
-- `APP_DB_JDBC_URL` usa el nombre del contenedor `venta-pasajes-identity-db`, no `localhost`, porque el servicio corre dentro de Docker.
-- `QUARKUS_FLYWAY_MIGRATE_AT_START=true` crea o actualiza las tablas locales al arrancar.
-- Las claves y contrasenas del ejemplo son solo locales. No copiarlas a produccion.
-- `APP_BOOTSTRAP_ADMIN_ENABLED=true` crea o asegura un usuario local `admin` para pruebas funcionales.
-
-### Paso L7 - Validar salud del servicio
-
-```powershell
-curl.exe -s http://localhost:18081/q/health/ready
-curl.exe -s http://localhost:18081/api/v1/identity/health
-```
-
-Resultado esperado:
-
-```text
-UP
-```
-
-El formato exacto puede ser JSON, pero debe indicar estado saludable.
-
-### Paso L8 - Validar que Flyway creo tablas en PostgreSQL
-
-```powershell
-docker exec -it venta-pasajes-identity-db `
-  psql -U identity_user -d identity_db -c "\dt"
-```
-
-Debe mostrar tablas como `users`, `roles`, `permissions`, `local_credentials`, `password_reset_tokens` y `flyway_schema_history`.
-
-### Paso L9 - Probar login local del admin bootstrap
-
-```powershell
-$LoginResponse = Invoke-RestMethod `
-  -Uri "http://localhost:18081/api/v1/identity/auth/local/login" `
-  -Method Post `
-  -ContentType "application/json" `
-  -Body (@{
-    login = "admin"
-    password = "AdminLocal_ChangeMe_12345"
-  } | ConvertTo-Json)
-
-$LoginResponse
-```
-
-Si el login responde `access_token`, probar `/me`:
-
-```powershell
-$Headers = @{ Authorization = "Bearer $($LoginResponse.access_token)" }
-
-Invoke-RestMethod `
-  -Uri "http://localhost:18081/api/v1/identity/me" `
-  -Method Get `
-  -Headers $Headers
-```
-
-### Paso L10 - Ver logs locales
-
-```powershell
-docker logs venta-pasajes-identity-db --tail 80
-docker logs venta-pasajes-identity-service --tail 120
-```
-
-### Paso L11 - Reiniciar solo el servicio despues de cambios de codigo
-
-Si cambias codigo Java y quieres probar de nuevo sin borrar la base:
-
-```powershell
-mvn -f .\services\identity-service\pom.xml test
-
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-backend-jvm-images.ps1 `
-  -ConfigPath .\infra\cloudrun\dev-services.json `
-  -ServiceIds identity-service `
-  -ImageTag local `
-  -UseCleanWorkspace
-
-docker rm -f venta-pasajes-identity-service
-
-$LocalDbPassword = "IdentityLocal_ChangeMe_12345"
-
-docker run -d `
-  --name venta-pasajes-identity-service `
-  --network venta-pasajes-identity-local `
-  -p 18081:8081 `
-  -e QUARKUS_PROFILE=onprem `
-  -e QUARKUS_HTTP_PORT=8081 `
-  -e APP_ENV=local-docker `
-  -e APP_RUNTIME_TARGET=onprem `
-  -e APP_SECRETS_PROVIDER=env `
-  -e APP_DB_NAME=identity_db `
-  -e APP_DB_JDBC_URL=jdbc:postgresql://venta-pasajes-identity-db:5432/identity_db `
-  -e APP_DB_USERNAME=identity_user `
-  -e "APP_DB_PASSWORD=$LocalDbPassword" `
-  -e QUARKUS_FLYWAY_MIGRATE_AT_START=true `
-  -e APP_LOG_CONSOLE_JSON=false `
-  -e APP_JWT_SIGNING_SECRET=local-docker-jwt-signing-secret-change-me-32-bytes `
-  -e APP_PASSWORD_PEPPER=local-docker-password-pepper-change-me `
-  -e APP_RECOVERY_TOKEN_PEPPER=local-docker-recovery-token-pepper-change-me `
-  -e APP_REFRESH_TOKEN_PEPPER=local-docker-refresh-token-pepper-change-me `
-  -e APP_BOOTSTRAP_ADMIN_ENABLED=true `
-  -e APP_BOOTSTRAP_ADMIN_LOGIN=admin `
-  -e APP_BOOTSTRAP_ADMIN_EMAIL=admin@local.test `
-  -e APP_BOOTSTRAP_ADMIN_DISPLAY_NAME="Administrador Local" `
-  -e APP_BOOTSTRAP_ADMIN_PASSWORD=AdminLocal_ChangeMe_12345 `
-  identity-service:local
-```
-
-### Paso L12 - Limpieza local
-
-Para detener todo sin borrar los datos de la base:
-
-```powershell
-docker rm -f venta-pasajes-identity-service
-docker rm -f venta-pasajes-identity-db
-docker network rm venta-pasajes-identity-local
-```
-
-Para borrar tambien la base local persistida y la imagen:
-
-```powershell
-docker rm -f venta-pasajes-identity-service
-docker rm -f venta-pasajes-identity-db
-docker volume rm venta-pasajes-identity-pgdata
-docker network rm venta-pasajes-identity-local
-docker image rm identity-service:local -f
-```
 
 ## Probar `identity-service` localmente con compilacion nativa
 
