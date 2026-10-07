@@ -64,6 +64,151 @@ NEXT_PUBLIC_GOOGLE_CLIENT_ID=<google-oauth-client-id>
 
 `NEXT_PUBLIC_GOOGLE_CLIENT_ID` puede quedar vacio en on-premise/offline si solo se usara login local.
 
+## Donde se configura el consumo de `identity-service`
+
+El MFE no consume `identity-service` directamente desde el navegador. El flujo real es:
+
+```text
+Navegador -> mfe-identity /api/identity/* -> proxy Next.js -> identity-service /api/v1/identity/*
+```
+
+Esto evita problemas de CORS y permite que, en Cloud Run, el MFE agregue autenticacion interna hacia servicios privados cuando el destino es una URL `*.run.app`.
+
+### Punto 1 - Pantalla del MFE
+
+Archivo:
+
+```text
+C:\VENTA-DE-PASAJES\apps\mfe-identity\app\identity\embedded\page.tsx
+```
+
+La pantalla usa esta base local:
+
+```typescript
+const apiBase = "/api/identity";
+```
+
+Por eso los llamados del frontend salen asi:
+
+```text
+/api/identity/auth/local/login
+/api/identity/me
+/api/identity/users
+/api/identity/roles
+/api/identity/permissions
+/api/identity/authorized-identities
+```
+
+El navegador nunca necesita saber la URL real de Cloud Run o del backend local. Solo llama al MFE en `http://localhost:3001/api/identity/...`.
+
+### Punto 2 - Proxy interno del MFE
+
+Archivo:
+
+```text
+C:\VENTA-DE-PASAJES\apps\mfe-identity\app\api\identity\[...path]\route.ts
+```
+
+Este archivo recibe todo lo que llegue a `/api/identity/*` y lo reenvia a `identity-service`.
+
+La URL destino se resuelve en este orden:
+
+1. `IDENTITY_API_URL`
+2. `NEXT_PUBLIC_IDENTITY_API_URL`
+3. Valor por defecto local: `http://localhost:8081/api/v1/identity`
+
+Ejemplo: si el navegador llama:
+
+```text
+http://localhost:3001/api/identity/users
+```
+
+Y el MFE tiene:
+
+```text
+IDENTITY_API_URL=http://localhost:8081/api/v1/identity
+```
+
+El proxy reenvia la solicitud a:
+
+```text
+http://localhost:8081/api/v1/identity/users
+```
+
+### Punto 3 - Arranque local
+
+En local se configura con el parametro `-IdentityApiUrl` del script:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-frontend-dev.ps1 `
+  -ShellPort 3000 `
+  -MfeIdentityPort 3001 `
+  -IdentityApiUrl http://localhost:8081/api/v1/identity
+```
+
+Ese parametro se convierte internamente en estas variables para `mfe-identity`:
+
+```text
+IDENTITY_API_URL=http://localhost:8081/api/v1/identity
+NEXT_PUBLIC_IDENTITY_API_URL=http://localhost:8081/api/v1/identity
+```
+
+Archivo donde ocurre:
+
+```text
+C:\VENTA-DE-PASAJES\scripts\start-frontend-dev.ps1
+```
+
+### Punto 4 - Despliegue en Cloud Run dev
+
+En ambiente dev la URL se configura en:
+
+```text
+C:\VENTA-DE-PASAJES\infra\cloudrun\dev-services.json
+```
+
+Dentro del servicio `mfe-identity`:
+
+```json
+"IDENTITY_API_URL": "${SERVICE_URL:identity-service}/api/v1/identity",
+"NEXT_PUBLIC_IDENTITY_API_URL": "${SERVICE_URL:identity-service}/api/v1/identity"
+```
+
+El placeholder `${SERVICE_URL:identity-service}` no se escribe a mano en Google Cloud. El script de despliegue lo reemplaza por la URL real del servicio `identity-service` publicado en Cloud Run.
+
+### Punto 5 - Despliegue en Cloud Run prod
+
+En ambiente productivo frontend la misma relacion esta en:
+
+```text
+C:\VENTA-DE-PASAJES\infra\cloudrun\prod-frontend-services.json
+```
+
+Dentro del servicio `mfe-identity-prod`:
+
+```json
+"IDENTITY_API_URL": "${SERVICE_URL:identity-service}/api/v1/identity",
+"NEXT_PUBLIC_IDENTITY_API_URL": "${SERVICE_URL:identity-service}/api/v1/identity"
+```
+
+### Punto 6 - Validacion rapida
+
+Validar que el MFE esta vivo:
+
+```powershell
+curl.exe -s "http://localhost:3001/api/health"
+```
+
+Validar que el proxy llega a `identity-service`:
+
+```powershell
+curl.exe -s -X POST "http://localhost:3001/api/identity/auth/local/login" `
+  -H "Content-Type: application/json" `
+  -d '{"login":"admin","password":"<password-local-o-productivo>"}'
+```
+
+Si `identity-service` no esta levantado, esta prueba debe responder error `IDENTITY_API_UNAVAILABLE` o un error de conexion. En ese caso el problema no esta en el MFE, sino en que el backend destino de `IDENTITY_API_URL` no esta disponible.
+
 ## Arranque local
 
 ```powershell
