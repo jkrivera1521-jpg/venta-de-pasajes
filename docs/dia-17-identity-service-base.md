@@ -441,7 +441,7 @@ POST /api/v1/identity/password/forgot
 POST /api/v1/identity/password/reset
 ```
 
-Los endpoints funcionales distintos de health devuelven `501 NOT_IMPLEMENTED` hasta el Dia 18.
+Estado original del Dia 17: los endpoints funcionales distintos de health quedaron planteados como base tecnica para completarse en el Dia 18. Estado actual del repositorio: esos endpoints ya tienen implementacion real de autenticacion, usuarios, roles, permisos, identidades autorizadas y recuperacion de contrasena.
 
 ## Ver endpoints en Swagger UI
 
@@ -612,6 +612,662 @@ y los metodos anotados con:
 @PATCH
 @PUT
 ```
+
+## Analisis detallado de endpoints de `identity-service`
+
+> Apartado agregado como guia practica de consumo. Los ejemplos asumen que el servicio esta levantado localmente por Docker en `http://localhost:18081`.
+
+### Convenciones para consumir la API
+
+Este servicio usa JSON y Jackson esta configurado con:
+
+```properties
+quarkus.jackson.property-naming-strategy=SNAKE_CASE
+```
+
+Eso significa que en Java los campos se llaman `accessToken`, `loginOrEmail`, `identityType`, pero en JSON se consumen como:
+
+```text
+access_token
+login_or_email
+identity_type
+```
+
+Variables utiles para los ejemplos:
+
+```powershell
+$BaseUrl = "http://localhost:18081"
+```
+
+Para endpoints protegidos primero obtener token:
+
+```powershell
+$LoginResponse = Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/auth/local/login" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body (@{
+    login = "admin"
+    password = "AdminLocal_ChangeMe_12345"
+  } | ConvertTo-Json)
+
+$AccessToken = $LoginResponse.access_token
+$Headers = @{ Authorization = "Bearer $AccessToken" }
+```
+
+Equivalente con `curl.exe`:
+
+```powershell
+curl.exe -s -X POST "$BaseUrl/api/v1/identity/auth/local/login" `
+  -H "Content-Type: application/json" `
+  -d "{\"login\":\"admin\",\"password\":\"AdminLocal_ChangeMe_12345\"}"
+```
+
+### Resumen de seguridad por endpoint
+
+| Metodo | Ruta | Requiere token | Permiso requerido |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/identity/health` | No | Ninguno |
+| `POST` | `/api/v1/identity/auth/local/login` | No | Ninguno |
+| `POST` | `/api/v1/identity/auth/google/exchange` | No | Ninguno, pero la identidad Google debe estar autorizada |
+| `POST` | `/api/v1/identity/auth/logout` | Si | Usuario autenticado |
+| `GET` | `/api/v1/identity/me` | Si | Usuario autenticado |
+| `GET` | `/api/v1/identity/users` | Si | `identity.users.read` |
+| `POST` | `/api/v1/identity/users` | Si | `identity.users.write` |
+| `GET` | `/api/v1/identity/users/{userId}` | Si | `identity.users.read` |
+| `PATCH` | `/api/v1/identity/users/{userId}` | Si | `identity.users.write` |
+| `PUT` | `/api/v1/identity/users/{userId}/roles` | Si | `identity.roles.manage` |
+| `POST` | `/api/v1/identity/users/{userId}/activate` | Si | `identity.users.status` |
+| `POST` | `/api/v1/identity/users/{userId}/suspend` | Si | `identity.users.status` |
+| `GET` | `/api/v1/identity/roles` | Si | `identity.roles.read` |
+| `POST` | `/api/v1/identity/roles` | Si | `identity.roles.manage` |
+| `GET` | `/api/v1/identity/permissions` | Si | `identity.permissions.read` |
+| `GET` | `/api/v1/identity/authorized-identities` | Si | `identity.authorized-identities.read` |
+| `POST` | `/api/v1/identity/authorized-identities` | Si | `identity.authorized-identities.manage` |
+| `POST` | `/api/v1/identity/password/forgot` | No | Ninguno |
+| `POST` | `/api/v1/identity/password/reset` | No | Ninguno |
+
+### `GET /api/v1/identity/health`
+
+Sirve para validar que el servicio responde a nivel funcional. No reemplaza `/q/health/ready`, pero es util para el consumidor de la API.
+
+Respuesta esperada:
+
+```json
+{
+  "service": "identity-service",
+  "status": "ok"
+}
+```
+
+Consumir con PowerShell:
+
+```powershell
+Invoke-RestMethod -Uri "$BaseUrl/api/v1/identity/health" -Method Get
+```
+
+Consumir con `curl.exe`:
+
+```powershell
+curl.exe -s "$BaseUrl/api/v1/identity/health"
+```
+
+### `POST /api/v1/identity/auth/local/login`
+
+Autentica con usuario y contrasena local. Si las credenciales son validas y el usuario esta activo, devuelve un JWT interno.
+
+Request:
+
+```json
+{
+  "login": "admin",
+  "password": "AdminLocal_ChangeMe_12345"
+}
+```
+
+Respuesta esperada:
+
+```json
+{
+  "access_token": "<jwt>",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "user": {
+    "id": "<uuid>",
+    "login": "admin",
+    "email": "admin@local.test",
+    "display_name": "Administrador Local",
+    "status": "ACTIVE",
+    "roles": ["ADMIN"],
+    "permissions": ["identity.users.read"]
+  }
+}
+```
+
+Consumir:
+
+```powershell
+$LoginResponse = Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/auth/local/login" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body (@{
+    login = "admin"
+    password = "AdminLocal_ChangeMe_12345"
+  } | ConvertTo-Json)
+
+$AccessToken = $LoginResponse.access_token
+```
+
+Notas:
+
+- si el usuario no existe o la contrasena es incorrecta devuelve `401`;
+- si se superan intentos fallidos puede bloquear temporalmente al usuario;
+- registra el intento en `login_attempts`.
+
+### `POST /api/v1/identity/auth/google/exchange`
+
+Recibe un ID token de Google y lo cambia por un JWT interno del sistema.
+
+Request:
+
+```json
+{
+  "id_token": "<google-id-token>"
+}
+```
+
+Consumir:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/auth/google/exchange" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body (@{
+    id_token = "<google-id-token>"
+  } | ConvertTo-Json)
+```
+
+Notas:
+
+- la identidad Google debe estar autorizada como `EMAIL`, `DOMAIN` o `GOOGLE_SUBJECT`;
+- si no esta autorizada devuelve `403 GOOGLE_IDENTITY_NOT_AUTHORIZED`;
+- si el usuario no existe, puede crearlo como usuario Google autorizado;
+- si existe como local, puede vincularlo como `HYBRID`.
+
+### `POST /api/v1/identity/auth/logout`
+
+Acepta cierre de sesion del cliente. Actualmente no invalida el JWT en servidor; devuelve `204 No Content`.
+
+Consumir:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/auth/logout" `
+  -Method Post `
+  -Headers $Headers
+```
+
+Con `curl.exe`:
+
+```powershell
+curl.exe -i -X POST "$BaseUrl/api/v1/identity/auth/logout" `
+  -H "Authorization: Bearer $AccessToken"
+```
+
+### `GET /api/v1/identity/me`
+
+Devuelve el usuario autenticado a partir del JWT.
+
+Consumir:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/me" `
+  -Method Get `
+  -Headers $Headers
+```
+
+Respuesta esperada:
+
+```json
+{
+  "id": "<uuid>",
+  "login": "admin",
+  "email": "admin@local.test",
+  "display_name": "Administrador Local",
+  "status": "ACTIVE",
+  "roles": ["ADMIN"],
+  "permissions": [
+    "identity.users.read",
+    "identity.users.write",
+    "identity.roles.manage"
+  ]
+}
+```
+
+### `GET /api/v1/identity/users`
+
+Lista usuarios internos activos o no retirados. Requiere `identity.users.read`.
+
+Consumir:
+
+```powershell
+$Users = Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/users" `
+  -Method Get `
+  -Headers $Headers
+
+$Users
+```
+
+Guardar un `user_id` para otros ejemplos:
+
+```powershell
+$UserId = $Users[0].id
+```
+
+### `POST /api/v1/identity/users`
+
+Crea usuario interno. Requiere `identity.users.write`.
+
+Tipos permitidos:
+
+```text
+LOCAL
+GOOGLE
+HYBRID
+```
+
+Ejemplo usuario local:
+
+```powershell
+$CreateUserBody = @{
+  identity_type = "LOCAL"
+  login = "operador1"
+  email = "operador1@local.test"
+  display_name = "Operador Uno"
+  employee_code = "EMP-001"
+  first_name = "Operador"
+  last_name = "Uno"
+  phone = "0999999999"
+  address = "Terminal principal"
+  job_title = "Boletero"
+  temporary_password = "TempLocal_12345"
+  role_ids = @()
+}
+
+$CreatedUser = Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/users" `
+  -Method Post `
+  -Headers $Headers `
+  -ContentType "application/json" `
+  -Body ($CreateUserBody | ConvertTo-Json -Depth 6)
+
+$CreatedUser
+```
+
+Notas:
+
+- `login` es obligatorio;
+- `display_name` es obligatorio;
+- si `identity_type` es `LOCAL` o `HYBRID`, `temporary_password` es obligatorio;
+- `role_ids` recibe UUIDs de roles, no codigos como `ADMIN`.
+
+### `GET /api/v1/identity/users/{userId}`
+
+Consulta un usuario por UUID. Requiere `identity.users.read`.
+
+Consumir:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/users/$UserId" `
+  -Method Get `
+  -Headers $Headers
+```
+
+Si el UUID no existe devuelve `404 USER_NOT_FOUND`.
+
+### `PATCH /api/v1/identity/users/{userId}`
+
+Actualiza datos de perfil. Requiere `identity.users.write`.
+
+Request:
+
+```json
+{
+  "display_name": "Operador Uno Actualizado",
+  "phone": "0988888888",
+  "job_title": "Supervisor de boleteria"
+}
+```
+
+Consumir:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/users/$UserId" `
+  -Method Patch `
+  -Headers $Headers `
+  -ContentType "application/json" `
+  -Body (@{
+    display_name = "Operador Uno Actualizado"
+    phone = "0988888888"
+    job_title = "Supervisor de boleteria"
+  } | ConvertTo-Json)
+```
+
+### `PUT /api/v1/identity/users/{userId}/roles`
+
+Reemplaza todos los roles de un usuario. Requiere `identity.roles.manage`.
+
+Primero obtener roles:
+
+```powershell
+$Roles = Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/roles" `
+  -Method Get `
+  -Headers $Headers
+
+$AdminRoleId = ($Roles | Where-Object { $_.code -eq "ADMIN" }).id
+```
+
+Reemplazar roles:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/users/$UserId/roles" `
+  -Method Put `
+  -Headers $Headers `
+  -ContentType "application/json" `
+  -Body (@{
+    role_ids = @($AdminRoleId)
+  } | ConvertTo-Json -Depth 4)
+```
+
+Nota: este endpoint reemplaza la lista completa. Si mandas una lista vacia, el usuario queda sin roles.
+
+### `POST /api/v1/identity/users/{userId}/activate`
+
+Activa un usuario y limpia bloqueo temporal. Requiere `identity.users.status`.
+
+Consumir:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/users/$UserId/activate" `
+  -Method Post `
+  -Headers $Headers
+```
+
+### `POST /api/v1/identity/users/{userId}/suspend`
+
+Suspende un usuario. Requiere `identity.users.status`.
+
+Consumir:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/users/$UserId/suspend" `
+  -Method Post `
+  -Headers $Headers
+```
+
+Nota: un usuario suspendido no puede iniciar sesion local correctamente.
+
+### `GET /api/v1/identity/roles`
+
+Lista roles activos. Requiere `identity.roles.read`.
+
+Consumir:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/roles" `
+  -Method Get `
+  -Headers $Headers
+```
+
+Roles iniciales:
+
+```text
+ADMIN
+TICKET_SELLER
+```
+
+### `POST /api/v1/identity/roles`
+
+Crea un rol nuevo con permisos. Requiere `identity.roles.manage`.
+
+Request:
+
+```json
+{
+  "code": "SUPERVISOR",
+  "name": "Supervisor",
+  "description": "Supervisor de operacion",
+  "permission_codes": [
+    "identity.users.read",
+    "identity.permissions.read"
+  ]
+}
+```
+
+Consumir:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/roles" `
+  -Method Post `
+  -Headers $Headers `
+  -ContentType "application/json" `
+  -Body (@{
+    code = "SUPERVISOR"
+    name = "Supervisor"
+    description = "Supervisor de operacion"
+    permission_codes = @(
+      "identity.users.read",
+      "identity.permissions.read"
+    )
+  } | ConvertTo-Json -Depth 5)
+```
+
+Notas:
+
+- el codigo se guarda en mayusculas;
+- si el permiso no existe devuelve `PERMISSION_NOT_FOUND`;
+- si el rol ya existe devuelve `ROLE_ALREADY_EXISTS`.
+
+### `GET /api/v1/identity/permissions`
+
+Lista el catalogo de permisos. Requiere `identity.permissions.read`.
+
+Consumir:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/permissions" `
+  -Method Get `
+  -Headers $Headers
+```
+
+Permisos iniciales:
+
+```text
+identity.users.read
+identity.users.write
+identity.users.status
+identity.roles.read
+identity.roles.manage
+identity.permissions.read
+identity.authorized-identities.read
+identity.authorized-identities.manage
+```
+
+### `GET /api/v1/identity/authorized-identities`
+
+Lista correos, dominios o sujetos Google autorizados para login Google. Requiere `identity.authorized-identities.read`.
+
+Consumir:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/authorized-identities" `
+  -Method Get `
+  -Headers $Headers
+```
+
+### `POST /api/v1/identity/authorized-identities`
+
+Crea una identidad Google autorizada. Requiere `identity.authorized-identities.manage`.
+
+Tipos permitidos:
+
+```text
+EMAIL
+DOMAIN
+GOOGLE_SUBJECT
+```
+
+Ejemplo por correo:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/authorized-identities" `
+  -Method Post `
+  -Headers $Headers `
+  -ContentType "application/json" `
+  -Body (@{
+    type = "EMAIL"
+    value = "usuario@gmail.com"
+    active = $true
+  } | ConvertTo-Json)
+```
+
+Ejemplo por dominio:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/authorized-identities" `
+  -Method Post `
+  -Headers $Headers `
+  -ContentType "application/json" `
+  -Body (@{
+    type = "DOMAIN"
+    value = "empresa.com"
+    active = $true
+  } | ConvertTo-Json)
+```
+
+Notas:
+
+- si `type` es `DOMAIN`, el servicio normaliza valores que empiecen con `@`;
+- si ya existe devuelve `AUTHORIZED_IDENTITY_ALREADY_EXISTS`;
+- esto no crea usuario directamente, solo habilita a esa identidad para el flujo Google.
+
+### `POST /api/v1/identity/password/forgot`
+
+Solicita recuperacion de contrasena. Por seguridad responde aceptado aunque el usuario no exista.
+
+Request:
+
+```json
+{
+  "login_or_email": "admin"
+}
+```
+
+Consumir:
+
+```powershell
+$Forgot = Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/password/forgot" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body (@{
+    login_or_email = "admin"
+  } | ConvertTo-Json)
+
+$Forgot
+```
+
+Respuesta:
+
+```json
+{
+  "accepted": true,
+  "recovery_token": null
+}
+```
+
+Nota: en produccion no debe devolver el token. En pruebas locales puede devolverlo si se activa:
+
+```text
+APP_AUTH_RECOVERY_RETURN_TOKEN_ENABLED=true
+```
+
+### `POST /api/v1/identity/password/reset`
+
+Restablece contrasena usando un token de recuperacion valido.
+
+Request:
+
+```json
+{
+  "token": "<recovery-token>",
+  "new_password": "NuevaClave_12345"
+}
+```
+
+Consumir:
+
+```powershell
+Invoke-RestMethod `
+  -Uri "$BaseUrl/api/v1/identity/password/reset" `
+  -Method Post `
+  -ContentType "application/json" `
+  -Body (@{
+    token = "<recovery-token>"
+    new_password = "NuevaClave_12345"
+  } | ConvertTo-Json)
+```
+
+Respuesta esperada:
+
+```text
+204 No Content
+```
+
+Si el token no existe, ya fue usado o expiro, devuelve `RESET_TOKEN_INVALID`.
+
+### Errores comunes de la API
+
+El formato general de error es:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Field is required: login."
+  }
+}
+```
+
+Codigos frecuentes:
+
+| Codigo | Causa probable |
+| --- | --- |
+| `VALIDATION_ERROR` | Falta body, campo obligatorio o UUID invalido. |
+| `INVALID_CREDENTIALS` | Login o contrasena incorrectos. |
+| `USER_LOCKED` | Usuario bloqueado temporalmente. |
+| `USER_NOT_ACTIVE` | Usuario suspendido, retirado o pendiente. |
+| `FORBIDDEN` o `GOOGLE_IDENTITY_NOT_AUTHORIZED` | Token sin permisos o identidad Google no autorizada. |
+| `USER_NOT_FOUND` | UUID de usuario inexistente. |
+| `ROLE_ALREADY_EXISTS` | Rol duplicado. |
+| `PERMISSION_NOT_FOUND` | Se intento asignar permiso inexistente. |
+| `RESET_TOKEN_INVALID` | Token de recuperacion invalido, expirado o usado. |
 
 ## Comandos ejecutados
 
