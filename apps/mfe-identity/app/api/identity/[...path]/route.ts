@@ -88,6 +88,10 @@ export function PUT(request: Request, context: RouteContext) {
   return proxyIdentityRequest(request, context);
 }
 
+export function DELETE(request: Request, context: RouteContext) {
+  return proxyIdentityRequest(request, context);
+}
+
 export function OPTIONS() {
   return new Response(null, { status: 204 });
 }

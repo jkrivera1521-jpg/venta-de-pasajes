@@ -16,19 +16,23 @@ import {
   LogOut,
   MailCheck,
   Pencil,
+  Power,
+  PowerOff,
   RefreshCw,
   ShieldCheck,
+  Trash2,
   UserCheck,
   UserPlus,
   Users,
   X
 } from "lucide-react";
 import type { FormEvent } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type IdentityType = "GOOGLE" | "LOCAL" | "HYBRID";
 type AuthorizedIdentityType = "EMAIL" | "DOMAIN" | "GOOGLE_SUBJECT";
 type TabKey = "users" | "authorized" | "roles" | "permissions" | "recovery";
+type RoleStatus = "ACTIVE" | "DISABLED" | "DELETED";
 
 type CurrentUser = {
   id: string;
@@ -53,6 +57,7 @@ type User = {
   last_name?: string | null;
   job_title?: string | null;
   roles: string[];
+  assigned_roles?: string[];
   last_login_at?: string | null;
   locked_until?: string | null;
 };
@@ -63,6 +68,7 @@ type Role = {
   name: string;
   description?: string | null;
   active: boolean;
+  status?: RoleStatus;
   permissions: string[];
 };
 
@@ -99,6 +105,38 @@ type GoogleCredentialResponse = {
   credential?: string;
 };
 
+type IdentityReadyResponse = {
+  ready?: boolean;
+  target?: string;
+};
+
+function roleStatus(role: Role): RoleStatus {
+  return role.status ?? (role.active ? "ACTIVE" : "DELETED");
+}
+
+function isRoleActive(role: Role) {
+  return roleStatus(role) === "ACTIVE";
+}
+
+function isRoleDeleted(role: Role) {
+  return roleStatus(role) === "DELETED";
+}
+
+function assignedRolesForUser(user: User) {
+  return user.assigned_roles ?? user.roles;
+}
+
+function roleStatusClass(role: Role) {
+  const status = roleStatus(role);
+  if (status === "ACTIVE") {
+    return "pill pill-ok";
+  }
+  if (status === "DISABLED") {
+    return "pill pill-wait";
+  }
+  return "pill pill-danger";
+}
+
 type GoogleAccounts = {
   accounts: {
     id: {
@@ -120,6 +158,8 @@ declare global {
 }
 
 const apiBase = "/api/identity";
+const identityReadyCheckPath = "/api/identity-health/ready";
+const defaultIdentityReadyUrl = "http://localhost:8081/q/health/ready";
 const storageKey = "venta-pasajes.identity.access-token";
 const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 const identityTypes: IdentityType[] = ["LOCAL", "GOOGLE", "HYBRID"];
@@ -248,6 +288,13 @@ export default function EmbeddedIdentity() {
   });
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
   const [roleForm, setRoleForm] = useState(emptyRoleForm);
+  const [roleDeleteCandidate, setRoleDeleteCandidate] = useState<Role | null>(null);
+  const [roleDeleteConfirmation, setRoleDeleteConfirmation] = useState("");
+  const [selectedPermission, setSelectedPermission] = useState<Permission | null>(null);
+  const [identityHealthDown, setIdentityHealthDown] = useState(false);
+  const [identityHealthRetryIn, setIdentityHealthRetryIn] = useState(5);
+  const [identityHealthRetryCycle, setIdentityHealthRetryCycle] = useState(0);
+  const [identityReadyUrl, setIdentityReadyUrl] = useState(defaultIdentityReadyUrl);
   const [forgotForm, setForgotForm] = useState({ login_or_email: "" });
   const [resetForm, setResetForm] = useState({ token: "", new_password: "" });
   const googleScriptLoading = useRef<Promise<void> | null>(null);
@@ -263,6 +310,29 @@ export default function EmbeddedIdentity() {
   const roles = sessionData?.roles ?? [];
   const permissions = sessionData?.permissions ?? [];
   const authorizedIdentities = sessionData?.authorizedIdentities ?? [];
+  const activeRoles = useMemo(() => roles.filter((role) => isRoleActive(role)), [roles]);
+  const roleDeleteAssignedUsers = useMemo(() => {
+    if (!roleDeleteCandidate) {
+      return [];
+    }
+
+    return users.filter((user) => assignedRolesForUser(user).includes(roleDeleteCandidate.code));
+  }, [roleDeleteCandidate, users]);
+  const permissionDetailRoles = useMemo(() => {
+    if (!selectedPermission) {
+      return [];
+    }
+
+    return roles.filter((role) => !isRoleDeleted(role) && role.permissions.includes(selectedPermission.code));
+  }, [roles, selectedPermission]);
+  const permissionDetailUsers = useMemo(() => {
+    const activeRoleCodes = new Set(permissionDetailRoles.filter((role) => isRoleActive(role)).map((role) => role.code));
+    if (activeRoleCodes.size === 0) {
+      return [];
+    }
+
+    return users.filter((user) => user.roles.some((roleCode) => activeRoleCodes.has(roleCode)));
+  }, [permissionDetailRoles, users]);
   const actionMutation = useMutation({
     mutationFn: async ({ action }: { action: () => Promise<void>; successMessage: string }) => {
       await action();
@@ -298,6 +368,25 @@ export default function EmbeddedIdentity() {
   );
 
   const hasSession = Boolean(accessToken && currentUser);
+
+  const checkIdentityReady = useCallback(async () => {
+    try {
+      const response = await fetch(identityReadyCheckPath, { cache: "no-store" });
+      const payload = await response.json().catch(() => null) as IdentityReadyResponse | null;
+      const target = typeof payload?.target === "string" ? payload.target : defaultIdentityReadyUrl;
+      const ready = response.ok && payload?.ready === true;
+
+      setIdentityReadyUrl(target);
+      setIdentityHealthDown(!ready);
+      if (ready) {
+        setIdentityHealthRetryIn(5);
+        setIdentityHealthRetryCycle(0);
+      }
+    } catch {
+      setIdentityReadyUrl(defaultIdentityReadyUrl);
+      setIdentityHealthDown(true);
+    }
+  }, []);
 
   async function reloadProtectedData(token: string) {
     const nextSession = await queryClient.fetchQuery({
@@ -339,6 +428,40 @@ export default function EmbeddedIdentity() {
       setStatusMessage(`Sesion activa: ${currentUser.login}`);
     }
   }, [currentUser, sessionQuery.isSuccess, statusMessage]);
+
+  useEffect(() => {
+    if (identityHealthDown) {
+      return;
+    }
+
+    void checkIdentityReady();
+    const checkInterval = window.setInterval(() => {
+      void checkIdentityReady();
+    }, 10000);
+
+    return () => window.clearInterval(checkInterval);
+  }, [checkIdentityReady, identityHealthDown]);
+
+  useEffect(() => {
+    if (!identityHealthDown) {
+      return;
+    }
+
+    setIdentityHealthRetryIn(5);
+    setIdentityHealthRetryCycle((current) => current + 1);
+    const countdownInterval = window.setInterval(() => {
+      setIdentityHealthRetryIn((current) => current <= 1 ? 5 : current - 1);
+    }, 1000);
+    const retryInterval = window.setInterval(() => {
+      setIdentityHealthRetryCycle((current) => current + 1);
+      void checkIdentityReady();
+    }, 5000);
+
+    return () => {
+      window.clearInterval(countdownInterval);
+      window.clearInterval(retryInterval);
+    };
+  }, [checkIdentityReady, identityHealthDown]);
 
   async function loginLocal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -510,9 +633,16 @@ export default function EmbeddedIdentity() {
   }
 
   function selectRoleForEdit(role: Role) {
+    if (isRoleDeleted(role)) {
+      setErrorMessage("No se puede editar un rol eliminado.");
+      return;
+    }
+
+    setRoleDeleteCandidate(null);
+    setRoleDeleteConfirmation("");
     setEditingRoleId(role.id);
     setRoleForm({
-      active: role.active,
+      active: isRoleActive(role),
       code: role.code,
       description: role.description ?? "",
       name: role.name,
@@ -524,6 +654,43 @@ export default function EmbeddedIdentity() {
   function clearRoleForm() {
     setEditingRoleId(null);
     setRoleForm(emptyRoleForm());
+  }
+
+  function selectRoleForDelete(role: Role) {
+    if (isRoleDeleted(role)) {
+      setErrorMessage("El rol ya esta eliminado.");
+      return;
+    }
+
+    if (role.code === "ADMIN") {
+      setErrorMessage("El rol ADMIN esta protegido y no se puede borrar.");
+      return;
+    }
+
+    clearRoleForm();
+    setErrorMessage(null);
+    setRoleDeleteCandidate(role);
+    setRoleDeleteConfirmation("");
+    setStatusMessage(`Preparando borrado logico: ${role.code}`);
+  }
+
+  async function updateRoleStatus(role: Role, active: boolean) {
+    if (!accessToken || isRoleDeleted(role)) {
+      return;
+    }
+
+    await runAction(async () => {
+      await apiRequest<Role>(`/roles/${role.id}`, {
+        body: JSON.stringify({ active }),
+        method: "PATCH"
+      }, accessToken);
+      await queryClient.invalidateQueries({ queryKey: identityQueryKeys.sessionRoot });
+    }, active ? `Rol ${role.code} habilitado` : `Rol ${role.code} deshabilitado`);
+  }
+
+  function cancelRoleDelete() {
+    setRoleDeleteCandidate(null);
+    setRoleDeleteConfirmation("");
   }
 
   async function submitRole(event: FormEvent<HTMLFormElement>) {
@@ -550,8 +717,26 @@ export default function EmbeddedIdentity() {
         method: editingRoleId ? "PUT" : "POST"
       }, accessToken);
       clearRoleForm();
+      cancelRoleDelete();
       await queryClient.invalidateQueries({ queryKey: identityQueryKeys.sessionRoot });
     }, editingRoleId ? "Rol actualizado" : "Rol creado");
+  }
+
+  async function deleteRole() {
+    const role = roleDeleteCandidate;
+    if (!accessToken || !role || roleDeleteConfirmation !== "delete") {
+      return;
+    }
+
+    await runAction(async () => {
+      await apiRequest<Role>(`/roles/${role.id}`, { method: "DELETE" }, accessToken);
+      setNewUser((current) => ({
+        ...current,
+        role_ids: current.role_ids.filter((roleId) => roleId !== role.id)
+      }));
+      cancelRoleDelete();
+      await queryClient.invalidateQueries({ queryKey: identityQueryKeys.sessionRoot });
+    }, `Rol ${role.code} eliminado logicamente`);
   }
 
   async function requestPasswordRecovery(event: FormEvent<HTMLFormElement>) {
@@ -780,7 +965,7 @@ export default function EmbeddedIdentity() {
                         <span>{user.login}</span>
                       </td>
                       <td>{user.identity_type}</td>
-                      <td>{user.roles.join(", ") || "Sin roles"}</td>
+                      <td>{assignedRolesForUser(user).join(", ") || "Sin roles"}</td>
                       <td>
                         <span className={user.status === "ACTIVE" ? "pill pill-ok" : "pill pill-wait"}>{user.status}</span>
                       </td>
@@ -839,7 +1024,7 @@ export default function EmbeddedIdentity() {
               />
             </label>
             <div className="checkbox-stack" aria-label="Roles para nuevo usuario">
-              {roles.map((role) => (
+              {activeRoles.map((role) => (
                 <label className="checkbox-line" key={role.id}>
                   <input checked={newUser.role_ids.includes(role.id)} onChange={() => toggleNewUserRole(role.id)} type="checkbox" />
                   <span>{role.code}</span>
@@ -977,12 +1162,45 @@ export default function EmbeddedIdentity() {
                       <td>{role.name}</td>
                       <td>{role.permissions.join(", ") || "Sin permisos"}</td>
                       <td>
-                        <span className={role.active ? "pill pill-ok" : "pill pill-wait"}>{role.active ? "ACTIVE" : "INACTIVE"}</span>
+                        <span className={roleStatusClass(role)}>{roleStatus(role)}</span>
                       </td>
                       <td>
                         <div className="row-actions">
-                          <button onClick={() => selectRoleForEdit(role)} title={`Editar rol ${role.code}`} type="button">
+                          <button
+                            disabled={isRoleDeleted(role)}
+                            onClick={() => selectRoleForEdit(role)}
+                            title={isRoleDeleted(role) ? `Rol ${role.code} eliminado` : `Editar rol ${role.code}`}
+                            type="button"
+                          >
                             <Pencil aria-hidden="true" size={16} />
+                          </button>
+                          {isRoleActive(role) ? (
+                            <button
+                              disabled={role.code === "ADMIN"}
+                              onClick={() => void updateRoleStatus(role, false)}
+                              title={role.code === "ADMIN" ? "Rol protegido" : `Deshabilitar rol ${role.code}`}
+                              type="button"
+                            >
+                              <PowerOff aria-hidden="true" size={16} />
+                            </button>
+                          ) : (
+                            <button
+                              disabled={isRoleDeleted(role)}
+                              onClick={() => void updateRoleStatus(role, true)}
+                              title={isRoleDeleted(role) ? "Rol eliminado" : `Habilitar rol ${role.code}`}
+                              type="button"
+                            >
+                              <Power aria-hidden="true" size={16} />
+                            </button>
+                          )}
+                          <button
+                            className="danger-icon-button"
+                            disabled={isRoleDeleted(role) || role.code === "ADMIN"}
+                            onClick={() => selectRoleForDelete(role)}
+                            title={role.code === "ADMIN" ? "Rol protegido" : `Borrar logicamente rol ${role.code}`}
+                            type="button"
+                          >
+                            <Trash2 aria-hidden="true" size={16} />
                           </button>
                         </div>
                       </td>
@@ -993,71 +1211,69 @@ export default function EmbeddedIdentity() {
             </div>
           </section>
 
-          <form className="form-panel" onSubmit={submitRole}>
-            <div className="panel-heading">
-              <ShieldCheck aria-hidden="true" size={19} />
-              <h2>{editingRoleId ? "Editar rol" : "Nuevo rol"}</h2>
-            </div>
-            <label>
-              Codigo
-              <input
-                disabled={Boolean(editingRoleId)}
-                onChange={(event) => setRoleForm((current) => ({ ...current, code: event.target.value }))}
-                value={roleForm.code}
-              />
-            </label>
-            <label>
-              Nombre
-              <input onChange={(event) => setRoleForm((current) => ({ ...current, name: event.target.value }))} value={roleForm.name} />
-            </label>
-            <label>
-              Descripcion
-              <textarea onChange={(event) => setRoleForm((current) => ({ ...current, description: event.target.value }))} rows={3} value={roleForm.description} />
-            </label>
-            <div className="checkbox-stack checkbox-stack-scroll" aria-label="Permisos del rol">
-              {permissions.map((permission) => (
-                <label className="checkbox-line" key={permission.code}>
-                  <input
-                    checked={roleForm.permission_codes.includes(permission.code)}
-                    onChange={() => toggleRolePermission(permission.code)}
-                    type="checkbox"
-                  />
-                  <span>{permission.code}</span>
-                </label>
-              ))}
-            </div>
-            {editingRoleId ? (
-              <label className="checkbox-line">
+          <div className="side-stack">
+            <form className="form-panel" onSubmit={submitRole}>
+              <div className="panel-heading">
+                <ShieldCheck aria-hidden="true" size={19} />
+                <h2>{editingRoleId ? "Editar rol" : "Nuevo rol"}</h2>
+              </div>
+              <label>
+                Codigo
                 <input
-                  checked={roleForm.active}
-                  onChange={(event) => setRoleForm((current) => ({ ...current, active: event.target.checked }))}
-                  type="checkbox"
+                  disabled={Boolean(editingRoleId)}
+                  onChange={(event) => setRoleForm((current) => ({ ...current, code: event.target.value }))}
+                  value={roleForm.code}
                 />
-                <span>Rol activo</span>
               </label>
-            ) : null}
-            <button className="primary-action" disabled={busy} type="submit">
-              <ShieldCheck aria-hidden="true" size={17} />
-              <span>{editingRoleId ? "Actualizar rol" : "Crear rol"}</span>
-            </button>
-            {editingRoleId ? (
-              <button className="secondary-action" disabled={busy} onClick={clearRoleForm} type="button">
-                <X aria-hidden="true" size={17} />
-                <span>Cancelar edicion</span>
+              <label>
+                Nombre
+                <input onChange={(event) => setRoleForm((current) => ({ ...current, name: event.target.value }))} value={roleForm.name} />
+              </label>
+              <label>
+                Descripcion
+                <textarea onChange={(event) => setRoleForm((current) => ({ ...current, description: event.target.value }))} rows={3} value={roleForm.description} />
+              </label>
+              <div className="checkbox-stack checkbox-stack-scroll" aria-label="Permisos del rol">
+                {permissions.map((permission) => (
+                  <label className="checkbox-line" key={permission.code}>
+                    <input
+                      checked={roleForm.permission_codes.includes(permission.code)}
+                      onChange={() => toggleRolePermission(permission.code)}
+                      type="checkbox"
+                    />
+                    <span>{permission.code}</span>
+                  </label>
+                ))}
+              </div>
+              <button className="primary-action" disabled={busy} type="submit">
+                <ShieldCheck aria-hidden="true" size={17} />
+                <span>{editingRoleId ? "Actualizar rol" : "Crear rol"}</span>
               </button>
-            ) : null}
-          </form>
+              {editingRoleId ? (
+                <button className="secondary-action" disabled={busy} onClick={clearRoleForm} type="button">
+                  <X aria-hidden="true" size={17} />
+                  <span>Cancelar edicion</span>
+                </button>
+              ) : null}
+            </form>
+          </div>
         </section>
       ) : null}
 
       {hasSession && activeTab === "permissions" ? (
         <section className="permission-grid" aria-label="Permisos">
           {permissions.map((permission) => (
-            <article className="permission-item" key={permission.code}>
+            <button
+              className="permission-item permission-item-button"
+              key={permission.code}
+              onClick={() => setSelectedPermission(permission)}
+              title={`Ver roles y usuarios con ${permission.code}`}
+              type="button"
+            >
               <KeyRound aria-hidden="true" size={18} />
               <strong>{permission.code}</strong>
               <span>{permission.description}</span>
-            </article>
+            </button>
           ))}
         </section>
       ) : null}
@@ -1105,6 +1321,164 @@ export default function EmbeddedIdentity() {
             </button>
           </form>
         </section>
+      ) : null}
+
+      {roleDeleteCandidate ? (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              cancelRoleDelete();
+            }
+          }}
+          role="presentation"
+        >
+          <section
+            aria-labelledby="role-delete-title"
+            aria-modal="true"
+            className="modal-panel danger-panel"
+            role="dialog"
+          >
+            <div className="modal-heading">
+              <div className="panel-heading">
+                <Trash2 aria-hidden="true" size={19} />
+                <h2 id="role-delete-title">Borrado logico</h2>
+              </div>
+              <button className="icon-button modal-close" disabled={busy} onClick={cancelRoleDelete} title="Cerrar" type="button">
+                <X aria-hidden="true" size={17} />
+              </button>
+            </div>
+            <p className="delete-summary">
+              El rol <strong>{roleDeleteCandidate.code}</strong> quedara en estado INACTIVE y se retirara de los usuarios asignados.
+            </p>
+            <div className="affected-users" aria-label="Usuarios afectados">
+              <strong>{roleDeleteAssignedUsers.length} usuario(s) con este rol</strong>
+              {roleDeleteAssignedUsers.length > 0 ? (
+                <ul>
+                  {roleDeleteAssignedUsers.map((user) => (
+                    <li key={user.id}>
+                      <span>{user.display_name}</span>
+                      <small>{user.email ?? user.login}</small>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <span className="empty-inline">No hay usuarios asignados.</span>
+              )}
+            </div>
+            <label>
+              Escribe delete para confirmar
+              <input
+                onChange={(event) => setRoleDeleteConfirmation(event.target.value)}
+                placeholder="delete"
+                value={roleDeleteConfirmation}
+              />
+            </label>
+            <button className="danger-action" disabled={busy || roleDeleteConfirmation !== "delete"} onClick={() => void deleteRole()} type="button">
+              <Trash2 aria-hidden="true" size={17} />
+              <span>Borrar rol</span>
+            </button>
+            <button className="secondary-action" disabled={busy} onClick={cancelRoleDelete} type="button">
+              <X aria-hidden="true" size={17} />
+              <span>Cancelar borrado</span>
+            </button>
+          </section>
+        </div>
+      ) : null}
+
+      {selectedPermission ? (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setSelectedPermission(null);
+            }
+          }}
+          role="presentation"
+        >
+          <section
+            aria-labelledby="permission-detail-title"
+            aria-modal="true"
+            className="modal-panel"
+            role="dialog"
+          >
+            <div className="modal-heading">
+              <div className="panel-heading">
+                <KeyRound aria-hidden="true" size={19} />
+                <h2 id="permission-detail-title">Detalle de permiso</h2>
+              </div>
+              <button className="icon-button modal-close" onClick={() => setSelectedPermission(null)} title="Cerrar" type="button">
+                <X aria-hidden="true" size={17} />
+              </button>
+            </div>
+            <p className="delete-summary">
+              <strong>{selectedPermission.code}</strong>: {selectedPermission.description}
+            </p>
+            <div className="detail-stack">
+              <section className="readonly-list" aria-label="Roles con este permiso">
+                <strong>{permissionDetailRoles.length} rol(es) con este permiso</strong>
+                {permissionDetailRoles.length > 0 ? (
+                  <ul>
+                    {permissionDetailRoles.map((role) => (
+                      <li key={role.id}>
+                        <span>{role.code}</span>
+                        <small>{role.name}</small>
+                        <span className={roleStatusClass(role)}>{roleStatus(role)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <span className="empty-inline">No hay roles asociados.</span>
+                )}
+              </section>
+              <section className="readonly-list" aria-label="Usuarios con este permiso efectivo">
+                <strong>{permissionDetailUsers.length} usuario(s) con este permiso efectivo</strong>
+                {permissionDetailUsers.length > 0 ? (
+                  <ul>
+                    {permissionDetailUsers.map((user) => (
+                      <li key={user.id}>
+                        <span>{user.display_name}</span>
+                        <small>{user.email ?? user.login}</small>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <span className="empty-inline">No hay usuarios con este permiso activo.</span>
+                )}
+              </section>
+            </div>
+            <button className="secondary-action" onClick={() => setSelectedPermission(null)} type="button">
+              <X aria-hidden="true" size={17} />
+              <span>Cerrar</span>
+            </button>
+          </section>
+        </div>
+      ) : null}
+
+      {identityHealthDown ? (
+        <div className="modal-backdrop service-health-backdrop" role="presentation">
+          <section
+            aria-labelledby="identity-health-title"
+            aria-modal="true"
+            className="modal-panel service-health-panel"
+            role="dialog"
+          >
+            <div className="panel-heading">
+              <CircleAlert aria-hidden="true" size={20} />
+              <h2 id="identity-health-title">Servicio no disponible</h2>
+            </div>
+            <p className="delete-summary">
+              El servicio <strong>{identityReadyUrl}</strong> no responde.
+            </p>
+            <div className="retry-box" aria-live="polite">
+              <strong>{identityHealthRetryIn}</strong>
+              <div className="retry-progress" aria-hidden="true">
+                <span key={identityHealthRetryCycle} />
+              </div>
+              <span>Se volvera a intentar automaticamente en segundos.</span>
+            </div>
+          </section>
+        </div>
       ) : null}
     </main>
   );

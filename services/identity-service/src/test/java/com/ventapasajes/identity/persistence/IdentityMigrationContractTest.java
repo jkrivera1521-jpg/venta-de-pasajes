@@ -37,6 +37,16 @@ class IdentityMigrationContractTest {
         assertContains(sql, "trg_google_identities_updated_at");
     }
 
+    @Test
+    void roleStatusLifecycleMigrationAddsOperationalStates() throws IOException {
+        String sql = readMigration("/db/migration/V3__role_status_lifecycle.sql");
+
+        assertContains(sql, "ALTER TABLE roles");
+        assertContains(sql, "ADD COLUMN IF NOT EXISTS status");
+        assertContains(sql, "'ACTIVE', 'DISABLED', 'DELETED'");
+        assertContains(sql, "ck_roles_status");
+    }
+
     private static String readMigration() throws IOException {
         return readMigration("/db/migration/V1__identity_schema.sql");
     }

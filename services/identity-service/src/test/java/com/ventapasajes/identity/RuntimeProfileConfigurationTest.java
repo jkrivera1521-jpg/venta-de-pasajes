@@ -19,7 +19,7 @@ class RuntimeProfileConfigurationTest {
         assertContains(properties, "%gcp.quarkus.datasource.username=${APP_DB_USERNAME:identity-service-run@project-fbb34cd7-0b82-43e1-867.iam}");
         assertContains(properties, "%onprem.app.runtime.target=onprem");
         assertContains(properties, "%onprem.app.secrets.provider=${APP_SECRETS_PROVIDER:env}");
-        assertContains(properties, "%onprem.quarkus.datasource.jdbc.url=${APP_DB_JDBC_URL:jdbc:postgresql://localhost:5432/identity_db}");
+        assertContains(properties, "%onprem.quarkus.datasource.jdbc.url=${APP_DB_JDBC_URL:jdbc:postgresql://localhost:55432/identity_db}");
     }
 
     private static String readApplicationProperties() throws IOException {

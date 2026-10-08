@@ -20,6 +20,7 @@ public record UserResponse(
         String address,
         String jobTitle,
         List<String> roles,
+        List<String> assignedRoles,
         Instant lastLoginAt,
         Instant lockedUntil,
         Instant createdAt,

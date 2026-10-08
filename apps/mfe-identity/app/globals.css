@@ -65,6 +65,7 @@ button:disabled {
 .row-actions,
 .tab-button,
 .primary-action,
+.danger-action,
 .secondary-action,
 .status-chip,
 .alert {
@@ -233,6 +234,7 @@ textarea:focus {
 }
 
 .primary-action,
+.danger-action,
 .secondary-action {
   border-radius: 8px;
   gap: 8px;
@@ -252,6 +254,12 @@ textarea:focus {
   background: var(--blue-soft);
   border: 1px solid #b9cffd;
   color: #174ea6;
+}
+
+.danger-action {
+  background: var(--danger);
+  border: 1px solid var(--danger);
+  color: #ffffff;
 }
 
 .session-list {
@@ -462,6 +470,188 @@ tr:last-child td {
   width: 32px;
 }
 
+.row-actions .danger-icon-button {
+  color: var(--danger);
+}
+
+.modal-backdrop {
+  background: rgba(24, 34, 48, 0.42);
+  display: grid;
+  inset: 0;
+  padding: 18px;
+  place-items: center;
+  position: fixed;
+  z-index: 100;
+}
+
+.modal-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 22px 70px rgba(24, 34, 48, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100vh - 36px);
+  max-width: 520px;
+  overflow: auto;
+  padding: 16px;
+  width: min(100%, 520px);
+}
+
+.modal-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.modal-close {
+  flex: 0 0 auto;
+}
+
+.service-health-backdrop {
+  z-index: 160;
+}
+
+.service-health-panel {
+  border-top: 3px solid var(--danger);
+}
+
+.service-health-panel .panel-heading svg {
+  color: var(--danger);
+}
+
+.retry-box {
+  align-items: center;
+  background: var(--danger-soft);
+  border: 1px solid #f5b4ad;
+  border-radius: 8px;
+  color: var(--danger);
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  padding: 14px;
+  text-align: center;
+}
+
+.retry-box strong {
+  font-size: 34px;
+  line-height: 1;
+}
+
+.retry-progress {
+  background: #ffffff;
+  border: 1px solid #f5b4ad;
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.retry-progress span {
+  animation: retry-progress-drain 5s linear forwards;
+  background: var(--danger);
+  display: block;
+  height: 100%;
+  transform-origin: left center;
+  width: 100%;
+}
+
+.retry-box > span {
+  color: var(--text);
+  font-size: 13px;
+}
+
+@keyframes retry-progress-drain {
+  from {
+    transform: scaleX(1);
+  }
+
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.danger-panel {
+  border-color: #f5b4ad;
+  border-top: 3px solid var(--danger);
+}
+
+.danger-panel .panel-heading svg {
+  color: var(--danger);
+}
+
+.delete-summary {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.delete-summary strong {
+  color: var(--text);
+}
+
+.affected-users {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.readonly-list {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.detail-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.affected-users > strong,
+.readonly-list > strong {
+  font-size: 13px;
+}
+
+.affected-users ul,
+.readonly-list ul {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  max-height: 150px;
+  overflow: auto;
+  padding: 0;
+}
+
+.affected-users li,
+.readonly-list li {
+  background: var(--surface-muted);
+  border-radius: 8px;
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+}
+
+.affected-users span,
+.readonly-list span {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.affected-users small,
+.readonly-list small,
+.empty-inline {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .pill {
   border-radius: 999px;
   display: inline-flex;
@@ -480,6 +670,11 @@ tr:last-child td {
 .pill-wait {
   background: var(--amber-soft);
   color: var(--amber);
+}
+
+.pill-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .checkbox-stack {
@@ -521,10 +716,17 @@ tr:last-child td {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
+  color: var(--text);
   display: grid;
   gap: 6px;
   grid-template-columns: 24px minmax(0, 1fr);
   padding: 12px;
+  text-align: left;
+}
+
+.permission-item-button:hover {
+  border-color: #b9cffd;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
 }
 
 .permission-item svg {

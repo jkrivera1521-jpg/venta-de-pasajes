@@ -40,6 +40,7 @@ import com.ventapasajes.identity.auth.JwtService;
 import com.ventapasajes.identity.auth.PasswordHashService;
 import com.ventapasajes.identity.domain.AuthorizedIdentityType;
 import com.ventapasajes.identity.domain.IdentityType;
+import com.ventapasajes.identity.domain.RoleStatus;
 import com.ventapasajes.identity.domain.UserStatus;
 import com.ventapasajes.identity.persistence.entity.AuthorizedIdentity;
 import com.ventapasajes.identity.persistence.entity.GoogleIdentity;
@@ -237,7 +238,7 @@ public class IdentityApplicationService {
 
     @Transactional
     public List<RoleResponse> listRoles() {
-        return Role.<Role>list("active = true order by code").stream()
+        return Role.<Role>list("order by active desc, code").stream()
                 .map(this::toRoleResponse)
                 .toList();
     }
@@ -254,6 +255,7 @@ public class IdentityApplicationService {
         role.name = required(request.name(), "name");
         role.description = normalizeNullable(request.description());
         role.active = true;
+        role.status = RoleStatus.ACTIVE;
         role.persist();
         replaceRolePermissions(role.id, safeList(request.permissionCodes()));
         return toRoleResponse(role);
@@ -263,6 +265,9 @@ public class IdentityApplicationService {
     public RoleResponse updateRole(UUID roleId, RoleUpdateRequest request, boolean replaceMissingFields) {
         request = requirePayload(request);
         Role role = requireRole(roleId);
+        if (roleStatus(role) == RoleStatus.DELETED) {
+            throw ApiException.validation("ROLE_DELETED", "Deleted roles cannot be modified.");
+        }
 
         if (request.code() != null || replaceMissingFields) {
             String code = required(request.code(), "code").toUpperCase(Locale.ROOT);
@@ -282,7 +287,15 @@ public class IdentityApplicationService {
         }
 
         if (request.active() != null || replaceMissingFields) {
-            role.active = request.active() == null || request.active();
+            boolean active = request.active() == null || request.active();
+            if (active) {
+                role.status = RoleStatus.ACTIVE;
+                role.active = true;
+            } else {
+                ensureRoleCanBeDeactivated(role);
+                role.status = RoleStatus.DISABLED;
+                role.active = false;
+            }
         }
 
         role.persist();
@@ -291,6 +304,17 @@ public class IdentityApplicationService {
             replaceRolePermissions(role.id, safeList(request.permissionCodes()));
         }
 
+        return toRoleResponse(role);
+    }
+
+    @Transactional
+    public RoleResponse deleteRole(UUID roleId) {
+        Role role = requireRole(roleId);
+        ensureRoleCanBeDeactivated(role);
+        removeRoleFromUsers(role.id);
+        role.active = false;
+        role.status = RoleStatus.DELETED;
+        role.persist();
         return toRoleResponse(role);
     }
 
@@ -434,6 +458,7 @@ public class IdentityApplicationService {
                 profile == null ? null : profile.address,
                 profile == null ? null : profile.jobTitle,
                 roleCodesForUser(user.id),
+                assignedRoleCodesForUser(user.id),
                 user.lastLoginAt,
                 user.lockedUntil,
                 user.createdAt,
@@ -441,7 +466,8 @@ public class IdentityApplicationService {
     }
 
     private RoleResponse toRoleResponse(Role role) {
-        return new RoleResponse(role.id, role.code, role.name, role.description, role.active, permissionCodesForRole(role.id));
+        RoleStatus status = roleStatus(role);
+        return new RoleResponse(role.id, role.code, role.name, role.description, status == RoleStatus.ACTIVE, status.name(), permissionCodesForRole(role.id));
     }
 
     private AuthorizedIdentityResponse toAuthorizedIdentityResponse(AuthorizedIdentity identity) {
@@ -464,7 +490,7 @@ public class IdentityApplicationService {
         user.displayName = principal.displayName() == null || principal.displayName().isBlank() ? principal.email() : principal.displayName();
         user.status = UserStatus.ACTIVE;
         user.persist();
-        Role sellerRole = Role.find("code", "TICKET_SELLER").firstResult();
+        Role sellerRole = Role.find("code = ?1 and status = ?2", "TICKET_SELLER", RoleStatus.ACTIVE).firstResult();
         if (sellerRole != null) {
             replaceUserRoles(user.id, List.of(sellerRole.id), null);
         }
@@ -551,7 +577,7 @@ public class IdentityApplicationService {
                 .executeUpdate();
         for (UUID roleId : safeList(roleIds)) {
             Role role = Role.findById(roleId);
-            if (role == null || !role.active) {
+            if (role == null || roleStatus(role) != RoleStatus.ACTIVE) {
                 throw ApiException.validation("ROLE_NOT_FOUND", "Role does not exist or is inactive: " + roleId + ".");
             }
             entityManager().createNativeQuery("""
@@ -564,6 +590,25 @@ public class IdentityApplicationService {
                     .setParameter(3, actorUserId)
                     .executeUpdate();
         }
+    }
+
+    private void removeRoleFromUsers(UUID roleId) {
+        entityManager().createNativeQuery("DELETE FROM user_roles WHERE role_id = ?1")
+                .setParameter(1, roleId)
+                .executeUpdate();
+    }
+
+    private void ensureRoleCanBeDeactivated(Role role) {
+        if ("ADMIN".equalsIgnoreCase(role.code)) {
+            throw ApiException.validation("ROLE_PROTECTED", "The ADMIN role cannot be deactivated or deleted.");
+        }
+    }
+
+    private RoleStatus roleStatus(Role role) {
+        if (role.status != null) {
+            return role.status;
+        }
+        return role.active ? RoleStatus.ACTIVE : RoleStatus.DELETED;
     }
 
     private void replaceRolePermissions(UUID roleId, List<String> permissionCodes) {
@@ -669,7 +714,19 @@ public class IdentityApplicationService {
                 SELECT r.code::text
                 FROM roles r
                 JOIN user_roles ur ON ur.role_id = r.id
-                WHERE ur.user_id = ?1 AND r.active = true
+                WHERE ur.user_id = ?1 AND r.status = 'ACTIVE'
+                ORDER BY r.code
+                """, String.class)
+                .setParameter(1, userId)
+                .getResultList();
+    }
+
+    private List<String> assignedRoleCodesForUser(UUID userId) {
+        return entityManager().createNativeQuery("""
+                SELECT r.code::text
+                FROM roles r
+                JOIN user_roles ur ON ur.role_id = r.id
+                WHERE ur.user_id = ?1 AND r.status <> 'DELETED'
                 ORDER BY r.code
                 """, String.class)
                 .setParameter(1, userId)
@@ -683,7 +740,7 @@ public class IdentityApplicationService {
                 JOIN role_permissions rp ON rp.permission_code = p.code
                 JOIN user_roles ur ON ur.role_id = rp.role_id
                 JOIN roles r ON r.id = ur.role_id
-                WHERE ur.user_id = ?1 AND r.active = true
+                WHERE ur.user_id = ?1 AND r.status = 'ACTIVE'
                 ORDER BY code
                 """, String.class)
                 .setParameter(1, userId)

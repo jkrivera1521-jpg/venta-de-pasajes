@@ -9,5 +9,6 @@ public record RoleResponse(
         String name,
         String description,
         boolean active,
+        String status,
         List<String> permissions) {
 }

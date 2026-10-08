@@ -23,6 +23,7 @@ import com.ventapasajes.identity.service.IdentityApplicationService;
 
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.PATCH;
@@ -150,7 +151,7 @@ public class IdentityBaseResource {
     @GET
     @Path("/roles")
     @RequiresPermission("identity.roles.read")
-    @Operation(summary = "List active roles.")
+    @Operation(summary = "List roles with their current active or inactive state.")
     @APIResponse(responseCode = "200", description = "Roles listed.")
     public Response listRoles() {
         return Response.ok(identityService.listRoles()).build();
@@ -184,6 +185,15 @@ public class IdentityBaseResource {
     @APIResponse(responseCode = "200", description = "Role replaced.")
     public Response replaceRole(@PathParam("roleId") String roleId, RoleUpdateRequest request) {
         return Response.ok(identityService.updateRole(parseUuid(roleId, "roleId"), request, true)).build();
+    }
+
+    @DELETE
+    @Path("/roles/{roleId}")
+    @RequiresPermission("identity.roles.manage")
+    @Operation(summary = "Soft delete one role and remove it from assigned users.")
+    @APIResponse(responseCode = "200", description = "Role marked inactive.")
+    public Response deleteRole(@PathParam("roleId") String roleId) {
+        return Response.ok(identityService.deleteRole(parseUuid(roleId, "roleId"))).build();
     }
 
     @GET

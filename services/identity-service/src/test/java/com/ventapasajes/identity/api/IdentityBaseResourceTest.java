@@ -62,6 +62,15 @@ class IdentityBaseResourceTest {
     }
 
     @Test
+    void deleteRoleEndpointRequiresBearerToken() {
+        given()
+                .when().delete("/api/v1/identity/roles/00000000-0000-0000-0000-000000000001")
+                .then()
+                .statusCode(401)
+                .body("error.code", is("UNAUTHORIZED"));
+    }
+
+    @Test
     void logoutEndpointRequiresBearerToken() {
         given()
                 .when().post("/api/v1/identity/auth/logout")
