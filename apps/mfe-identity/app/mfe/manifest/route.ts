@@ -21,8 +21,6 @@ export function GET() {
     health_url: `${publicUrl}/api/health`,
     exposed_at: new Date().toISOString(),
     capabilities: [
-      "login-local",
-      "google-oidc",
       "usuarios-locales",
       "identidades-autorizadas",
       "roles",

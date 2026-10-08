@@ -4,8 +4,8 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "Venta de Pasajes",
-  description: "Shell operativo para la nueva plataforma de venta de pasajes"
+  title: "Panamericana Internacional",
+  description: "Landing publica y shell operativo para transporte de pasajeros y encomiendas"
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

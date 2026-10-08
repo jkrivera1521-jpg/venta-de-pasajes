@@ -47,6 +47,15 @@ class IdentityMigrationContractTest {
         assertContains(sql, "ck_roles_status");
     }
 
+    @Test
+    void publicGoogleCustomerRoleMigrationCreatesCustomerRole() throws IOException {
+        String sql = readMigration("/db/migration/V4__public_google_customer_role.sql");
+
+        assertContains(sql, "'CUSTOMER'");
+        assertContains(sql, "identity_type = 'GOOGLE'");
+        assertContains(sql, "seller_role.code = 'TICKET_SELLER'");
+    }
+
     private static String readMigration() throws IOException {
         return readMigration("/db/migration/V1__identity_schema.sql");
     }

@@ -173,6 +173,10 @@ h2 {
   grid-template-columns: minmax(220px, 0.9fr) minmax(260px, 1.1fr) minmax(220px, 0.9fr);
 }
 
+.auth-grid-session-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .auth-panel,
 .session-panel,
 .form-panel,

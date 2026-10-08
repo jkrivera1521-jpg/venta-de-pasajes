@@ -87,6 +87,12 @@ public class IdentityApplicationService {
     @ConfigProperty(name = "app.auth.recovery.return-token.enabled", defaultValue = "false")
     boolean returnRecoveryToken;
 
+    @ConfigProperty(name = "app.auth.google.authorization-required", defaultValue = "false")
+    boolean googleAuthorizationRequired;
+
+    @ConfigProperty(name = "app.auth.google.default-role-code", defaultValue = "CUSTOMER")
+    String googleDefaultRoleCode;
+
     @ConfigProperty(name = "app.security.recovery-token-pepper")
     String recoveryTokenPepper;
 
@@ -129,7 +135,7 @@ public class IdentityApplicationService {
     @Transactional
     public AuthTokenResponse googleExchange(GoogleTokenExchangeRequest request) {
         GooglePrincipal principal = googleIdTokenVerifier.verify(request == null ? null : request.idToken());
-        if (!isAuthorizedGoogleIdentity(principal)) {
+        if (googleAuthorizationRequired && !isAuthorizedGoogleIdentity(principal)) {
             throw ApiException.forbidden("GOOGLE_IDENTITY_NOT_AUTHORIZED", "Google identity is not authorized for this system.");
         }
 
@@ -490,9 +496,9 @@ public class IdentityApplicationService {
         user.displayName = principal.displayName() == null || principal.displayName().isBlank() ? principal.email() : principal.displayName();
         user.status = UserStatus.ACTIVE;
         user.persist();
-        Role sellerRole = Role.find("code = ?1 and status = ?2", "TICKET_SELLER", RoleStatus.ACTIVE).firstResult();
-        if (sellerRole != null) {
-            replaceUserRoles(user.id, List.of(sellerRole.id), null);
+        Role defaultRole = Role.find("code = ?1 and status = ?2", googleDefaultRoleCode, RoleStatus.ACTIVE).firstResult();
+        if (defaultRole != null) {
+            replaceUserRoles(user.id, List.of(defaultRole.id), null);
         }
         return user;
     }

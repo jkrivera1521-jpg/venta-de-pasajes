@@ -12,8 +12,6 @@ import {
   KeyRound,
   Link2,
   LockKeyhole,
-  LogIn,
-  LogOut,
   MailCheck,
   Pencil,
   Power,
@@ -27,12 +25,13 @@ import {
   X
 } from "lucide-react";
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type IdentityType = "GOOGLE" | "LOCAL" | "HYBRID";
 type AuthorizedIdentityType = "EMAIL" | "DOMAIN" | "GOOGLE_SUBJECT";
 type TabKey = "users" | "authorized" | "roles" | "permissions" | "recovery";
 type RoleStatus = "ACTIVE" | "DISABLED" | "DELETED";
+type GrowlSeverity = "info" | "warn" | "error";
 
 type CurrentUser = {
   id: string;
@@ -86,23 +85,12 @@ type AuthorizedIdentity = {
   created_at?: string | null;
 };
 
-type AuthTokenResponse = {
-  access_token: string;
-  token_type: string;
-  expires_in: number;
-  user: CurrentUser;
-};
-
 type IdentitySessionData = {
   authorizedIdentities: AuthorizedIdentity[];
   currentUser: CurrentUser;
   permissions: Permission[];
   roles: Role[];
   users: User[];
-};
-
-type GoogleCredentialResponse = {
-  credential?: string;
 };
 
 type IdentityReadyResponse = {
@@ -137,31 +125,10 @@ function roleStatusClass(role: Role) {
   return "pill pill-danger";
 }
 
-type GoogleAccounts = {
-  accounts: {
-    id: {
-      initialize: (options: {
-        client_id: string;
-        callback: (response: GoogleCredentialResponse) => void;
-        auto_select?: boolean;
-        ux_mode?: "popup" | "redirect";
-      }) => void;
-      prompt: () => void;
-    };
-  };
-};
-
-declare global {
-  interface Window {
-    google?: GoogleAccounts;
-  }
-}
-
 const apiBase = "/api/identity";
 const identityReadyCheckPath = "/api/identity-health/ready";
 const defaultIdentityReadyUrl = "http://localhost:8081/q/health/ready";
 const storageKey = "venta-pasajes.identity.access-token";
-const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 const identityTypes: IdentityType[] = ["LOCAL", "GOOGLE", "HYBRID"];
 const authorizedIdentityTypes: AuthorizedIdentityType[] = ["EMAIL", "DOMAIN", "GOOGLE_SUBJECT"];
 const identityQueryKeys = {
@@ -263,9 +230,6 @@ export default function EmbeddedIdentity() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("Sin sesion");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [googleBusy, setGoogleBusy] = useState(false);
-  const [loginForm, setLoginForm] = useState({ login: "admin", password: "" });
-  const [googleToken, setGoogleToken] = useState("");
   const [newUser, setNewUser] = useState({
     display_name: "",
     email: "",
@@ -297,7 +261,6 @@ export default function EmbeddedIdentity() {
   const [identityReadyUrl, setIdentityReadyUrl] = useState(defaultIdentityReadyUrl);
   const [forgotForm, setForgotForm] = useState({ login_or_email: "" });
   const [resetForm, setResetForm] = useState({ token: "", new_password: "" });
-  const googleScriptLoading = useRef<Promise<void> | null>(null);
   const queryClient = useQueryClient();
   const sessionQuery = useQuery({
     enabled: Boolean(accessToken),
@@ -333,19 +296,36 @@ export default function EmbeddedIdentity() {
 
     return users.filter((user) => user.roles.some((roleCode) => activeRoleCodes.has(roleCode)));
   }, [permissionDetailRoles, users]);
+  const notifyShell = useCallback((severity: GrowlSeverity, summary: string, detail?: string) => {
+    if (window.parent === window) {
+      return;
+    }
+
+    window.parent.postMessage({
+      detail,
+      severity,
+      source: "mfe-identity",
+      summary,
+      type: "venta-pasajes:growl"
+    }, "*");
+  }, []);
+
   const actionMutation = useMutation({
     mutationFn: async ({ action }: { action: () => Promise<void>; successMessage: string }) => {
       await action();
     },
     onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : "Operacion no completada");
+      const message = error instanceof Error ? error.message : "Operacion no completada";
+      setErrorMessage(message);
+      notifyShell("error", "Error", message);
     },
     onSuccess: (_data, variables) => {
       setErrorMessage(null);
       setStatusMessage(variables.successMessage);
+      notifyShell("info", "Operacion completada", variables.successMessage);
     }
   });
-  const busy = sessionQuery.isFetching || actionMutation.isPending || googleBusy;
+  const busy = sessionQuery.isFetching || actionMutation.isPending;
 
   const tabs = useMemo(
     () => [
@@ -416,11 +396,47 @@ export default function EmbeddedIdentity() {
   }, []);
 
   useEffect(() => {
-    if (sessionQuery.isError) {
-      setErrorMessage(sessionQuery.error instanceof Error ? sessionQuery.error.message : "No se pudo cargar la sesion");
-      setStatusMessage("Token requerido");
+    function handleShellAuthMessage(event: MessageEvent) {
+      if (event.source !== window.parent || !event.data || typeof event.data !== "object") {
+        return;
+      }
+
+      const data = event.data as { accessToken?: unknown; type?: unknown };
+      if (data.type === "venta-pasajes:shell-auth-token" && typeof data.accessToken === "string" && data.accessToken.trim()) {
+        window.sessionStorage.setItem(storageKey, data.accessToken);
+        setAccessToken(data.accessToken);
+        setStatusMessage("Sesion recibida desde shell");
+        setErrorMessage(null);
+        return;
+      }
+
+      if (data.type === "venta-pasajes:shell-auth-clear") {
+        window.sessionStorage.removeItem(storageKey);
+        queryClient.removeQueries({ queryKey: identityQueryKeys.all });
+        setAccessToken(null);
+        setStatusMessage("Token requerido");
+      }
     }
-  }, [sessionQuery.error, sessionQuery.isError]);
+
+    window.addEventListener("message", handleShellAuthMessage);
+    if (window.parent !== window) {
+      window.parent.postMessage({
+        source: "mfe-identity",
+        type: "venta-pasajes:mfe-auth-ready"
+      }, "*");
+    }
+
+    return () => window.removeEventListener("message", handleShellAuthMessage);
+  }, [queryClient]);
+
+  useEffect(() => {
+    if (sessionQuery.isError) {
+      const message = sessionQuery.error instanceof Error ? sessionQuery.error.message : "No se pudo cargar la sesion";
+      setErrorMessage(message);
+      setStatusMessage("Token requerido");
+      notifyShell("error", "Sesion no disponible", message);
+    }
+  }, [sessionQuery.error, sessionQuery.isError, notifyShell]);
 
   useEffect(() => {
     if (sessionQuery.isSuccess && currentUser && (statusMessage === "Sin sesion" || statusMessage === "Token requerido")) {
@@ -463,97 +479,11 @@ export default function EmbeddedIdentity() {
     };
   }, [checkIdentityReady, identityHealthDown]);
 
-  async function loginLocal(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    await runAction(async () => {
-      const response = await apiRequest<AuthTokenResponse>("/auth/local/login", {
-        body: JSON.stringify(loginForm),
-        method: "POST"
-      });
-      window.sessionStorage.setItem(storageKey, response.access_token);
-      setAccessToken(response.access_token);
-      await reloadProtectedData(response.access_token);
-    }, "Login local correcto");
-  }
-
-  async function exchangeGoogleToken(idToken: string) {
-    await runAction(async () => {
-      const response = await apiRequest<AuthTokenResponse>("/auth/google/exchange", {
-        body: JSON.stringify({ id_token: idToken }),
-        method: "POST"
-      });
-      window.sessionStorage.setItem(storageKey, response.access_token);
-      setAccessToken(response.access_token);
-      await reloadProtectedData(response.access_token);
-    }, "Login Google correcto");
-  }
-
-  async function startGoogleSignIn() {
-    if (!googleClientId) {
-      setErrorMessage("NEXT_PUBLIC_GOOGLE_CLIENT_ID no configurado.");
-      return;
-    }
-
-    try {
-      setGoogleBusy(true);
-      setErrorMessage(null);
-      await loadGoogleScript();
-      window.google?.accounts.id.initialize({
-        auto_select: false,
-        callback: (response) => {
-          if (response.credential) {
-            void exchangeGoogleToken(response.credential);
-          }
-        },
-        client_id: googleClientId,
-        ux_mode: "popup"
-      });
-      window.google?.accounts.id.prompt();
-      setStatusMessage("Google solicitado");
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Google no disponible");
-    } finally {
-      setGoogleBusy(false);
-    }
-  }
-
-  function loadGoogleScript() {
-    if (window.google?.accounts.id) {
-      return Promise.resolve();
-    }
-
-    if (!googleScriptLoading.current) {
-      googleScriptLoading.current = new Promise((resolve, reject) => {
-        const existingScript = document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]');
-        if (existingScript) {
-          existingScript.addEventListener("load", () => resolve());
-          existingScript.addEventListener("error", () => reject(new Error("Google Identity Services no cargo.")));
-          return;
-        }
-
-        const script = document.createElement("script");
-        script.async = true;
-        script.defer = true;
-        script.src = "https://accounts.google.com/gsi/client";
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error("Google Identity Services no cargo."));
-        document.head.appendChild(script);
-      });
-    }
-
-    return googleScriptLoading.current;
-  }
-
-  function logout() {
-    window.sessionStorage.removeItem(storageKey);
-    setAccessToken(null);
-    queryClient.removeQueries({ queryKey: identityQueryKeys.all });
-    setStatusMessage("Sesion cerrada");
-  }
-
   async function refreshData() {
     if (!accessToken) {
-      setErrorMessage("Token requerido.");
+      const message = "Token requerido.";
+      setErrorMessage(message);
+      notifyShell("warn", "Sesion requerida", message);
       return;
     }
     await runAction(async () => {
@@ -634,7 +564,9 @@ export default function EmbeddedIdentity() {
 
   function selectRoleForEdit(role: Role) {
     if (isRoleDeleted(role)) {
-      setErrorMessage("No se puede editar un rol eliminado.");
+      const message = "No se puede editar un rol eliminado.";
+      setErrorMessage(message);
+      notifyShell("warn", "Rol no editable", message);
       return;
     }
 
@@ -649,6 +581,7 @@ export default function EmbeddedIdentity() {
       permission_codes: role.permissions
     });
     setStatusMessage(`Editando rol: ${role.code}`);
+    notifyShell("info", "Editando rol", role.code);
   }
 
   function clearRoleForm() {
@@ -658,12 +591,16 @@ export default function EmbeddedIdentity() {
 
   function selectRoleForDelete(role: Role) {
     if (isRoleDeleted(role)) {
-      setErrorMessage("El rol ya esta eliminado.");
+      const message = "El rol ya esta eliminado.";
+      setErrorMessage(message);
+      notifyShell("warn", "Rol ya eliminado", message);
       return;
     }
 
     if (role.code === "ADMIN") {
-      setErrorMessage("El rol ADMIN esta protegido y no se puede borrar.");
+      const message = "El rol ADMIN esta protegido y no se puede borrar.";
+      setErrorMessage(message);
+      notifyShell("warn", "Rol protegido", message);
       return;
     }
 
@@ -672,6 +609,7 @@ export default function EmbeddedIdentity() {
     setRoleDeleteCandidate(role);
     setRoleDeleteConfirmation("");
     setStatusMessage(`Preparando borrado logico: ${role.code}`);
+    notifyShell("warn", "Confirmacion requerida", `Revisa los usuarios afectados antes de borrar ${role.code}.`);
   }
 
   async function updateRoleStatus(role: Role, active: boolean) {
@@ -795,9 +733,6 @@ export default function EmbeddedIdentity() {
           <button className="icon-button" disabled={busy || !hasSession} onClick={refreshData} title="Actualizar datos" type="button">
             <RefreshCw aria-hidden="true" size={18} />
           </button>
-          <button className="icon-button" disabled={!hasSession} onClick={logout} title="Cerrar sesion" type="button">
-            <LogOut aria-hidden="true" size={18} />
-          </button>
         </div>
       </header>
 
@@ -814,68 +749,11 @@ export default function EmbeddedIdentity() {
         </div>
       ) : null}
 
-      <section className="auth-grid" aria-label="Autenticacion">
-        <form className="auth-panel" onSubmit={loginLocal}>
-          <div className="panel-heading">
-            <LogIn aria-hidden="true" size={19} />
-            <h2>Login local</h2>
-          </div>
-          <label>
-            Usuario
-            <input
-              autoComplete="username"
-              onChange={(event) => setLoginForm((current) => ({ ...current, login: event.target.value }))}
-              value={loginForm.login}
-            />
-          </label>
-          <label>
-            Contrasena
-            <input
-              autoComplete="current-password"
-              onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
-              type="password"
-              value={loginForm.password}
-            />
-          </label>
-          <button className="primary-action" disabled={busy} type="submit">
-            <LogIn aria-hidden="true" size={17} />
-            <span>Ingresar</span>
-          </button>
-        </form>
-
-        <form
-          className="auth-panel"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void exchangeGoogleToken(googleToken);
-          }}
-        >
-          <div className="panel-heading">
-            <MailCheck aria-hidden="true" size={19} />
-            <h2>Google</h2>
-          </div>
-          <button className="secondary-action" disabled={busy || !googleClientId} onClick={startGoogleSignIn} type="button">
-            <MailCheck aria-hidden="true" size={17} />
-            <span>Sign in with Google</span>
-          </button>
-          <label>
-            ID token
-            <textarea
-              onChange={(event) => setGoogleToken(event.target.value)}
-              rows={3}
-              value={googleToken}
-            />
-          </label>
-          <button className="secondary-action" disabled={busy} type="submit">
-            <Link2 aria-hidden="true" size={17} />
-            <span>Intercambiar token</span>
-          </button>
-        </form>
-
-        <section className="session-panel" aria-label="Sesion actual">
+      <section className="auth-grid auth-grid-session-only" aria-label="Sesion global">
+        <section className="session-panel" aria-label="Sesion recibida desde el shell">
           <div className="panel-heading">
             <UserCheck aria-hidden="true" size={19} />
-            <h2>Sesion</h2>
+            <h2>Sesion global del shell</h2>
           </div>
           {currentUser ? (
             <dl className="session-list">
@@ -893,7 +771,7 @@ export default function EmbeddedIdentity() {
               </div>
             </dl>
           ) : (
-            <div className="empty-state">Token requerido</div>
+            <div className="empty-state">Ingresa desde /login en el shell para habilitar este modulo.</div>
           )}
         </section>
       </section>

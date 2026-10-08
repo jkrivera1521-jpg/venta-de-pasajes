@@ -205,7 +205,8 @@ ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO roles (code, name, description) VALUES
     ('ADMIN', 'Administrador', 'Acceso administrativo inicial del modulo de identidad.'),
-    ('TICKET_SELLER', 'Vendedor de pasajes', 'Rol operativo para venta de boletos.')
+    ('TICKET_SELLER', 'Vendedor de pasajes', 'Rol operativo para venta de boletos.'),
+    ('CUSTOMER', 'Cliente pasajero', 'Acceso publico para venta en linea sin permisos operativos internos.')
 ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO role_permissions (role_id, permission_code)
