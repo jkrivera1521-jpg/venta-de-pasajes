@@ -441,3 +441,5 @@ PostgreSQL conserva la fórmula y tu servicio registra cada ejecución con su ve
     
 
 Mi recomendación: mantén separados el motor que ejecuta las fórmulas, el repositorio que las recupera y el servicio que registra las ejecuciones. De esa manera, tu API podrá ejecutar fórmulas de nómina, impuestos, comisiones, cuotas o cualquier otro cálculo sin implementar una clase Java nueva por cada regla de negocio.
+
+todo OK. by DM
