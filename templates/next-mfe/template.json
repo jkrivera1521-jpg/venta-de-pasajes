@@ -1,0 +1,14 @@
+{
+  "id": "next-mfe",
+  "type": "frontend",
+  "template_path": "templates/next-mfe/files",
+  "generator": "scripts/new-next-mfe.ps1",
+  "required_parameters": [
+    "MfeName",
+    "PackageSegment",
+    "Title",
+    "LocalPort",
+    "BackendPort"
+  ],
+  "dry_run_example": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\new-next-mfe.ps1 -MfeName mfe-catalog -PackageSegment catalog -Title \"Catalogos\" -LocalPort 3006 -BackendPort 8087 -DryRun"
+}

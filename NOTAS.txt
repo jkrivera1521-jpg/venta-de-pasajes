@@ -1,0 +1,45 @@
+Consola del proyecto dev:
+
+https://console.cloud.google.com/welcome/new?project=project-fbb34cd7-0b82-43e1-867&facet_url=https:%2F%2Fcloud.google.com
+
+Instalacion inicial de gcloud:
+
+```powershell
+choco install gcloudsdk -y
+```
+
+Cuenta de facturacion revisada:
+
+```text
+ACCOUNT_ID            NAME                      OPEN  MASTER_ACCOUNT_ID
+012A58-73A3EE-D43B8D  Mi cuenta de facturacion  True
+```
+
+Estado validado:
+
+- Proyecto: `project-fbb34cd7-0b82-43e1-867`
+- Cuenta activa: `jkrivera1521@gmail.com`
+- Billing: `012A58-73A3EE-D43B8D`
+- Billing vinculado: true
+- APIs requeridas faltantes: 0
+- Presupuesto verificado: true
+- SSL seguro: `auth/disable_ssl_validation=false`
+- Python usado por gcloud: `C:\Python312\python.exe`
+- `gcloud beta`: instalado
+
+Obtener token temporal de gcloud:
+
+```powershell
+gcloud auth print-access-token
+```
+
+Importante: no guardar el token impreso. Si se copia en notas, reemplazarlo por `<redacted>`.
+
+Resetear contrasena del usuario `postgres` solo si se necesita entrar por Cloud SQL Studio:
+
+```powershell
+gcloud config set project project-fbb34cd7-0b82-43e1-867
+gcloud sql users set-password postgres --instance=venta-pasajes-dev-sql --project=project-fbb34cd7-0b82-43e1-867 --prompt-for-password
+```
+
+Importante: no guardar la contrasena en este archivo ni en ningun `.env`.

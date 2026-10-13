@@ -1,0 +1,13 @@
+{
+  "id": "quarkus-service",
+  "type": "backend",
+  "template_path": "services/quarkus-service-template",
+  "generator": "scripts/new-quarkus-service.ps1",
+  "required_parameters": [
+    "ServiceName",
+    "PackageSegment",
+    "DatabaseName",
+    "HttpPort"
+  ],
+  "dry_run_example": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\new-quarkus-service.ps1 -ServiceName catalog-service -PackageSegment catalog -DatabaseName catalog_db -HttpPort 8087 -DryRun"
+}

@@ -1,0 +1,95 @@
+name: venta-pasajes-ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-quality:
+    name: Frontend quality
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck frontends
+        run: npm run typecheck:frontend
+
+      - name: Build frontends
+        run: npm run build:frontend
+
+  backend-tests:
+    name: Backend tests
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - audit-service
+          - dispatch-service
+          - document-service
+          - identity-service
+          - reporting-service
+          - ticketing-service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Run tests
+        working-directory: services/${{ matrix.service }}
+        run: mvn -B test -DskipITs
+
+  workspace-guardrails:
+    name: Workspace guardrails
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify critical files
+        shell: pwsh
+        run: |
+          $RequiredPaths = @(
+            "package.json",
+            "apps/frontend-shell/package.json",
+            "apps/mfe-admin/app/api/admin/production-readiness/route.ts",
+            "apps/mfe-admin/app/api/admin/diagnostic-export/route.ts",
+            "apps/mfe-admin/app/api/admin/diagnostic-history/route.ts",
+            "docs/dia-51-matriz-produccion-admin.md",
+            "services/identity-service/pom.xml",
+            "services/dispatch-service/pom.xml",
+            "services/ticketing-service/pom.xml",
+            "services/document-service/pom.xml",
+            "services/reporting-service/pom.xml",
+            "services/audit-service/pom.xml"
+          )
+
+          $Missing = $RequiredPaths | Where-Object { -not (Test-Path -Path $_) }
+          if ($Missing.Count -gt 0) {
+            $Missing | ForEach-Object { Write-Error "Missing required path: $_" }
+            exit 1
+          }
+
+          Write-Host "Workspace guardrails OK"

@@ -1,0 +1,184 @@
+﻿{
+  "environment": "prod",
+  "project_id": "project-fbb34cd7-0b82-43e1-867",
+  "topics": [
+    {
+      "name": "venta-pasajes-prod-identity-events",
+      "publisher_service_accounts": [
+        "identity-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com"
+      ]
+    },
+    {
+      "name": "venta-pasajes-prod-dispatch-events",
+      "publisher_service_accounts": [
+        "dispatch-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com"
+      ]
+    },
+    {
+      "name": "venta-pasajes-prod-ticketing-events",
+      "publisher_service_accounts": [
+        "ticketing-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com"
+      ]
+    },
+    {
+      "name": "venta-pasajes-prod-document-events",
+      "publisher_service_accounts": [
+        "document-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com"
+      ]
+    },
+    {
+      "name": "venta-pasajes-prod-audit-events",
+      "publisher_service_accounts": [
+        "audit-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com"
+      ]
+    },
+    {
+      "name": "venta-pasajes-prod-identity-events-dlq",
+      "publisher_service_accounts": []
+    },
+    {
+      "name": "venta-pasajes-prod-dispatch-events-dlq",
+      "publisher_service_accounts": []
+    },
+    {
+      "name": "venta-pasajes-prod-ticketing-events-dlq",
+      "publisher_service_accounts": []
+    },
+    {
+      "name": "venta-pasajes-prod-document-events-dlq",
+      "publisher_service_accounts": []
+    },
+    {
+      "name": "venta-pasajes-prod-audit-events-dlq",
+      "publisher_service_accounts": []
+    }
+  ],
+  "subscriptions": [
+    {
+      "name": "venta-pasajes-prod-audit-identity-events-sub",
+      "topic": "venta-pasajes-prod-identity-events",
+      "subscriber_service_accounts": [
+        "audit-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com"
+      ],
+      "ack_deadline_seconds": 30,
+      "message_retention_duration": "14d",
+      "dead_letter_topic": "venta-pasajes-prod-identity-events-dlq",
+      "max_delivery_attempts": 10,
+      "enable_dead_letter_policy": false
+    },
+    {
+      "name": "venta-pasajes-prod-audit-dispatch-events-sub",
+      "topic": "venta-pasajes-prod-dispatch-events",
+      "subscriber_service_accounts": [
+        "audit-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com"
+      ],
+      "ack_deadline_seconds": 30,
+      "message_retention_duration": "14d",
+      "dead_letter_topic": "venta-pasajes-prod-dispatch-events-dlq",
+      "max_delivery_attempts": 10,
+      "enable_dead_letter_policy": false
+    },
+    {
+      "name": "venta-pasajes-prod-audit-ticketing-events-sub",
+      "topic": "venta-pasajes-prod-ticketing-events",
+      "subscriber_service_accounts": [
+        "audit-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com"
+      ],
+      "ack_deadline_seconds": 30,
+      "message_retention_duration": "14d",
+      "dead_letter_topic": "venta-pasajes-prod-ticketing-events-dlq",
+      "max_delivery_attempts": 10,
+      "enable_dead_letter_policy": false
+    },
+    {
+      "name": "venta-pasajes-prod-audit-document-events-sub",
+      "topic": "venta-pasajes-prod-document-events",
+      "subscriber_service_accounts": [
+        "audit-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com"
+      ],
+      "ack_deadline_seconds": 30,
+      "message_retention_duration": "14d",
+      "dead_letter_topic": "venta-pasajes-prod-document-events-dlq",
+      "max_delivery_attempts": 10,
+      "enable_dead_letter_policy": false
+    },
+    {
+      "name": "venta-pasajes-prod-reporting-identity-events-sub",
+      "topic": "venta-pasajes-prod-identity-events",
+      "subscriber_service_accounts": [
+        "reporting-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com"
+      ],
+      "ack_deadline_seconds": 30,
+      "message_retention_duration": "14d",
+      "dead_letter_topic": "venta-pasajes-prod-identity-events-dlq",
+      "max_delivery_attempts": 10,
+      "enable_dead_letter_policy": false
+    },
+    {
+      "name": "venta-pasajes-prod-reporting-dispatch-events-sub",
+      "topic": "venta-pasajes-prod-dispatch-events",
+      "subscriber_service_accounts": [
+        "reporting-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com"
+      ],
+      "ack_deadline_seconds": 30,
+      "message_retention_duration": "14d",
+      "dead_letter_topic": "venta-pasajes-prod-dispatch-events-dlq",
+      "max_delivery_attempts": 10,
+      "enable_dead_letter_policy": false
+    },
+    {
+      "name": "venta-pasajes-prod-reporting-ticketing-events-sub",
+      "topic": "venta-pasajes-prod-ticketing-events",
+      "subscriber_service_accounts": [
+        "reporting-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com"
+      ],
+      "ack_deadline_seconds": 30,
+      "message_retention_duration": "14d",
+      "dead_letter_topic": "venta-pasajes-prod-ticketing-events-dlq",
+      "max_delivery_attempts": 10,
+      "enable_dead_letter_policy": false
+    },
+    {
+      "name": "venta-pasajes-prod-reporting-document-events-sub",
+      "topic": "venta-pasajes-prod-document-events",
+      "subscriber_service_accounts": [
+        "reporting-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com"
+      ],
+      "ack_deadline_seconds": 30,
+      "message_retention_duration": "14d",
+      "dead_letter_topic": "venta-pasajes-prod-document-events-dlq",
+      "max_delivery_attempts": 10,
+      "enable_dead_letter_policy": false
+    },
+    {
+      "name": "venta-pasajes-prod-ticketing-dispatch-events-sub",
+      "topic": "venta-pasajes-prod-dispatch-events",
+      "subscriber_service_accounts": [
+        "ticketing-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com"
+      ],
+      "ack_deadline_seconds": 30,
+      "message_retention_duration": "14d",
+      "dead_letter_topic": "venta-pasajes-prod-dispatch-events-dlq",
+      "max_delivery_attempts": 10,
+      "enable_dead_letter_policy": false
+    },
+    {
+      "name": "venta-pasajes-prod-document-ticketing-events-sub",
+      "topic": "venta-pasajes-prod-ticketing-events",
+      "subscriber_service_accounts": [
+        "document-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com"
+      ],
+      "ack_deadline_seconds": 30,
+      "message_retention_duration": "14d",
+      "dead_letter_topic": "venta-pasajes-prod-ticketing-events-dlq",
+      "max_delivery_attempts": 10,
+      "enable_dead_letter_policy": false
+    }
+  ],
+  "notes": [
+    "Dead-letter topics are created in Day 69.",
+    "Dead-letter delivery policies are configured as false initially to avoid binding policies before Day 70 production IAM hardening.",
+    "Day 70 must revisit service-account separation and dead-letter publisher permissions."
+  ]
+}
+

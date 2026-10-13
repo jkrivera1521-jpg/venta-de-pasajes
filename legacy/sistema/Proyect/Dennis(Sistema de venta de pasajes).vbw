@@ -1,0 +1,13 @@
+LoginForm = 75, 75, 857, 572, , 50, 50, 832, 547, C
+ModuleDeclare = 25, 25, 748, 558, C
+ModuleSentences = 134, 42, 857, 575, C
+CrearUsuariosForm = 0, 0, 0, 0, C, 0, 0, 0, 0, C
+MDIFormPrincipal = 0, 0, 0, 0, C, 0, 0, 0, 0, C
+ModificarUsuarioForm = 0, 0, 0, 0, C, 0, 0, 0, 0, C
+MantenimientoBusesForm = 0, 0, 0, 0, C, 0, 0, 0, 0, C
+GestordeTerminalesForm = 0, 0, 0, 0, C, 0, 0, 0, 0, C
+GestordeBoletosForm = 100, 100, 1000, 571, C, 50, 50, 773, 583, C
+AsientosForm = 75, 75, 798, 608, C, 216, 60, 939, 593, C
+ClientesForm = 0, 0, 0, 0, C, 0, 0, 0, 0, C
+DrClientes = 0, 0, 0, 0, C, 0, 0, 0, 0, C
+DrFacturacion = 0, 0, 0, 0, C, 0, 0, 0, 0, C

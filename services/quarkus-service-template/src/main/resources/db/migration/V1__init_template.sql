@@ -1,0 +1,2 @@
+-- Initial migration placeholder.
+-- Generated services should replace this file with domain-specific DDL.

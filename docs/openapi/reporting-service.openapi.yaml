@@ -1,0 +1,503 @@
+openapi: 3.0.3
+info:
+  title: Reporting Service API
+  version: 0.1.0
+  description: API inicial para reportes operativos, consultas historicas y exportaciones.
+servers:
+  - url: https://reporting-service-dev.example.com/api/v1
+    description: Dev placeholder
+security:
+  - bearerAuth: []
+tags:
+  - name: reports
+  - name: events
+  - name: exports
+paths:
+  /health:
+    get:
+      tags: [reports]
+      summary: Estado basico del servicio.
+      security: []
+      responses:
+        "200":
+          description: Servicio disponible.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /reports/sales:
+    get:
+      tags: [reports]
+      summary: Reporte de ventas por rango.
+      parameters:
+        - $ref: "#/components/parameters/DateFrom"
+        - $ref: "#/components/parameters/DateTo"
+        - $ref: "#/components/parameters/TerminalId"
+        - $ref: "#/components/parameters/RouteId"
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: Ventas agregadas y detalle.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SalesReport"
+  /reports/passengers:
+    get:
+      tags: [reports]
+      summary: Pasajeros por salida o rango.
+      parameters:
+        - $ref: "#/components/parameters/DateFrom"
+        - $ref: "#/components/parameters/DateTo"
+        - name: departure_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: q
+          in: query
+          schema:
+            type: string
+          description: Busca por nombre, apellido o documento.
+      responses:
+        "200":
+          description: Pasajeros encontrados.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PassengerSaleRow"
+  /reports/sales/by-user:
+    get:
+      tags: [reports]
+      summary: Ventas agrupadas por usuario.
+      parameters:
+        - $ref: "#/components/parameters/DateFrom"
+        - $ref: "#/components/parameters/DateTo"
+      responses:
+        "200":
+          description: Totales por usuario.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SalesByUserRow"
+  /reports/sales/by-bus:
+    get:
+      tags: [reports]
+      summary: Ventas agrupadas por bus o ruta.
+      parameters:
+        - $ref: "#/components/parameters/DateFrom"
+        - $ref: "#/components/parameters/DateTo"
+        - name: group_by
+          in: query
+          schema:
+            type: string
+            enum: [BUS, ROUTE, TERMINAL]
+            default: BUS
+      responses:
+        "200":
+          description: Totales agrupados.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SalesGroupRow"
+  /events/ticket-sold:
+    post:
+      tags: [events]
+      summary: Consumir evento TicketSold en el modelo de lectura.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TicketSoldEvent"
+      responses:
+        "200":
+          description: Evento consumido o duplicado idempotente.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventIngestResponse"
+  /events/ticket-cancelled:
+    post:
+      tags: [events]
+      summary: Consumir evento TicketCancelled en el modelo de lectura.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TicketCancelledEvent"
+      responses:
+        "200":
+          description: Evento consumido o duplicado idempotente.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventIngestResponse"
+  /exports:
+    post:
+      tags: [exports]
+      summary: Solicitar exportacion CSV o PDF de un reporte.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 16
+            maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExportRequest"
+      responses:
+        "202":
+          description: Exportacion aceptada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportJob"
+  /exports/{exportId}:
+    get:
+      tags: [exports]
+      summary: Consultar estado de exportacion.
+      parameters:
+        - name: exportId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Estado de exportacion.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportJob"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    DateFrom:
+      name: date_from
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+    DateTo:
+      name: date_to
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+    TerminalId:
+      name: terminal_id
+      in: query
+      schema:
+        type: string
+        format: uuid
+    RouteId:
+      name: route_id
+      in: query
+      schema:
+        type: string
+        format: uuid
+    UserId:
+      name: user_id
+      in: query
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: UP
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+          default: PEN
+    SalesReport:
+      type: object
+      required: [summary, rows]
+      properties:
+        summary:
+          $ref: "#/components/schemas/SalesSummary"
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleRow"
+    SalesSummary:
+      type: object
+      required: [tickets_sold, tickets_cancelled, gross_amount, net_amount]
+      properties:
+        tickets_sold:
+          type: integer
+        tickets_cancelled:
+          type: integer
+        gross_amount:
+          $ref: "#/components/schemas/Money"
+        net_amount:
+          $ref: "#/components/schemas/Money"
+    SaleRow:
+      type: object
+      required: [ticket_id, ticket_number, sold_at, passenger_name, bus_code, origin, destination, amount, status]
+      properties:
+        ticket_id:
+          type: string
+          format: uuid
+        ticket_number:
+          type: string
+        sold_at:
+          type: string
+          format: date-time
+        passenger_name:
+          type: string
+        document_number:
+          type: string
+        bus_code:
+          type: string
+        origin:
+          type: string
+        destination:
+          type: string
+        seat_number:
+          type: integer
+        seller_user_id:
+          type: string
+          format: uuid
+        amount:
+          $ref: "#/components/schemas/Money"
+        status:
+          type: string
+          enum: [SOLD, CANCELLED]
+    PassengerSaleRow:
+      type: object
+      properties:
+        passenger_name:
+          type: string
+        document_number:
+          type: string
+        ticket_number:
+          type: string
+        departure_at:
+          type: string
+          format: date-time
+        bus_code:
+          type: string
+        seat_number:
+          type: integer
+    SalesByUserRow:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        user_display_name:
+          type: string
+        tickets_sold:
+          type: integer
+        net_amount:
+          $ref: "#/components/schemas/Money"
+    SalesGroupRow:
+      type: object
+      properties:
+        group_key:
+          type: string
+        group_label:
+          type: string
+        tickets_sold:
+          type: integer
+        net_amount:
+          $ref: "#/components/schemas/Money"
+    ExportFormat:
+      type: string
+      enum: [CSV, PDF]
+    CreateExportRequest:
+      type: object
+      required: [report, format, filters]
+      properties:
+        report:
+          type: string
+          enum: [SALES, PASSENGERS, SALES_BY_USER, SALES_BY_BUS]
+        format:
+          $ref: "#/components/schemas/ExportFormat"
+        filters:
+          type: object
+          additionalProperties: true
+    ExportStatus:
+      type: string
+      enum: [PENDING, RUNNING, COMPLETED, FAILED]
+    ExportJob:
+      type: object
+      required: [id, report, format, status, requested_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        report:
+          type: string
+        format:
+          $ref: "#/components/schemas/ExportFormat"
+        status:
+          $ref: "#/components/schemas/ExportStatus"
+        document_id:
+          type: string
+          format: uuid
+        requested_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        failure_reason:
+          type: string
+    EventIngestResponse:
+      type: object
+      required: [event_id, event_type, status, processed, ticket_id]
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+        status:
+          type: string
+          enum: [PROCESSED, DUPLICATE]
+        processed:
+          type: boolean
+        ticket_id:
+          type: string
+          format: uuid
+    TicketSoldEvent:
+      type: object
+      required: [event_id, ticket_id, ticket_number, dispatch_departure_id, fare_amount, currency]
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+          example: TicketSold
+        schema_version:
+          type: integer
+          default: 1
+        occurred_at:
+          type: string
+          format: date-time
+        source_service:
+          type: string
+          example: ticketing-service
+        correlation_id:
+          type: string
+          format: uuid
+        ticket_id:
+          type: string
+          format: uuid
+        ticket_number:
+          type: string
+        dispatch_departure_id:
+          type: string
+          format: uuid
+        route_id:
+          type: string
+          format: uuid
+        origin_terminal_id:
+          type: string
+          format: uuid
+        destination_terminal_id:
+          type: string
+          format: uuid
+        passenger_id:
+          type: string
+          format: uuid
+        passenger_name:
+          type: string
+        passenger_document_type:
+          type: string
+        passenger_document_number:
+          type: string
+        seat_number:
+          type: string
+        fare_amount:
+          type: number
+          format: double
+        currency:
+          type: string
+        sold_by_user_id:
+          type: string
+          format: uuid
+        seller_display_name:
+          type: string
+        bus_code:
+          type: string
+        origin:
+          type: string
+        destination:
+          type: string
+        departure_at:
+          type: string
+          format: date-time
+    TicketCancelledEvent:
+      type: object
+      required: [event_id, ticket_id]
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        event_type:
+          type: string
+          example: TicketCancelled
+        schema_version:
+          type: integer
+          default: 1
+        occurred_at:
+          type: string
+          format: date-time
+        source_service:
+          type: string
+          example: ticketing-service
+        correlation_id:
+          type: string
+          format: uuid
+        ticket_id:
+          type: string
+          format: uuid
+        ticket_number:
+          type: string
+        cancelled_at:
+          type: string
+          format: date-time
+        cancelled_by_user_id:
+          type: string
+          format: uuid
+        cancelled_by:
+          type: string
+        reason:
+          type: string
+        refund_amount:
+          type: number
+          format: double
