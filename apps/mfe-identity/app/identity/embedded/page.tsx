@@ -1305,7 +1305,19 @@ export default function EmbeddedIdentity() {
               <h2>Sesiones activas</h2>
               <span>{sessions.length} sesiones vigentes en todos los navegadores y hosts</span>
             </div>
-            <UserCheck aria-hidden="true" size={22} />
+            <div className="table-header-actions">
+              <button
+                aria-label="Actualizar sesiones"
+                className="icon-button"
+                disabled={busy}
+                onClick={() => void refreshData()}
+                title="Actualizar sesiones"
+                type="button"
+              >
+                <RefreshCw aria-hidden="true" size={18} />
+              </button>
+              <UserCheck aria-hidden="true" size={22} />
+            </div>
           </div>
           <div className="table-wrap">
             <table>

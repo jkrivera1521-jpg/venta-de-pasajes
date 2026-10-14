@@ -263,6 +263,7 @@ button:disabled {
 .module-actions,
 .panel-heading,
 .table-header,
+.table-header-actions,
 .row-actions,
 .tab-button,
 .primary-action,
@@ -687,6 +688,10 @@ textarea:focus {
 
 .table-header svg {
   color: var(--green);
+}
+
+.table-header-actions {
+  gap: 10px;
 }
 
 .table-create-action {
