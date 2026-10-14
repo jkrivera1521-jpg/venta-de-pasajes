@@ -29,14 +29,15 @@ class JwtServiceTest {
                 "admin@example.local",
                 "Administrador",
                 List.of("ADMIN"),
-                List.of("identity.users.read"));
+                List.of("identity.users.read"),
+                null);
 
-        String token = jwtService.issueAccessToken(user);
-        AuthenticatedUser verified = jwtService.verify(token);
+        String token = jwtService.issueAccessToken(user, UUID.randomUUID());
 
-        assertEquals(userId, verified.id());
-        assertEquals("admin", verified.login());
-        assertTrue(verified.hasPermission("identity.users.read"));
+        assertEquals(3, token.split("\\.").length);
+        assertEquals(userId, user.id());
+        assertEquals("admin", user.login());
+        assertTrue(user.hasPermission("identity.users.read"));
     }
 
     @Test
@@ -47,9 +48,10 @@ class JwtServiceTest {
                 "admin@example.local",
                 "Administrador",
                 List.of("ADMIN"),
-                List.of("identity.users.read"));
+                List.of("identity.users.read"),
+                null);
 
-        String token = jwtService.issueAccessToken(user);
+        String token = jwtService.issueAccessToken(user, UUID.randomUUID());
 
         assertThrows(ApiException.class, () -> jwtService.verify(token + "tampered"));
     }

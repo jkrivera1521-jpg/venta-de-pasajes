@@ -91,10 +91,10 @@ paths:
   /auth/logout:
     post:
       tags: [auth]
-      summary: Cerrar sesion JWT stateless.
+      summary: Cerrar todas las sesiones activas del usuario autenticado.
       responses:
         "204":
-          description: Sesion cerrada.
+          description: Todas las sesiones del usuario fueron revocadas.
   /me:
     get:
       tags: [auth]
@@ -169,7 +169,8 @@ paths:
           $ref: "#/components/responses/NotFound"
     patch:
       tags: [users]
-      summary: Actualizar datos no sensibles de un usuario.
+      summary: Actualizar datos y roles de un usuario.
+      description: El correo de cuentas GOOGLE es inmutable. Login y correo deben ser unicos. Incluir role_ids requiere identity.roles.manage; datos y roles se guardan en una sola transaccion.
       parameters:
         - $ref: "#/components/parameters/UserId"
       requestBody:
@@ -185,6 +186,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
+        "400":
+          description: Datos invalidos o intento de modificar el correo de una cuenta GOOGLE.
+        "403":
+          description: Sin permiso para modificar el usuario o sus roles.
+        "409":
+          description: Usuario o correo duplicado. EMAIL_REGISTERED_WITH_GOOGLE indica que el correo pertenece a una cuenta GOOGLE.
+  /users/{userId}/logout:
+    post:
+      tags: [users, sessions]
+      summary: Cerrar todas las sesiones activas de un usuario.
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "204":
+          description: Sesiones del usuario revocadas.
+        "403":
+          $ref: "#/components/responses/Forbidden"
   /users/{userId}/roles:
     put:
       tags: [users, roles]
@@ -211,6 +229,33 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
+  /sessions:
+    get:
+      tags: [sessions]
+      summary: Listar sesiones activas de identidad.
+      responses:
+        "200":
+          description: Sesiones activas en todos los clientes.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IdentitySession"
+  /sessions/{sessionId}/revoke:
+    post:
+      tags: [sessions]
+      summary: Revocar una sesion de identidad.
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Sesion revocada.
   /users/{userId}/activate:
     post:
       tags: [users]
@@ -466,12 +511,20 @@ components:
         password:
           type: string
           format: password
+        force:
+          type: boolean
+          default: false
+          description: Revoca las sesiones anteriores despues de confirmar el inicio unico.
     GoogleTokenExchangeRequest:
       type: object
       required: [id_token]
       properties:
         id_token:
           type: string
+        force:
+          type: boolean
+          default: false
+          description: Revoca las sesiones anteriores despues de confirmar el inicio unico.
     PublicLocalRegisterRequest:
       type: object
       required: [login, email, display_name, password]
@@ -626,9 +679,12 @@ components:
     UpdateUserRequest:
       type: object
       properties:
+        login:
+          type: string
         email:
           type: string
           format: email
+          description: Editable solo en cuentas LOCAL; debe ser unico entre todas las cuentas.
         display_name:
           type: string
         employee_code:
@@ -643,6 +699,61 @@ components:
           type: string
         job_title:
           type: string
+        role_ids:
+          type: array
+          description: Omitir conserva los roles; una lista vacia los retira. Requiere identity.roles.manage.
+          items:
+            type: string
+            format: uuid
+    IdentitySession:
+      type: object
+      required: [id, user_id, login, display_name, identity_type, user_status, created_at, last_seen_at, expires_at, current]
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        login:
+          type: string
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        identity_type:
+          type: string
+          enum: [LOCAL, GOOGLE]
+        user_status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_seen_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        user_agent:
+          type: string
+        device_name:
+          type: string
+        device_type:
+          type: string
+        operating_system:
+          type: string
+        browser:
+          type: string
+        browser_version:
+          type: string
+        location:
+          type: string
+        ip_address:
+          type: string
+        current:
+          type: boolean
     StatusReasonRequest:
       type: object
       properties:

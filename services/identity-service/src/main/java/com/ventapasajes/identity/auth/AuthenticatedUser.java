@@ -9,7 +9,8 @@ public record AuthenticatedUser(
         String email,
         String displayName,
         List<String> roles,
-        List<String> permissions) {
+        List<String> permissions,
+        UUID sessionId) {
 
     public boolean hasPermission(String permission) {
         return permissions != null && permissions.contains(permission);

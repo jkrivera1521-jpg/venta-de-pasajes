@@ -176,13 +176,32 @@ CREATE INDEX idx_login_attempts_login_time ON login_attempts (login, occurred_at
 CREATE INDEX idx_outbox_events_pending ON outbox_events (status, next_attempt_at)
     WHERE status IN ('PENDING', 'FAILED');
 
+CREATE TABLE identity_sessions (
+    id uuid PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    expires_at timestamptz NOT NULL,
+    last_seen_at timestamptz NOT NULL DEFAULT now(),
+    revoked_at timestamptz,
+    user_agent text,
+    device_name text,
+    ip_address text,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT ck_identity_sessions_dates CHECK (expires_at > created_at)
+);
+
+CREATE INDEX idx_identity_sessions_active
+    ON identity_sessions (user_id, expires_at)
+    WHERE revoked_at IS NULL;
+
 INSERT INTO permissions (code, description) VALUES
     ('identity.users.read', 'Listar y consultar usuarios internos.'),
     ('identity.users.write', 'Crear y modificar usuarios internos.'),
     ('identity.users.status', 'Activar, suspender y bloquear usuarios internos.'),
     ('identity.roles.read', 'Listar roles internos.'),
     ('identity.roles.manage', 'Administrar roles y permisos.'),
-    ('identity.permissions.read', 'Listar permisos disponibles.')
+    ('identity.permissions.read', 'Listar permisos disponibles.'),
+    ('identity.sessions.read', 'Listar sesiones activas de identidad.'),
+    ('identity.sessions.revoke', 'Revocar sesiones activas de identidad.')
 ON CONFLICT (code) DO NOTHING;
 
 INSERT INTO roles (code, name, description) VALUES

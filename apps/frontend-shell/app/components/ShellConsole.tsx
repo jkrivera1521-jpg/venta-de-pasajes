@@ -27,6 +27,7 @@ const counters = [
 
 const identityStorageKey = "venta-pasajes.identity.access-token";
 const identityUserStorageKey = "venta-pasajes.identity.current-user";
+const identityLogoutEventKey = "venta-pasajes.identity.logout-event";
 
 const shellTimeFormatter = new Intl.DateTimeFormat("es-EC", {
   hour: "2-digit",
@@ -147,6 +148,8 @@ export function ShellConsole() {
     enabled: authChecked && Boolean(accessToken),
     queryFn: () => fetchCurrentUser(accessToken as string),
     queryKey: ["frontend-shell", "identity-session", accessToken],
+    refetchInterval: 10 * 1000,
+    refetchIntervalInBackground: true,
     retry: false,
     staleTime: 30 * 1000
   });
@@ -280,14 +283,41 @@ export function ShellConsole() {
   }, [accessToken, authChecked, currentUserQuery.isError, router]);
 
   useEffect(() => {
+    function handleCrossTabLogout(event: StorageEvent) {
+      if (event.key !== identityLogoutEventKey || !event.newValue) {
+        return;
+      }
+
+      window.sessionStorage.removeItem(identityStorageKey);
+      window.sessionStorage.removeItem(identityUserStorageKey);
+      setAccessToken(null);
+      router.replace("/login");
+    }
+
+    window.addEventListener("storage", handleCrossTabLogout);
+    return () => window.removeEventListener("storage", handleCrossTabLogout);
+  }, [router]);
+
+  useEffect(() => {
     if (!modules.some((module) => module.key === activeModuleKey && module.enabled)) {
       setActiveModuleKey(modules[0]?.key ?? "online-sales");
     }
   }, [activeModuleKey, modules]);
 
-  function logout() {
+  async function logout() {
+    if (accessToken) {
+      try {
+        await fetch("/api/identity/auth/logout", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          method: "POST"
+        });
+      } catch {
+        // The local session is still cleared when the service is unavailable.
+      }
+    }
     window.sessionStorage.removeItem(identityStorageKey);
     window.sessionStorage.removeItem(identityUserStorageKey);
+    window.localStorage.setItem(identityLogoutEventKey, String(Date.now()));
     setAccessToken(null);
     router.replace("/login");
   }
@@ -387,6 +417,7 @@ export function ShellConsole() {
             fallbackTitle={activeModule.fallbackTitle ?? activeModule.label}
             key={activeModule.key}
             manifestUrl={activeModule.manifestUrl ?? ""}
+            onAuthRevoked={logout}
           />
         </section>
       </section>

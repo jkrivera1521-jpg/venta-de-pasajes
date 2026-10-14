@@ -395,6 +395,8 @@ Configuracion relevante:
 quarkus.flyway.locations=db/migration
 quarkus.flyway.migrate-at-start=${QUARKUS_FLYWAY_MIGRATE_AT_START:false}
 quarkus.flyway.baseline-on-migrate=${QUARKUS_FLYWAY_BASELINE_ON_MIGRATE:false}
+%dev.quarkus.flyway.migrate-at-start=${QUARKUS_FLYWAY_MIGRATE_AT_START:true}
+%dev.quarkus.flyway.repair-at-start=${QUARKUS_FLYWAY_REPAIR_AT_START:true}
 ```
 
 Esto significa:
@@ -402,6 +404,9 @@ Esto significa:
 - `db/migration`: carpeta donde busca los SQL dentro de `src\main\resources`;
 - `QUARKUS_FLYWAY_MIGRATE_AT_START=true`: permite ejecutar migraciones automaticamente cuando arranca la aplicacion;
 - `baseline-on-migrate`: ayuda cuando se adopta Flyway sobre una base que ya tenia objetos, pero debe usarse con cuidado.
+- `repair-at-start`: en desarrollo corrige el checksum del historial cuando una migracion local fue modificada intencionalmente y luego permite aplicar las nuevas migraciones.
+
+Si aparece `Migration checksum mismatch`, reinicia `identity-service` con el perfil de desarrollo. La reparacion solo esta habilitada por defecto en `%dev`; en ambientes productivos debe ejecutarse una reparacion aprobada de forma explicita.
 
 En la validacion local del Dia 17, el script configura:
 
@@ -1057,7 +1062,7 @@ Notas:
 
 ### `POST /api/v1/identity/auth/logout`
 
-Acepta cierre de sesion del cliente. Actualmente no invalida el JWT en servidor; devuelve `204 No Content`.
+Acepta el cierre de sesion y revoca en el servidor todas las sesiones activas del usuario. Los tokens dejan de ser validos en cualquier navegador u host y devuelve `204 No Content`.
 
 Consumir:
 

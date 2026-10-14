@@ -1,4 +1,4 @@
 package com.ventapasajes.identity.api.dto;
 
-public record LocalLoginRequest(String login, String password) {
+public record LocalLoginRequest(String login, String password, boolean force) {
 }

@@ -736,6 +736,126 @@ button {
   color: #b42318;
 }
 
+.session-conflict-backdrop {
+  align-items: center;
+  background: rgba(37, 8, 17, 0.56);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 20;
+}
+
+.session-conflict-dialog {
+  background: #ffffff;
+  border: 1px solid #ead6db;
+  border-radius: 12px;
+  box-shadow: 0 24px 70px rgba(27, 5, 13, 0.34);
+  display: grid;
+  gap: 14px;
+  max-width: 430px;
+  padding: 24px;
+  width: 100%;
+}
+
+.session-conflict-icon {
+  align-items: center;
+  background: #fff0f2;
+  border-radius: 10px;
+  color: var(--brand-500);
+  display: inline-flex;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
+}
+
+.session-conflict-eyebrow {
+  color: var(--brand-500);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.session-conflict-heading h3 {
+  color: var(--brand-900);
+  font-size: 22px;
+  line-height: 1.2;
+  margin: 4px 0 0;
+}
+
+.session-conflict-heading p {
+  color: var(--muted);
+  line-height: 1.45;
+  margin: 7px 0 0;
+}
+
+.session-conflict-list {
+  display: grid;
+  gap: 8px;
+}
+
+.session-conflict-item {
+  background: #fbf7f8;
+  border: 1px solid #ead6db;
+  border-radius: 8px;
+  display: grid;
+  gap: 3px;
+  padding: 11px 12px;
+}
+
+.session-conflict-item strong {
+  color: var(--brand-900);
+  font-size: 14px;
+}
+
+.session-conflict-item span,
+.session-conflict-warning {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.session-conflict-warning {
+  background: #fff8e8;
+  border-left: 3px solid #e7a92b;
+  margin: 0;
+  padding: 9px 10px;
+}
+
+.session-conflict-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.session-conflict-actions button {
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  min-height: 42px;
+  padding: 0 15px;
+}
+
+.session-conflict-cancel {
+  background: #ffffff;
+  border: 1px solid #d8bdc5;
+  color: var(--brand-700);
+}
+
+.session-conflict-continue {
+  background: var(--brand-500);
+  border: 1px solid var(--brand-500);
+  color: #ffffff;
+}
+
+.session-conflict-actions button:hover,
+.session-conflict-actions button:focus-visible {
+  filter: brightness(0.96);
+}
+
 .login-form-stack {
   display: grid;
   gap: 13px;

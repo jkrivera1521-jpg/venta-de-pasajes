@@ -20,6 +20,7 @@ type RemoteMfeFrameProps = {
   fallbackName: string;
   fallbackTitle: string;
   manifestUrl: string;
+  onAuthRevoked?: () => void;
   shellName?: string;
 };
 
@@ -43,7 +44,7 @@ function parseGrowlSeverity(value: unknown): GrowlSeverity {
   return "info";
 }
 
-export function RemoteMfeFrame({ accessToken = null, fallbackName, fallbackTitle, manifestUrl, shellName = "frontend-shell" }: Readonly<RemoteMfeFrameProps>) {
+export function RemoteMfeFrame({ accessToken = null, fallbackName, fallbackTitle, manifestUrl, onAuthRevoked, shellName = "frontend-shell" }: Readonly<RemoteMfeFrameProps>) {
   const [frameHeight, setFrameHeight] = useState(720);
   const [reloadToken, setReloadToken] = useState(0);
   const [growls, setGrowls] = useState<ShellGrowl[]>([]);
@@ -142,6 +143,11 @@ export function RemoteMfeFrame({ accessToken = null, fallbackName, fallbackTitle
         return;
       }
 
+      if (data.type === "venta-pasajes:mfe-auth-revoked") {
+        onAuthRevoked?.();
+        return;
+      }
+
       if (data.type === "venta-pasajes:growl") {
         const summary = typeof data.summary === "string" && data.summary.trim() ? data.summary : "Notificacion";
         const detail = typeof data.detail === "string" && data.detail.trim() ? data.detail : undefined;
@@ -163,7 +169,7 @@ export function RemoteMfeFrame({ accessToken = null, fallbackName, fallbackTitle
 
     window.addEventListener("message", handleMfeMessage);
     return () => window.removeEventListener("message", handleMfeMessage);
-  }, [manifestOrigin, postShellAuthToFrame, showGrowl]);
+  }, [manifestOrigin, onAuthRevoked, postShellAuthToFrame, showGrowl]);
 
   return (
     <>

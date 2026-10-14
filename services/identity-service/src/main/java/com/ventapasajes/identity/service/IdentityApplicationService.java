@@ -17,9 +17,11 @@ import javax.crypto.spec.SecretKeySpec;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import com.ventapasajes.identity.api.ApiException;
+import com.ventapasajes.identity.api.dto.ActiveSessionConflict;
 import com.ventapasajes.identity.api.dto.AuthTokenResponse;
 import com.ventapasajes.identity.api.dto.CurrentUserResponse;
 import com.ventapasajes.identity.api.dto.GoogleTokenExchangeRequest;
+import com.ventapasajes.identity.api.dto.IdentitySessionResponse;
 import com.ventapasajes.identity.api.dto.LocalLoginRequest;
 import com.ventapasajes.identity.api.dto.PasswordForgotRequest;
 import com.ventapasajes.identity.api.dto.PasswordForgotResponse;
@@ -43,6 +45,7 @@ import com.ventapasajes.identity.domain.IdentityType;
 import com.ventapasajes.identity.domain.RoleStatus;
 import com.ventapasajes.identity.domain.UserStatus;
 import com.ventapasajes.identity.persistence.entity.GoogleIdentity;
+import com.ventapasajes.identity.persistence.entity.IdentitySession;
 import com.ventapasajes.identity.persistence.entity.InternalProfile;
 import com.ventapasajes.identity.persistence.entity.LocalCredential;
 import com.ventapasajes.identity.persistence.entity.PasswordResetToken;
@@ -105,7 +108,7 @@ public class IdentityApplicationService {
     private final SecureRandom secureRandom = new SecureRandom();
 
     @Transactional
-    public AuthTokenResponse localLogin(LocalLoginRequest request, String userAgent) {
+    public AuthTokenResponse localLogin(LocalLoginRequest request, String userAgent, String ipAddress) {
         request = requirePayload(request);
         String login = required(request.login(), "login").toLowerCase(Locale.ROOT);
         String password = required(request.password(), "password");
@@ -135,12 +138,19 @@ public class IdentityApplicationService {
         user.lastLoginAt = Instant.now();
         user.persist();
         recordLoginAttempt(user.id, login, true, null, userAgent);
-        return tokenResponse(authenticatedUser(user));
+        if (!request.force() && hasActiveSessions(user.id)) {
+            throw activeSessionConflict(user.id);
+        }
+        if (request.force()) {
+            revokeAllSessions(user.id);
+        }
+        return tokenResponse(authenticatedUser(user), userAgent, ipAddress);
     }
 
     @Transactional
-    public AuthTokenResponse googleExchange(GoogleTokenExchangeRequest request) {
-        GooglePrincipal principal = googleIdTokenVerifier.verify(request == null ? null : request.idToken());
+    public AuthTokenResponse googleExchange(GoogleTokenExchangeRequest request, String userAgent, String ipAddress) {
+        request = requirePayload(request);
+        GooglePrincipal principal = googleIdTokenVerifier.verify(request.idToken());
 
         UserAccount user = findUserByGoogleSubject(principal.subject());
         if (user == null) {
@@ -157,11 +167,17 @@ public class IdentityApplicationService {
 
         user.lastLoginAt = Instant.now();
         user.persist();
-        return tokenResponse(authenticatedUser(user));
+        if (!request.force() && hasActiveSessions(user.id)) {
+            throw activeSessionConflict(user.id);
+        }
+        if (request.force()) {
+            revokeAllSessions(user.id);
+        }
+        return tokenResponse(authenticatedUser(user), userAgent, ipAddress);
     }
 
     @Transactional
-    public AuthTokenResponse registerLocalPublicAccount(PublicLocalRegisterRequest request, String userAgent) {
+    public AuthTokenResponse registerLocalPublicAccount(PublicLocalRegisterRequest request, String userAgent, String ipAddress) {
         request = requirePayload(request);
         String login = required(request.login(), "login").toLowerCase(Locale.ROOT);
         String email = required(request.email(), "email").toLowerCase(Locale.ROOT);
@@ -189,7 +205,7 @@ public class IdentityApplicationService {
         createOrUpdateLocalCredential(user, password, false);
         assignDefaultRole(user.id, publicDefaultRoleCode);
         recordLoginAttempt(user.id, login, true, null, userAgent);
-        return tokenResponse(authenticatedUser(user));
+        return tokenResponse(authenticatedUser(user), userAgent, ipAddress);
     }
 
     @Transactional
@@ -238,15 +254,124 @@ public class IdentityApplicationService {
     }
 
     @Transactional
-    public UserResponse updateUser(UUID userId, UserUpdateRequest request) {
+    public UserResponse updateUser(UUID userId, UserUpdateRequest request, UUID actorUserId) {
         request = requirePayload(request);
         UserAccount user = requireUser(userId);
-        if (request.displayName() != null && !request.displayName().isBlank()) {
-            user.displayName = request.displayName().trim();
+        String login = request.login() == null ? user.login : required(request.login(), "login").toLowerCase(Locale.ROOT);
+        String email = request.email() == null ? user.email : required(request.email(), "email").toLowerCase(Locale.ROOT);
+        if (request.email() != null) {
+            if (user.identityType == IdentityType.GOOGLE && !email.equalsIgnoreCase(user.email)) {
+                throw ApiException.validation("GOOGLE_EMAIL_READ_ONLY", "El correo de una cuenta GOOGLE no se puede modificar.");
+            }
+            if (!email.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+                throw ApiException.validation("EMAIL_INVALID", "El correo electronico no es valido.");
+            }
         }
-        upsertProfile(user.id, request.employeeCode(), request.firstName(), request.lastName(), request.phone(), request.address(), request.jobTitle());
-        user.persist();
-        return toUserResponse(user);
+        ensureUserIdentifierAvailable(login, user.id, false);
+        ensureUserIdentifierAvailable(email, user.id, true);
+
+        try {
+            user.login = login;
+            user.email = email;
+            if (request.displayName() != null) {
+                user.displayName = required(request.displayName(), "displayName");
+            }
+            upsertProfile(user.id, request.employeeCode(), request.firstName(), request.lastName(), request.phone(), request.address(), request.jobTitle());
+            if (request.roleIds() != null) {
+                replaceUserRoles(user.id, request.roleIds(), actorUserId);
+            }
+            user.persistAndFlush();
+            return toUserResponse(user);
+        } catch (org.hibernate.exception.ConstraintViolationException exception) {
+            if ("23505".equals(exception.getSQLState())) {
+                throw ApiException.conflict("USER_ALREADY_EXISTS", "El usuario o correo ya esta registrado en otra cuenta.");
+            }
+            throw exception;
+        }
+    }
+
+    @Transactional
+    public List<IdentitySessionResponse> listActiveSessions(UUID currentSessionId) {
+        Instant now = Instant.now();
+        return IdentitySession.<IdentitySession>list("revokedAt is null and expiresAt > ?1 order by lastSeenAt desc", now)
+                .stream()
+                .map(session -> {
+                    UserAccount user = UserAccount.findById(session.userId);
+                    if (user == null || user.retiredAt != null) {
+                        return null;
+                    }
+                    return new IdentitySessionResponse(
+                            session.id,
+                            user.id,
+                            user.login,
+                            user.email,
+                            user.displayName,
+                            user.identityType.name(),
+                            user.status.name(),
+                            session.createdAt,
+                            session.lastSeenAt,
+                            session.expiresAt,
+                            session.userAgent,
+                            session.deviceName,
+                            deviceTypeFor(session.userAgent),
+                            operatingSystemFor(session.userAgent),
+                            browserFor(session.userAgent),
+                            browserVersionFor(session.userAgent),
+                            locationFor(session.ipAddress),
+                            session.ipAddress,
+                            session.id.equals(currentSessionId));
+                })
+                .filter(java.util.Objects::nonNull)
+                .toList();
+    }
+
+    @Transactional
+    public void revokeSession(UUID sessionId) {
+        if (sessionId == null) {
+            return;
+        }
+        IdentitySession session = IdentitySession.findById(sessionId);
+        if (session != null && session.revokedAt == null) {
+            session.revokedAt = Instant.now();
+            session.persist();
+        }
+    }
+
+    @Transactional
+    public void revokeAllSessions(UUID userId) {
+        if (userId == null) {
+            return;
+        }
+        IdentitySession.update("revokedAt = ?1 where userId = ?2 and revokedAt is null",
+                Instant.now(), userId);
+    }
+
+    private boolean hasActiveSessions(UUID userId) {
+        return !IdentitySession.<IdentitySession>list("userId = ?1 and revokedAt is null and expiresAt > ?2",
+                userId, Instant.now()).isEmpty();
+    }
+
+    private ApiException activeSessionConflict(UUID userId) {
+        return ApiException.conflict(
+                "ACTIVE_SESSION",
+                "El usuario ya tiene una sesion activa en otro dispositivo.",
+                new ActiveSessionConflict(listActiveSessions(null).stream()
+                        .filter(session -> session.userId().equals(userId))
+                        .toList()));
+    }
+
+    private void ensureUserIdentifierAvailable(String value, UUID userId, boolean email) {
+        UserAccount existing = UserAccount.find("(lower(login) = ?1 or lower(email) = ?1) and id <> ?2",
+                value.toLowerCase(Locale.ROOT), userId).firstResult();
+        if (existing == null) {
+            return;
+        }
+        if (email && existing.identityType == IdentityType.GOOGLE) {
+            throw ApiException.conflict("EMAIL_REGISTERED_WITH_GOOGLE", "Este correo ya pertenece a una cuenta GOOGLE registrada. Utiliza otro correo.");
+        }
+        throw ApiException.conflict("USER_ALREADY_EXISTS", email
+                ? "Este correo ya pertenece a otra cuenta registrada. Utiliza otro correo."
+                : "Este usuario ya esta registrado en otra cuenta.");
     }
 
     @Transactional
@@ -483,7 +608,127 @@ public class IdentityApplicationService {
     }
 
     private AuthTokenResponse tokenResponse(AuthenticatedUser user) {
-        return new AuthTokenResponse(jwtService.issueAccessToken(user), "Bearer", jwtService.accessTokenTtlSeconds(), toCurrentUser(user));
+        return tokenResponse(user, null, null);
+    }
+
+    private AuthTokenResponse tokenResponse(AuthenticatedUser user, String userAgent, String ipAddress) {
+        IdentitySession session = new IdentitySession();
+        session.id = UUID.randomUUID();
+        session.userId = user.id();
+        session.createdAt = Instant.now();
+        session.lastSeenAt = session.createdAt;
+        session.expiresAt = session.createdAt.plusSeconds(jwtService.accessTokenTtlSeconds());
+        session.userAgent = userAgent;
+        session.deviceName = deviceNameFor(userAgent);
+        session.ipAddress = ipAddress;
+        session.persist();
+        return new AuthTokenResponse(jwtService.issueAccessToken(user, session.id), "Bearer", jwtService.accessTokenTtlSeconds(), toCurrentUser(user));
+    }
+
+    private String deviceNameFor(String userAgent) {
+        if (userAgent == null || userAgent.isBlank()) {
+            return "Dispositivo no identificado";
+        }
+        String platform = userAgent.contains("Windows") ? "Windows"
+                : userAgent.contains("Android") ? "Android"
+                : userAgent.contains("iPhone") ? "iPhone"
+                : userAgent.contains("Mac OS") ? "macOS"
+                : userAgent.contains("Linux") ? "Linux" : "Dispositivo";
+        String browser = userAgent.contains("Edg/") ? "Edge"
+                : userAgent.contains("Chrome/") ? "Chrome"
+                : userAgent.contains("Firefox/") ? "Firefox"
+                : userAgent.contains("Safari/") ? "Safari" : "Navegador";
+        return platform + " - " + browser;
+    }
+
+    private String deviceTypeFor(String userAgent) {
+        if (userAgent == null) {
+            return "Dispositivo no identificado";
+        }
+        if (userAgent.contains("Tablet") || userAgent.contains("iPad")) {
+            return "Tablet";
+        }
+        if (userAgent.contains("Mobile") || userAgent.contains("Android")) {
+            return "Movil";
+        }
+        return "PC / navegador web";
+    }
+
+    private String operatingSystemFor(String userAgent) {
+        if (userAgent == null) {
+            return "No identificado";
+        }
+        if (userAgent.contains("Windows NT 10.0")) {
+            return "Windows 10/11";
+        }
+        if (userAgent.contains("Windows")) {
+            return "Windows";
+        }
+        if (userAgent.contains("Android")) {
+            return "Android";
+        }
+        if (userAgent.contains("iPhone") || userAgent.contains("iPad")) {
+            return "iOS / iPadOS";
+        }
+        if (userAgent.contains("Mac OS")) {
+            return "macOS";
+        }
+        if (userAgent.contains("Linux")) {
+            return "Linux";
+        }
+        return "No identificado";
+    }
+
+    private String browserFor(String userAgent) {
+        if (userAgent == null) {
+            return "Navegador no identificado";
+        }
+        if (userAgent.contains("Edg/")) {
+            return "Microsoft Edge";
+        }
+        if (userAgent.contains("OPR/")) {
+            return "Opera";
+        }
+        if (userAgent.contains("Chrome/")) {
+            return "Google Chrome";
+        }
+        if (userAgent.contains("Firefox/")) {
+            return "Mozilla Firefox";
+        }
+        if (userAgent.contains("Safari/") && !userAgent.contains("Chrome/")) {
+            return "Safari";
+        }
+        return "Navegador web";
+    }
+
+    private String browserVersionFor(String userAgent) {
+        if (userAgent == null) {
+            return "";
+        }
+        String[] markers = { "Edg/", "OPR/", "Chrome/", "Firefox/", "Version/" };
+        for (String marker : markers) {
+            int start = userAgent.indexOf(marker);
+            if (start < 0) {
+                continue;
+            }
+            int versionStart = start + marker.length();
+            int end = versionStart;
+            while (end < userAgent.length() && (Character.isDigit(userAgent.charAt(end)) || userAgent.charAt(end) == '.')) {
+                end++;
+            }
+            if (end > versionStart) {
+                return userAgent.substring(versionStart, end);
+            }
+        }
+        return "";
+    }
+
+    private String locationFor(String ipAddress) {
+        if (ipAddress == null || ipAddress.isBlank()
+                || ipAddress.equals("127.0.0.1") || ipAddress.equals("::1") || ipAddress.equalsIgnoreCase("localhost")) {
+            return "Entorno local";
+        }
+        return "Ubicacion aproximada no disponible";
     }
 
     private AuthenticatedUser authenticatedUser(UserAccount user) {
@@ -493,7 +738,8 @@ public class IdentityApplicationService {
                 user.email,
                 user.displayName,
                 roleCodesForUser(user.id),
-                permissionCodesForUser(user.id));
+                permissionCodesForUser(user.id),
+                null);
     }
 
     private CurrentUserResponse toCurrentUser(UserAccount user) {
@@ -620,14 +866,20 @@ public class IdentityApplicationService {
     }
 
     private void replaceUserRoles(UUID userId, List<UUID> roleIds, UUID actorUserId) {
+        List<UUID> assignedRoleIds = entityManager().createNativeQuery("SELECT role_id FROM user_roles WHERE user_id = ?1", UUID.class)
+                .setParameter(1, userId)
+                .getResultList();
+        for (UUID roleId : safeList(roleIds)) {
+            Role role = Role.findById(roleId);
+            boolean retainedDisabledRole = role != null && roleStatus(role) == RoleStatus.DISABLED && assignedRoleIds.contains(roleId);
+            if (role == null || (roleStatus(role) != RoleStatus.ACTIVE && !retainedDisabledRole)) {
+                throw ApiException.validation("ROLE_NOT_FOUND", "Role does not exist or is inactive: " + roleId + ".");
+            }
+        }
         entityManager().createNativeQuery("DELETE FROM user_roles WHERE user_id = ?1")
                 .setParameter(1, userId)
                 .executeUpdate();
         for (UUID roleId : safeList(roleIds)) {
-            Role role = Role.findById(roleId);
-            if (role == null || roleStatus(role) != RoleStatus.ACTIVE) {
-                throw ApiException.validation("ROLE_NOT_FOUND", "Role does not exist or is inactive: " + roleId + ".");
-            }
             entityManager().createNativeQuery("""
                     INSERT INTO user_roles (user_id, role_id, assigned_by_user_id)
                     VALUES (?1, ?2, ?3)

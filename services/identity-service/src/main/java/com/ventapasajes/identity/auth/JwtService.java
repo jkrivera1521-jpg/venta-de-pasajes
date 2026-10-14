@@ -18,6 +18,8 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ventapasajes.identity.api.ApiException;
+import com.ventapasajes.identity.persistence.entity.IdentitySession;
+import com.ventapasajes.identity.service.IdentitySessionActivityService;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -30,6 +32,9 @@ public class JwtService {
 
     @Inject
     ObjectMapper objectMapper;
+
+    @Inject
+    IdentitySessionActivityService sessionActivityService;
 
     @ConfigProperty(name = "app.security.jwt-signing-secret")
     String signingSecret;
@@ -45,12 +50,13 @@ public class JwtService {
 
     Clock clock = Clock.systemUTC();
 
-    public String issueAccessToken(AuthenticatedUser user) {
+    public String issueAccessToken(AuthenticatedUser user, UUID sessionId) {
         Instant now = Instant.now(clock);
         Map<String, Object> claims = new LinkedHashMap<>();
         claims.put("iss", issuer);
         claims.put("aud", audience);
         claims.put("sub", user.id().toString());
+        claims.put("sid", sessionId.toString());
         claims.put("login", user.login());
         claims.put("email", user.email());
         claims.put("name", user.displayName());
@@ -88,13 +94,29 @@ public class JwtService {
             throw ApiException.unauthorized("TOKEN_EXPIRED", "Token is expired.");
         }
 
+        UUID sessionId;
+        try {
+            sessionId = UUID.fromString(requiredString(claims, "sid"));
+        } catch (IllegalArgumentException exception) {
+            throw ApiException.unauthorized("INVALID_TOKEN", "Token session is invalid.");
+        }
+        IdentitySession session = IdentitySession.findById(sessionId);
+        if (session == null || session.revokedAt != null || session.expiresAt.isBefore(Instant.now(clock))) {
+            throw ApiException.unauthorized("SESSION_REVOKED", "La sesion ya no esta activa.");
+        }
+        if (!session.userId.toString().equals(requiredString(claims, "sub"))) {
+            throw ApiException.unauthorized("INVALID_TOKEN", "Token session does not match the user.");
+        }
+        sessionActivityService.touch(sessionId);
+
         return new AuthenticatedUser(
                 UUID.fromString(requiredString(claims, "sub")),
                 requiredString(claims, "login"),
                 optionalString(claims, "email"),
                 optionalString(claims, "name"),
                 stringList(claims.get("roles")),
-                stringList(claims.get("permissions")));
+                stringList(claims.get("permissions")),
+                sessionId);
     }
 
     public long accessTokenTtlSeconds() {

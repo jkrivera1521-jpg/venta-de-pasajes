@@ -80,6 +80,18 @@ public class BearerAuthFilter implements ContainerRequestFilter {
             return RequiredAccess.authenticated();
         }
 
+        if (resourcePath.equals("sessions") && "GET".equals(method)) {
+            return RequiredAccess.permission("identity.sessions.read");
+        }
+
+        if (resourcePath.matches("sessions/[^/]+/revoke") && "POST".equals(method)) {
+            return RequiredAccess.permission("identity.sessions.revoke");
+        }
+
+        if (resourcePath.matches("users/[^/]+/logout") && "POST".equals(method)) {
+            return RequiredAccess.permission("identity.sessions.revoke");
+        }
+
         if (resourcePath.equals("users")) {
             if ("GET".equals(method)) {
                 return RequiredAccess.permission("identity.users.read");

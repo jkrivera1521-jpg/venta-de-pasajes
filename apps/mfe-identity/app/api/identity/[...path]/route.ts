@@ -32,6 +32,9 @@ async function proxyIdentityRequest(request: Request, context: RouteContext) {
   const headers = new Headers();
   const authorization = request.headers.get("authorization");
   const contentType = request.headers.get("content-type");
+  const userAgent = request.headers.get("user-agent");
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  const realIp = request.headers.get("x-real-ip");
 
   if (authorization) {
     headers.set("authorization", authorization);
@@ -39,6 +42,16 @@ async function proxyIdentityRequest(request: Request, context: RouteContext) {
 
   if (contentType) {
     headers.set("content-type", contentType);
+  }
+  if (userAgent) {
+    headers.set("user-agent", userAgent);
+  }
+
+  if (forwardedFor) {
+    headers.set("x-forwarded-for", forwardedFor);
+  }
+  if (realIp) {
+    headers.set("x-real-ip", realIp);
   }
 
   await applyCloudRunAuthorization(headers, targetUrl);

@@ -28,6 +28,30 @@ type AuthTokenResponse = {
   user: CurrentUser;
 };
 
+type ActiveSession = {
+  browser?: string | null;
+  browser_version?: string | null;
+  device_type?: string | null;
+  device_name?: string | null;
+  ip_address?: string | null;
+  location?: string | null;
+  created_at?: string | null;
+  last_seen_at?: string | null;
+  operating_system?: string | null;
+  user_agent?: string | null;
+};
+
+class IdentityApiError extends Error {
+  code: string;
+  details: unknown;
+
+  constructor(code: string, message: string, details?: unknown) {
+    super(message);
+    this.code = code;
+    this.details = details;
+  }
+}
+
 type GoogleCredentialResponse = {
   credential?: string;
 };
@@ -114,16 +138,6 @@ function AppleLogo() {
   );
 }
 
-function parseApiError(payload: unknown, fallback: string) {
-  if (payload && typeof payload === "object" && "error" in payload) {
-    const error = (payload as { error?: { message?: unknown } }).error;
-    if (typeof error?.message === "string") {
-      return error.message;
-    }
-  }
-  return fallback;
-}
-
 function parseResponsePayload(responseText: string, contentType: string) {
   if (!responseText) {
     return null;
@@ -167,7 +181,14 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
   const payload = parseResponsePayload(responseText, response.headers.get("content-type") ?? "");
 
   if (!response.ok) {
-    throw new Error(parseApiError(payload, `HTTP ${response.status}`));
+    const error = payload && typeof payload === "object" && "error" in payload
+      ? (payload as { error?: { code?: unknown; message?: unknown; details?: unknown } }).error
+      : undefined;
+    throw new IdentityApiError(
+      typeof error?.code === "string" ? error.code : `HTTP_${response.status}`,
+      typeof error?.message === "string" ? error.message : `HTTP ${response.status}`,
+      error?.details
+    );
   }
 
   return payload as T;
@@ -194,6 +215,8 @@ export function ShellLogin() {
   const [loginForm, setLoginForm] = useState({ login: "admin", password: "" });
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [message, setMessage] = useState<{ text: string; tone: "info" | "warn" | "error" } | null>(null);
+  const [activeSessionPrompt, setActiveSessionPrompt] = useState<ActiveSession[] | null>(null);
+  const activeSessionResolverRef = useRef<((accepted: boolean) => void) | null>(null);
   const [altchaState, setAltchaState] = useState("unverified");
   const [altchaKey, setAltchaKey] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -236,12 +259,26 @@ export function ShellLogin() {
     }
 
     await runLogin(async () => {
-      const response = await apiRequest<AuthTokenResponse>("/auth/local/login", {
-        body: JSON.stringify({ ...loginForm, altcha }),
-        method: "POST"
-      });
+      const response = await loginLocalWithForce(altcha);
       await completeLogin(response);
     });
+  }
+
+  async function loginLocalWithForce(altcha: string, force = false): Promise<AuthTokenResponse> {
+    try {
+      return await apiRequest<AuthTokenResponse>("/auth/local/login", {
+        body: JSON.stringify({ ...loginForm, altcha, force }),
+        method: "POST"
+      });
+    } catch (error) {
+      if (!(error instanceof IdentityApiError) || error.code !== "ACTIVE_SESSION" || force) {
+        throw error;
+      }
+      if (!(await confirmActiveSession(error.details))) {
+        throw new Error("Inicio de sesion cancelado.");
+      }
+      return loginLocalWithForce(altcha, true);
+    }
   }
 
   async function exchangeGoogleCredential(idToken: string, altcha: string) {
@@ -251,12 +288,53 @@ export function ShellLogin() {
     }
 
     await runLogin(async () => {
-      const response = await apiRequest<AuthTokenResponse>("/auth/google/exchange", {
-        body: JSON.stringify({ altcha, id_token: idToken.trim() }),
-        method: "POST"
-      });
+      const response = await exchangeGoogleWithForce(idToken, altcha);
       await completeLogin(response);
     });
+  }
+
+  async function exchangeGoogleWithForce(idToken: string, altcha: string, force = false): Promise<AuthTokenResponse> {
+    try {
+      return await apiRequest<AuthTokenResponse>("/auth/google/exchange", {
+        body: JSON.stringify({ altcha, force, id_token: idToken.trim() }),
+        method: "POST"
+      });
+    } catch (error) {
+      if (!(error instanceof IdentityApiError) || error.code !== "ACTIVE_SESSION" || force) {
+        throw error;
+      }
+      if (!(await confirmActiveSession(error.details))) {
+        throw new Error("Inicio de sesion cancelado.");
+      }
+      return exchangeGoogleWithForce(idToken, altcha, true);
+    }
+  }
+
+  function confirmActiveSession(details: unknown) {
+    const sessions = details && typeof details === "object" && "sessions" in details
+      ? (details as { sessions?: ActiveSession[] }).sessions ?? []
+      : [];
+    return new Promise<boolean>((resolve) => {
+      activeSessionResolverRef.current = resolve;
+      setActiveSessionPrompt(sessions);
+    });
+  }
+
+  function resolveActiveSessionPrompt(accepted: boolean) {
+    const resolve = activeSessionResolverRef.current;
+    activeSessionResolverRef.current = null;
+    setActiveSessionPrompt(null);
+    resolve?.(accepted);
+  }
+
+  function formatSessionDate(value?: string | null) {
+    if (!value) {
+      return "No disponible";
+    }
+    return new Intl.DateTimeFormat("es-EC", {
+      dateStyle: "short",
+      timeStyle: "short"
+    }).format(new Date(value));
   }
 
   async function runLogin(action: () => Promise<void>) {
@@ -407,6 +485,42 @@ export function ShellLogin() {
           {message ? (
             <div className={`login-message login-message-${message.tone}`} role={message.tone === "error" ? "alert" : "status"}>
               {message.text}
+            </div>
+          ) : null}
+
+          {activeSessionPrompt ? (
+            <div className="session-conflict-backdrop" role="presentation">
+              <section aria-labelledby="session-conflict-title" aria-modal="true" className="session-conflict-dialog" role="dialog">
+                <div className="session-conflict-icon" aria-hidden="true">
+                  <ShieldCheck size={22} />
+                </div>
+                <div className="session-conflict-heading">
+                  <span className="session-conflict-eyebrow">Sesion activa detectada</span>
+                  <h3 id="session-conflict-title">Este usuario ya esta conectado</h3>
+                  <p>Existe una sesion abierta en otro dispositivo. ¿Deseas continuar aqui?</p>
+                </div>
+                <div className="session-conflict-list">
+                  {activeSessionPrompt.map((session, index) => (
+                    <div className="session-conflict-item" key={`${session.device_name ?? "device"}-${session.ip_address ?? "ip"}-${index}`}>
+                      <strong>{session.device_name ?? "Dispositivo no identificado"}</strong>
+                      <span>{session.device_type ?? "Dispositivo"} · {session.operating_system ?? "Sistema no identificado"}</span>
+                      <span>{session.browser ?? "Navegador no identificado"}{session.browser_version ? ` ${session.browser_version}` : ""}</span>
+                      <span>IP: {session.ip_address ?? "No identificada"}</span>
+                      <span>Ubicacion: {session.location ?? "No disponible"}</span>
+                      <span>Inicio: {formatSessionDate(session.created_at)} · Ultima actividad: {formatSessionDate(session.last_seen_at)}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="session-conflict-warning">Al continuar, cerraremos las sesiones anteriores de este usuario.</p>
+                <div className="session-conflict-actions">
+                  <button className="session-conflict-cancel" onClick={() => resolveActiveSessionPrompt(false)} type="button">
+                    Cancelar
+                  </button>
+                  <button className="session-conflict-continue" onClick={() => resolveActiveSessionPrompt(true)} type="button">
+                    Continuar aqui
+                  </button>
+                </div>
+              </section>
             </div>
           ) : null}
 

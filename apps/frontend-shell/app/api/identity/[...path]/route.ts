@@ -50,6 +50,9 @@ async function proxyIdentityRequest(request: Request, context: RouteContext) {
   const headers = new Headers();
   const authorization = request.headers.get("authorization");
   const contentType = request.headers.get("content-type");
+  const userAgent = request.headers.get("user-agent");
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  const realIp = request.headers.get("x-real-ip");
 
   if (authorization) {
     headers.set("authorization", authorization);
@@ -57,6 +60,16 @@ async function proxyIdentityRequest(request: Request, context: RouteContext) {
 
   if (contentType) {
     headers.set("content-type", contentType);
+  }
+  if (userAgent) {
+    headers.set("user-agent", userAgent);
+  }
+
+  if (forwardedFor) {
+    headers.set("x-forwarded-for", forwardedFor);
+  }
+  if (realIp) {
+    headers.set("x-real-ip", realIp);
   }
 
   await applyCloudRunAuthorization(headers, targetUrl);
@@ -66,7 +79,8 @@ async function proxyIdentityRequest(request: Request, context: RouteContext) {
     body = await request.text();
   }
 
-  if (shouldVerifyAltcha(request.method, path)) {
+  const forceLogin = body && typeof body === "string" && body.includes('"force":true');
+  if (shouldVerifyAltcha(request.method, path) && !forceLogin) {
     if (!contentType?.includes("application/json")) {
       return jsonError(
         "ALTCHA_JSON_REQUIRED",

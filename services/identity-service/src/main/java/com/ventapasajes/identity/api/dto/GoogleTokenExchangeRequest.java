@@ -1,4 +1,4 @@
 package com.ventapasajes.identity.api.dto;
 
-public record GoogleTokenExchangeRequest(String idToken) {
+public record GoogleTokenExchangeRequest(String idToken, boolean force) {
 }

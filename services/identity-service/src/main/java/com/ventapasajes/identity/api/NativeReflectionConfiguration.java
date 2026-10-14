@@ -1,8 +1,10 @@
 package com.ventapasajes.identity.api;
 
 import com.ventapasajes.identity.api.dto.AuthTokenResponse;
+import com.ventapasajes.identity.api.dto.ActiveSessionConflict;
 import com.ventapasajes.identity.api.dto.CurrentUserResponse;
 import com.ventapasajes.identity.api.dto.GoogleTokenExchangeRequest;
+import com.ventapasajes.identity.api.dto.IdentitySessionResponse;
 import com.ventapasajes.identity.api.dto.LocalLoginRequest;
 import com.ventapasajes.identity.api.dto.PasswordForgotRequest;
 import com.ventapasajes.identity.api.dto.PasswordForgotResponse;
@@ -26,8 +28,10 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
         ApiErrorResponse.ApiError.class,
         ServiceStatus.class,
         AuthTokenResponse.class,
+        ActiveSessionConflict.class,
         CurrentUserResponse.class,
         GoogleTokenExchangeRequest.class,
+        IdentitySessionResponse.class,
         LocalLoginRequest.class,
         PasswordForgotRequest.class,
         PasswordForgotResponse.class,

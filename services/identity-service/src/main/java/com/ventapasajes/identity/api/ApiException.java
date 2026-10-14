@@ -6,11 +6,17 @@ public class ApiException extends RuntimeException {
 
     private final Response.Status status;
     private final String code;
+    private final Object details;
 
     private ApiException(Response.Status status, String code, String message) {
+        this(status, code, message, null);
+    }
+
+    private ApiException(Response.Status status, String code, String message, Object details) {
         super(message);
         this.status = status;
         this.code = code;
+        this.details = details;
     }
 
     public static ApiException unauthorized(String code, String message) {
@@ -29,6 +35,10 @@ public class ApiException extends RuntimeException {
         return new ApiException(Response.Status.CONFLICT, code, message);
     }
 
+    public static ApiException conflict(String code, String message, Object details) {
+        return new ApiException(Response.Status.CONFLICT, code, message, details);
+    }
+
     public static ApiException badGateway(String code, String message) {
         return new ApiException(Response.Status.BAD_GATEWAY, code, message);
     }
@@ -43,5 +53,9 @@ public class ApiException extends RuntimeException {
 
     public String code() {
         return code;
+    }
+
+    public Object details() {
+        return details;
     }
 }

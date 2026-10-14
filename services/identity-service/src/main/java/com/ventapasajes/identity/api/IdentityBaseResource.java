@@ -8,6 +8,7 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 import com.ventapasajes.identity.api.dto.GoogleTokenExchangeRequest;
+import com.ventapasajes.identity.api.dto.IdentitySessionResponse;
 import com.ventapasajes.identity.api.dto.LocalLoginRequest;
 import com.ventapasajes.identity.api.dto.PasswordForgotRequest;
 import com.ventapasajes.identity.api.dto.PasswordLoginRequest;
@@ -52,24 +53,33 @@ public class IdentityBaseResource {
     @Path("/auth/local/login")
     @Operation(summary = "Authenticate with local username and password.")
     @APIResponse(responseCode = "200", description = "Authenticated with an internal JWT.")
-    public Response localLogin(LocalLoginRequest request, @HeaderParam("User-Agent") String userAgent) {
-        return Response.ok(identityService.localLogin(request, userAgent)).build();
+    public Response localLogin(LocalLoginRequest request,
+            @HeaderParam("User-Agent") String userAgent,
+            @HeaderParam("X-Forwarded-For") String forwardedFor,
+            @HeaderParam("X-Real-IP") String realIp) {
+        return Response.ok(identityService.localLogin(request, userAgent, clientIp(forwardedFor, realIp))).build();
     }
 
     @POST
     @Path("/auth/google/exchange")
     @Operation(summary = "Validate a Google ID token and exchange it for an internal JWT.")
     @APIResponse(responseCode = "200", description = "Google account validated and exchanged.")
-    public Response googleExchange(GoogleTokenExchangeRequest request) {
-        return Response.ok(identityService.googleExchange(request)).build();
+    public Response googleExchange(GoogleTokenExchangeRequest request,
+            @HeaderParam("User-Agent") String userAgent,
+            @HeaderParam("X-Forwarded-For") String forwardedFor,
+            @HeaderParam("X-Real-IP") String realIp) {
+        return Response.ok(identityService.googleExchange(request, userAgent, clientIp(forwardedFor, realIp))).build();
     }
 
     @POST
     @Path("/auth/local/register")
     @Operation(summary = "Register a public local customer account.")
     @APIResponse(responseCode = "201", description = "Public local account created and authenticated.")
-    public Response registerLocal(PublicLocalRegisterRequest request, @HeaderParam("User-Agent") String userAgent) {
-        var response = identityService.registerLocalPublicAccount(request, userAgent);
+    public Response registerLocal(PublicLocalRegisterRequest request,
+            @HeaderParam("User-Agent") String userAgent,
+            @HeaderParam("X-Forwarded-For") String forwardedFor,
+            @HeaderParam("X-Real-IP") String realIp) {
+        var response = identityService.registerLocalPublicAccount(request, userAgent, clientIp(forwardedFor, realIp));
         return Response.created(URI.create("/api/v1/identity/me"))
                 .entity(response)
                 .build();
@@ -79,9 +89,41 @@ public class IdentityBaseResource {
     @Path("/auth/logout")
     @Consumes(MediaType.WILDCARD)
     @RequiresPermission
-    @Operation(summary = "Logout from the current JWT session.")
-    @APIResponse(responseCode = "204", description = "Logout accepted.")
+    @Operation(summary = "Logout from all sessions for the authenticated user.")
+    @APIResponse(responseCode = "204", description = "All sessions revoked.")
     public Response logout() {
+        identityService.revokeAllSessions(requestIdentity.user().id());
+        return Response.noContent().build();
+    }
+
+    @GET
+    @Path("/sessions")
+    @RequiresPermission("identity.sessions.read")
+    @Operation(summary = "List active central identity sessions.")
+    @APIResponse(responseCode = "200", description = "Active sessions listed.")
+    public Response listSessions() {
+        return Response.ok(identityService.listActiveSessions(requestIdentity.user().sessionId())).build();
+    }
+
+    @POST
+    @Path("/sessions/{sessionId}/revoke")
+    @Consumes(MediaType.WILDCARD)
+    @RequiresPermission("identity.sessions.revoke")
+    @Operation(summary = "Revoke one central identity session.")
+    @APIResponse(responseCode = "204", description = "Session revoked.")
+    public Response revokeSession(@PathParam("sessionId") String sessionId) {
+        identityService.revokeSession(parseUuid(sessionId, "sessionId"));
+        return Response.noContent().build();
+    }
+
+    @POST
+    @Path("/users/{userId}/logout")
+    @Consumes(MediaType.WILDCARD)
+    @RequiresPermission("identity.sessions.revoke")
+    @Operation(summary = "Close all active sessions for one user.")
+    @APIResponse(responseCode = "204", description = "User sessions revoked.")
+    public Response logoutUser(@PathParam("userId") String userId) {
+        identityService.revokeAllSessions(parseUuid(userId, "userId"));
         return Response.noContent().build();
     }
 
@@ -130,7 +172,10 @@ public class IdentityBaseResource {
     @Operation(summary = "Update one internal user profile.")
     @APIResponse(responseCode = "200", description = "User updated.")
     public Response updateUser(@PathParam("userId") String userId, UserUpdateRequest request) {
-        return Response.ok(identityService.updateUser(parseUuid(userId, "userId"), request)).build();
+        if (request != null && request.roleIds() != null && !requestIdentity.user().hasPermission("identity.roles.manage")) {
+            throw ApiException.forbidden("FORBIDDEN", "No tienes permisos para modificar los roles del usuario.");
+        }
+        return Response.ok(identityService.updateUser(parseUuid(userId, "userId"), request, requestIdentity.user().id())).build();
     }
 
     @PUT
@@ -249,5 +294,12 @@ public class IdentityBaseResource {
         } catch (IllegalArgumentException exception) {
             throw ApiException.validation("VALIDATION_ERROR", "Field must be a UUID: " + fieldName + ".");
         }
+    }
+
+    private String clientIp(String forwardedFor, String realIp) {
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        return realIp == null || realIp.isBlank() ? "No identificada" : realIp.trim();
     }
 }

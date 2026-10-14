@@ -10,7 +10,9 @@ import {
   Eye,
   KeyRound,
   LockKeyhole,
+  LogOut,
   Pencil,
+  Plus,
   Power,
   PowerOff,
   RefreshCw,
@@ -22,10 +24,10 @@ import {
   X
 } from "lucide-react";
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type IdentityType = "GOOGLE" | "LOCAL";
-type TabKey = "users" | "roles" | "permissions";
+type TabKey = "users" | "roles" | "permissions" | "sessions";
 type RoleStatus = "ACTIVE" | "DISABLED" | "DELETED";
 type GrowlSeverity = "info" | "warn" | "error";
 
@@ -77,6 +79,28 @@ type Permission = {
   description: string;
 };
 
+type IdentitySession = {
+  id: string;
+  userId: string;
+  login: string;
+  email?: string | null;
+  displayName: string;
+  identityType: IdentityType;
+  userStatus: string;
+  createdAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+  userAgent?: string | null;
+  deviceName?: string | null;
+  deviceType?: string | null;
+  operatingSystem?: string | null;
+  browser?: string | null;
+  browserVersion?: string | null;
+  location?: string | null;
+  ipAddress?: string | null;
+  current: boolean;
+};
+
 type IdentitySessionData = {
   currentUser: CurrentUser;
   permissions: Permission[];
@@ -94,6 +118,19 @@ type PasswordStrength = {
   label: string;
   percent: number;
   score: number;
+};
+
+type UserEditForm = {
+  login: string;
+  email: string;
+  display_name: string;
+  employee_code: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  address: string;
+  job_title: string;
+  role_ids: string[];
 };
 
 function roleStatus(role: Role): RoleStatus {
@@ -144,8 +181,39 @@ const storageKey = "venta-pasajes.identity.access-token";
 const identityQueryKeys = {
   all: ["identity"] as const,
   sessionRoot: ["identity", "session"] as const,
-  session: (token: string) => ["identity", "session", token] as const
+  session: (token: string) => ["identity", "session", token] as const,
+  sessions: (token: string) => ["identity", "sessions", token] as const
 };
+
+function emptyUserForm() {
+  return {
+    display_name: "",
+    email: "",
+    employee_code: "",
+    first_name: "",
+    job_title: "",
+    last_name: "",
+    login: "",
+    role_ids: [] as string[],
+    temporary_password: ""
+  };
+}
+
+function createUserEditForm(user: User, roles: Role[]): UserEditForm {
+  const assignedCodes = new Set(assignedRolesForUser(user));
+  return {
+    address: user.address ?? "",
+    display_name: user.display_name,
+    email: user.email ?? "",
+    employee_code: user.employee_code ?? "",
+    first_name: user.first_name ?? "",
+    job_title: user.job_title ?? "",
+    last_name: user.last_name ?? "",
+    login: user.login,
+    phone: user.phone ?? "",
+    role_ids: roles.filter((role) => assignedCodes.has(role.code)).map((role) => role.id)
+  };
+}
 
 function emptyRoleForm() {
   return {
@@ -306,23 +374,19 @@ export default function EmbeddedIdentity() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("Sin sesion");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [newUser, setNewUser] = useState({
-    display_name: "",
-    email: "",
-    employee_code: "",
-    first_name: "",
-    job_title: "",
-    last_name: "",
-    login: "",
-    role_ids: [] as string[],
-    temporary_password: ""
-  });
+  const [newUser, setNewUser] = useState(emptyUserForm);
+  const [newUserOpen, setNewUserOpen] = useState(false);
+  const newUserDialogRef = useRef<HTMLDialogElement>(null);
+  const newUserLoginRef = useRef<HTMLInputElement>(null);
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
   const [roleForm, setRoleForm] = useState(emptyRoleForm);
   const [roleDeleteCandidate, setRoleDeleteCandidate] = useState<Role | null>(null);
   const [roleDeleteConfirmation, setRoleDeleteConfirmation] = useState("");
   const [selectedPermission, setSelectedPermission] = useState<Permission | null>(null);
   const [selectedUserDetail, setSelectedUserDetail] = useState<User | null>(null);
+  const [selectedUserEdit, setSelectedUserEdit] = useState<User | null>(null);
+  const [userEditForm, setUserEditForm] = useState<UserEditForm | null>(null);
+  const [userEditLoading, setUserEditLoading] = useState(false);
   const [userDetailLoading, setUserDetailLoading] = useState(false);
   const [identityHealthDown, setIdentityHealthDown] = useState(false);
   const [identityHealthRetryIn, setIdentityHealthRetryIn] = useState(5);
@@ -339,6 +403,14 @@ export default function EmbeddedIdentity() {
   const users = sessionData?.users ?? [];
   const roles = sessionData?.roles ?? [];
   const permissions = sessionData?.permissions ?? [];
+  const canViewSessions = Boolean(currentUser?.permissions.includes("identity.sessions.read"));
+  const canRevokeSessions = Boolean(currentUser?.permissions.includes("identity.sessions.revoke"));
+  const sessionsQuery = useQuery({
+    enabled: Boolean(accessToken && canViewSessions),
+    queryKey: identityQueryKeys.sessions(accessToken ?? "sin-token"),
+    queryFn: () => apiRequest<IdentitySession[]>("/sessions", {}, accessToken)
+  });
+  const sessions = sessionsQuery.data ?? [];
   const activeRoles = useMemo(() => roles.filter((role) => isRoleActive(role)), [roles]);
   const roleDeleteAssignedUsers = useMemo(() => {
     if (!roleDeleteCandidate) {
@@ -391,27 +463,50 @@ export default function EmbeddedIdentity() {
       notifyShell("info", "Operacion completada", variables.successMessage);
     }
   });
-  const busy = sessionQuery.isFetching || actionMutation.isPending;
+  const busy = sessionQuery.isFetching || sessionsQuery.isFetching || actionMutation.isPending;
 
   const tabs = useMemo(
     () => [
       { key: "users" as const, label: "Usuarios", icon: Users },
       { key: "roles" as const, label: "Roles", icon: ShieldCheck },
-      { key: "permissions" as const, label: "Permisos", icon: KeyRound }
-    ],
-    []
+      { key: "permissions" as const, label: "Permisos", icon: KeyRound },
+      { key: "sessions" as const, label: "Sesiones", icon: UserCheck }
+    ].filter((tab) => tab.key !== "sessions" || canViewSessions),
+    [canViewSessions]
   );
 
   const stats = useMemo(
     () => [
       { label: "Usuarios", value: users.length.toString(), icon: Users, tone: "green" },
       { label: "Roles", value: roles.length.toString(), icon: ShieldCheck, tone: "blue" },
-      { label: "Permisos", value: permissions.length.toString(), icon: KeyRound, tone: "coral" }
+      { label: "Permisos", value: permissions.length.toString(), icon: KeyRound, tone: "coral" },
+      ...(canViewSessions ? [{ label: "Sesiones", value: sessions.length.toString(), icon: UserCheck, tone: "green" }] : [])
     ],
-    [permissions.length, roles.length, users.length]
+    [canViewSessions, permissions.length, roles.length, sessions.length, users.length]
   );
 
   const hasSession = Boolean(accessToken && currentUser);
+
+  useEffect(() => {
+    const dialog = newUserDialogRef.current;
+    if (!newUserOpen || !hasSession || !dialog) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement;
+    dialog.showModal();
+    newUserLoginRef.current?.focus();
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      dialog.close();
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus instanceof HTMLElement) {
+        previousFocus.focus();
+      }
+    };
+  }, [hasSession, newUserOpen]);
 
   const checkIdentityReady = useCallback(async () => {
     try {
@@ -552,13 +647,29 @@ export default function EmbeddedIdentity() {
     }
     await runAction(async () => {
       await queryClient.invalidateQueries({ queryKey: identityQueryKeys.sessionRoot });
+      await queryClient.invalidateQueries({ queryKey: ["identity", "sessions"] });
       await reloadProtectedData(accessToken);
     }, "Datos actualizados");
   }
 
+  function openNewUser() {
+    setNewUser(emptyUserForm());
+    setErrorMessage(null);
+    setNewUserOpen(true);
+  }
+
+  function closeNewUser() {
+    if (actionMutation.isPending) {
+      return;
+    }
+    setNewUserOpen(false);
+    setNewUser(emptyUserForm());
+    setErrorMessage(null);
+  }
+
   async function createUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!accessToken) {
+    if (!accessToken || actionMutation.isPending) {
       return;
     }
 
@@ -567,17 +678,8 @@ export default function EmbeddedIdentity() {
         body: JSON.stringify(newUser),
         method: "POST"
       }, accessToken);
-      setNewUser({
-        display_name: "",
-        email: "",
-        employee_code: "",
-        first_name: "",
-        job_title: "",
-        last_name: "",
-        login: "",
-        role_ids: [],
-        temporary_password: ""
-      });
+      setNewUser(emptyUserForm());
+      setNewUserOpen(false);
       await queryClient.invalidateQueries({ queryKey: identityQueryKeys.sessionRoot });
     }, "Usuario creado");
   }
@@ -613,6 +715,117 @@ export default function EmbeddedIdentity() {
     } finally {
       setUserDetailLoading(false);
     }
+  }
+
+  async function revokeIdentitySession(session: IdentitySession) {
+    if (!accessToken) {
+      return;
+    }
+
+    await runAction(async () => {
+      await apiRequest<void>(`/sessions/${session.id}/revoke`, {
+        method: "POST"
+      }, accessToken);
+      await queryClient.invalidateQueries({ queryKey: identityQueryKeys.sessions(accessToken) });
+    }, session.current ? "Sesion actual revocada" : `Sesion de ${session.login} revocada`);
+
+    if (session.current) {
+      window.sessionStorage.removeItem(storageKey);
+      window.parent.postMessage({ source: "mfe-identity", type: "venta-pasajes:mfe-auth-revoked" }, "*");
+      setAccessToken(null);
+    }
+  }
+
+  async function logoutUserSessions(user: User) {
+    if (!accessToken || !canRevokeSessions) {
+      return;
+    }
+    const activeSessions = sessions.filter((session) => session.userId === user.id);
+    if (activeSessions.length === 0) {
+      return;
+    }
+    if (!window.confirm(`¿Cerrar todas las sesiones activas de ${user.login}?`)) {
+      return;
+    }
+
+    await runAction(async () => {
+      await apiRequest<void>(`/users/${user.id}/logout`, { method: "POST" }, accessToken);
+      await queryClient.invalidateQueries({ queryKey: identityQueryKeys.sessions(accessToken) });
+    }, `Sesiones de ${user.login} cerradas`);
+
+    if (user.id === currentUser?.id) {
+      window.sessionStorage.removeItem(storageKey);
+      window.parent.postMessage({ source: "mfe-identity", type: "venta-pasajes:mfe-auth-revoked" }, "*");
+      setAccessToken(null);
+    }
+  }
+
+  async function openUserEdit(user: User) {
+    if (!accessToken) {
+      return;
+    }
+
+    setErrorMessage(null);
+    setSelectedUserEdit(user);
+    setUserEditLoading(true);
+    try {
+      const userDetail = await apiRequest<User>(`/users/${user.id}`, {}, accessToken);
+      setSelectedUserEdit(userDetail);
+      setUserEditForm(createUserEditForm(userDetail, roles));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudo cargar el usuario.";
+      setSelectedUserEdit(null);
+      setErrorMessage(message);
+      notifyShell("error", "Error", message);
+    } finally {
+      setUserEditLoading(false);
+    }
+  }
+
+  function closeUserEdit(force = false) {
+    if (actionMutation.isPending && !force) {
+      return;
+    }
+    setSelectedUserEdit(null);
+    setUserEditForm(null);
+    setUserEditLoading(false);
+  }
+
+  function toggleEditUserRole(roleId: string) {
+    setUserEditForm((current) => current ? {
+      ...current,
+      role_ids: current.role_ids.includes(roleId)
+        ? current.role_ids.filter((id) => id !== roleId)
+        : [...current.role_ids, roleId]
+    } : current);
+  }
+
+  async function updateUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken || !selectedUserEdit || !userEditForm || actionMutation.isPending) {
+      return;
+    }
+
+    const duplicateGoogle = users.find((user) =>
+      user.id !== selectedUserEdit.id &&
+      user.identity_type === "GOOGLE" &&
+      user.email?.toLowerCase() === userEditForm.email.trim().toLowerCase()
+    );
+    if (selectedUserEdit.identity_type === "LOCAL" && duplicateGoogle) {
+      const message = "Advertencia: este correo ya pertenece a una cuenta GOOGLE registrada. Utiliza otro correo.";
+      setErrorMessage(message);
+      notifyShell("warn", "Correo GOOGLE ya registrado", message);
+      return;
+    }
+
+    await runAction(async () => {
+      await apiRequest<User>(`/users/${selectedUserEdit.id}`, {
+        body: JSON.stringify(userEditForm),
+        method: "PATCH"
+      }, accessToken);
+      closeUserEdit(true);
+      await queryClient.invalidateQueries({ queryKey: identityQueryKeys.sessionRoot });
+    }, "Usuario actualizado");
   }
 
   function closeUserDetail() {
@@ -776,7 +989,7 @@ export default function EmbeddedIdentity() {
         <span>{statusMessage}</span>
       </section>
 
-      {errorMessage ? (
+      {errorMessage && !newUserOpen && !selectedUserEdit ? (
         <div className="alert alert-error" role="alert">
           <CircleAlert aria-hidden="true" size={18} />
           <span>{errorMessage}</span>
@@ -848,14 +1061,23 @@ export default function EmbeddedIdentity() {
       ) : null}
 
       {hasSession && activeTab === "users" ? (
-        <section className="work-grid">
+        <section className="work-grid work-grid-users">
           <section className="table-panel" aria-label="Usuarios internos">
             <div className="table-header">
               <div>
                 <h2>Usuarios internos</h2>
                 <span>{users.length} registros</span>
               </div>
-              <Users aria-hidden="true" size={22} />
+              <button
+                aria-haspopup="dialog"
+                aria-label="Nuevo usuario"
+                className="icon-button table-create-action"
+                onClick={openNewUser}
+                title="Nuevo usuario"
+                type="button"
+              >
+                <Plus aria-hidden="true" size={22} />
+              </button>
             </div>
             <div className="table-wrap">
               <table>
@@ -872,6 +1094,7 @@ export default function EmbeddedIdentity() {
                 <tbody>
                   {users.map((user) => {
                     const userActive = user.status === "ACTIVE";
+                    const userSessions = sessions.filter((session) => session.userId === user.id);
 
                     return (
                       <tr key={user.id}>
@@ -888,6 +1111,13 @@ export default function EmbeddedIdentity() {
                         <td>
                           <div className="row-actions">
                             <button
+                              onClick={() => void openUserEdit(user)}
+                              title={`Editar usuario ${user.login}`}
+                              type="button"
+                            >
+                              <Pencil aria-hidden="true" size={16} />
+                            </button>
+                            <button
                               onClick={() => void openUserDetail(user)}
                               title={`Ver datos de ${user.login}`}
                               type="button"
@@ -901,6 +1131,17 @@ export default function EmbeddedIdentity() {
                             >
                               {userActive ? <PowerOff aria-hidden="true" size={16} /> : <Power aria-hidden="true" size={16} />}
                             </button>
+                            {canRevokeSessions && userSessions.length > 0 ? (
+                              <button
+                                className="danger-icon-button"
+                                disabled={busy}
+                                onClick={() => void logoutUserSessions(user)}
+                                title={`Cerrar sesiones de ${user.login}`}
+                                type="button"
+                              >
+                                <LogOut aria-hidden="true" size={16} />
+                              </button>
+                            ) : null}
                           </div>
                         </td>
                       </tr>
@@ -910,55 +1151,6 @@ export default function EmbeddedIdentity() {
               </table>
             </div>
           </section>
-
-          <form className="form-panel" onSubmit={createUser}>
-            <div className="panel-heading">
-              <UserPlus aria-hidden="true" size={19} />
-              <h2>Nuevo usuario</h2>
-            </div>
-            <label>
-              Usuario
-              <input onChange={(event) => setNewUser((current) => ({ ...current, login: event.target.value }))} value={newUser.login} />
-            </label>
-            <label>
-              Nombre visible
-              <input onChange={(event) => setNewUser((current) => ({ ...current, display_name: event.target.value }))} value={newUser.display_name} />
-            </label>
-            <label>
-              Correo
-              <input
-                autoComplete="email"
-                onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))}
-                required
-                type="email"
-                value={newUser.email}
-              />
-            </label>
-            <label>
-              Contrasena temporal
-              <input
-                autoComplete="new-password"
-                minLength={12}
-                onChange={(event) => setNewUser((current) => ({ ...current, temporary_password: event.target.value }))}
-                required
-                type="password"
-                value={newUser.temporary_password}
-              />
-              <PasswordStrengthMeter value={newUser.temporary_password} />
-            </label>
-            <div className="checkbox-stack" aria-label="Roles para nuevo usuario">
-              {activeRoles.map((role) => (
-                <label className="checkbox-line" key={role.id}>
-                  <input checked={newUser.role_ids.includes(role.id)} onChange={() => toggleNewUserRole(role.id)} type="checkbox" />
-                  <span>{role.code}</span>
-                </label>
-              ))}
-            </div>
-            <button className="primary-action" disabled={busy} type="submit">
-              <UserPlus aria-hidden="true" size={17} />
-              <span>Crear usuario</span>
-            </button>
-          </form>
         </section>
       ) : null}
 
@@ -1104,6 +1296,277 @@ export default function EmbeddedIdentity() {
             </button>
           ))}
         </section>
+      ) : null}
+
+      {hasSession && activeTab === "sessions" ? (
+        <section className="table-panel sessions-panel" aria-label="Sesiones activas">
+          <div className="table-header">
+            <div>
+              <h2>Sesiones activas</h2>
+              <span>{sessions.length} sesiones vigentes en todos los navegadores y hosts</span>
+            </div>
+            <UserCheck aria-hidden="true" size={22} />
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Usuario</th>
+                  <th>Identidad</th>
+                  <th>Inicio</th>
+                  <th>Ultima actividad</th>
+                  <th>Vence</th>
+                  <th>Cliente</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sessions.map((session) => (
+                  <tr key={session.id}>
+                    <td>
+                      <strong>{session.displayName}</strong>
+                      <span>{session.email ?? session.login}</span>
+                      {session.current ? <small className="session-current-label">Esta sesion</small> : null}
+                    </td>
+                    <td>{session.identityType}</td>
+                    <td>{formatDate(session.createdAt)}</td>
+                    <td>{formatDate(session.lastSeenAt)}</td>
+                    <td>{formatDate(session.expiresAt)}</td>
+                      <td>
+                        <strong>{session.deviceName ?? "Dispositivo no identificado"}</strong>
+                        <span className="session-client-value">{session.deviceType ?? "Dispositivo"} · {session.operatingSystem ?? "Sistema no identificado"}</span>
+                        <span className="session-client-value">{session.browser ?? "Navegador no identificado"}{session.browserVersion ? ` ${session.browserVersion}` : ""}</span>
+                        <span className="session-client-value">IP: {session.ipAddress ?? "No identificada"} · {session.location ?? "Ubicacion no disponible"}</span>
+                      </td>
+                    <td>
+                      <button
+                        className="danger-icon-button"
+                        disabled={busy || !canRevokeSessions}
+                        onClick={() => void revokeIdentitySession(session)}
+                        title={session.current ? "Cerrar esta sesion" : `Cerrar sesion de ${session.login}`}
+                        type="button"
+                      >
+                        <PowerOff aria-hidden="true" size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
+      {hasSession && newUserOpen ? (
+        <dialog
+          aria-labelledby="new-user-title"
+          className="modal-panel user-create-dialog"
+          onCancel={(event) => {
+            event.preventDefault();
+            closeNewUser();
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== "Tab") {
+              return;
+            }
+            const controls = event.currentTarget.querySelectorAll<HTMLElement>("button:enabled, input:enabled");
+            const first = controls[0];
+            const last = controls[controls.length - 1];
+            if (!first) {
+              event.preventDefault();
+            } else if (event.shiftKey && document.activeElement === first) {
+              event.preventDefault();
+              last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+              event.preventDefault();
+              first.focus();
+            }
+          }}
+          ref={newUserDialogRef}
+        >
+          <div className="modal-heading">
+            <div className="panel-heading">
+              <UserPlus aria-hidden="true" size={19} />
+              <h2 id="new-user-title">Nuevo usuario</h2>
+            </div>
+            <button
+              aria-label="Cerrar"
+              className="icon-button modal-close"
+              disabled={actionMutation.isPending}
+              onClick={closeNewUser}
+              title="Cerrar"
+              type="button"
+            >
+              <X aria-hidden="true" size={17} />
+            </button>
+          </div>
+          {errorMessage ? (
+            <div className="alert alert-error" role="alert">
+              <CircleAlert aria-hidden="true" size={18} />
+              <span>{errorMessage}</span>
+            </div>
+          ) : null}
+          <form aria-busy={actionMutation.isPending} onSubmit={createUser}>
+            <fieldset className="user-create-fields" disabled={actionMutation.isPending}>
+              <label>
+                Usuario
+                <input
+                  autoComplete="off"
+                  onChange={(event) => setNewUser((current) => ({ ...current, login: event.target.value }))}
+                  ref={newUserLoginRef}
+                  required
+                  value={newUser.login}
+                />
+              </label>
+              <label>
+                Nombre visible
+                <input
+                  onChange={(event) => setNewUser((current) => ({ ...current, display_name: event.target.value }))}
+                  required
+                  value={newUser.display_name}
+                />
+              </label>
+              <label>
+                Correo
+                <input
+                  autoComplete="email"
+                  onChange={(event) => setNewUser((current) => ({ ...current, email: event.target.value }))}
+                  required
+                  type="email"
+                  value={newUser.email}
+                />
+              </label>
+              <label>
+                Contrasena temporal
+                <input
+                  autoComplete="new-password"
+                  minLength={12}
+                  onChange={(event) => setNewUser((current) => ({ ...current, temporary_password: event.target.value }))}
+                  required
+                  type="password"
+                  value={newUser.temporary_password}
+                />
+                <PasswordStrengthMeter value={newUser.temporary_password} />
+              </label>
+              <div className="checkbox-stack" aria-label="Roles para nuevo usuario" role="group">
+                {activeRoles.map((role) => (
+                  <label className="checkbox-line" key={role.id}>
+                    <input checked={newUser.role_ids.includes(role.id)} onChange={() => toggleNewUserRole(role.id)} type="checkbox" />
+                    <span>{role.code}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="user-create-actions">
+                <button className="secondary-action" onClick={closeNewUser} type="button">
+                  Cancelar
+                </button>
+                <button className="primary-action" disabled={busy} type="submit">
+                  <UserPlus aria-hidden="true" size={17} />
+                  <span>{actionMutation.isPending ? "Creando..." : "Crear usuario"}</span>
+                </button>
+              </div>
+            </fieldset>
+          </form>
+        </dialog>
+      ) : null}
+
+      {selectedUserEdit && userEditForm ? (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeUserEdit();
+            }
+          }}
+          role="presentation"
+        >
+          <section
+            aria-labelledby="user-edit-title"
+            aria-modal="true"
+            className="modal-panel user-edit-panel"
+            role="dialog"
+          >
+            <div className="modal-heading">
+              <div className="panel-heading">
+                <Pencil aria-hidden="true" size={19} />
+                <h2 id="user-edit-title">Editar usuario</h2>
+              </div>
+              <button className="icon-button modal-close" disabled={actionMutation.isPending} onClick={() => closeUserEdit()} title="Cerrar" type="button">
+                <X aria-hidden="true" size={17} />
+              </button>
+            </div>
+            {userEditLoading ? <p className="delete-summary">Cargando datos del usuario...</p> : null}
+            {errorMessage ? (
+              <div className="alert alert-error" role="alert">
+                <CircleAlert aria-hidden="true" size={18} />
+                <span>{errorMessage}</span>
+              </div>
+            ) : null}
+            <form onSubmit={updateUser}>
+              <fieldset className="user-edit-fields" disabled={actionMutation.isPending || userEditLoading}>
+                <label>
+                  Usuario
+                  <input required value={userEditForm.login} onChange={(event) => setUserEditForm((current) => current ? { ...current, login: event.target.value } : current)} />
+                </label>
+                <label>
+                  Nombre visible
+                  <input required value={userEditForm.display_name} onChange={(event) => setUserEditForm((current) => current ? { ...current, display_name: event.target.value } : current)} />
+                </label>
+                <label>
+                  Correo
+                  <input
+                    disabled={selectedUserEdit.identity_type === "GOOGLE"}
+                    required
+                    type="email"
+                    value={userEditForm.email}
+                    onChange={(event) => setUserEditForm((current) => current ? { ...current, email: event.target.value } : current)}
+                  />
+                  {selectedUserEdit.identity_type === "GOOGLE" ? <small className="field-hint">El correo de una cuenta GOOGLE no se puede modificar.</small> : null}
+                </label>
+                <label>
+                  Codigo de empleado
+                  <input value={userEditForm.employee_code} onChange={(event) => setUserEditForm((current) => current ? { ...current, employee_code: event.target.value } : current)} />
+                </label>
+                <label>
+                  Nombres
+                  <input value={userEditForm.first_name} onChange={(event) => setUserEditForm((current) => current ? { ...current, first_name: event.target.value } : current)} />
+                </label>
+                <label>
+                  Apellidos
+                  <input value={userEditForm.last_name} onChange={(event) => setUserEditForm((current) => current ? { ...current, last_name: event.target.value } : current)} />
+                </label>
+                <label>
+                  Telefono
+                  <input value={userEditForm.phone} onChange={(event) => setUserEditForm((current) => current ? { ...current, phone: event.target.value } : current)} />
+                </label>
+                <label>
+                  Cargo
+                  <input value={userEditForm.job_title} onChange={(event) => setUserEditForm((current) => current ? { ...current, job_title: event.target.value } : current)} />
+                </label>
+                <label className="user-edit-wide">
+                  Direccion
+                  <textarea value={userEditForm.address} onChange={(event) => setUserEditForm((current) => current ? { ...current, address: event.target.value } : current)} />
+                </label>
+                <div className="checkbox-stack user-edit-wide" aria-label="Roles del usuario" role="group">
+                  <strong>Roles</strong>
+                  {activeRoles.map((role) => (
+                    <label className="checkbox-line" key={role.id}>
+                      <input checked={userEditForm.role_ids.includes(role.id)} onChange={() => toggleEditUserRole(role.id)} type="checkbox" />
+                      <span>{role.code}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="user-create-actions user-edit-wide">
+                  <button className="secondary-action" onClick={() => closeUserEdit()} type="button">Cancelar</button>
+                  <button className="primary-action" disabled={busy} type="submit">
+                    <Pencil aria-hidden="true" size={17} />
+                    <span>{actionMutation.isPending ? "Guardando..." : "Guardar cambios"}</span>
+                  </button>
+                </div>
+              </fieldset>
+            </form>
+          </section>
+        </div>
       ) : null}
 
       {selectedUserDetail ? (
