@@ -7,8 +7,13 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import javax.crypto.Mac;
@@ -23,10 +28,13 @@ import com.ventapasajes.identity.api.dto.CurrentUserResponse;
 import com.ventapasajes.identity.api.dto.GoogleTokenExchangeRequest;
 import com.ventapasajes.identity.api.dto.IdentitySessionResponse;
 import com.ventapasajes.identity.api.dto.LocalLoginRequest;
+import com.ventapasajes.identity.api.dto.MenuItemRequest;
+import com.ventapasajes.identity.api.dto.MenuItemResponse;
 import com.ventapasajes.identity.api.dto.PasswordForgotRequest;
 import com.ventapasajes.identity.api.dto.PasswordForgotResponse;
 import com.ventapasajes.identity.api.dto.PasswordLoginRequest;
 import com.ventapasajes.identity.api.dto.PasswordResetRequest;
+import com.ventapasajes.identity.api.dto.ProfilePhotoRequest;
 import com.ventapasajes.identity.api.dto.PermissionResponse;
 import com.ventapasajes.identity.api.dto.PublicLocalRegisterRequest;
 import com.ventapasajes.identity.api.dto.ReplaceUserRolesRequest;
@@ -36,6 +44,7 @@ import com.ventapasajes.identity.api.dto.RoleUpdateRequest;
 import com.ventapasajes.identity.api.dto.UserCreateRequest;
 import com.ventapasajes.identity.api.dto.UserResponse;
 import com.ventapasajes.identity.api.dto.UserUpdateRequest;
+import com.ventapasajes.identity.api.dto.ThemePreferenceRequest;
 import com.ventapasajes.identity.auth.AuthenticatedUser;
 import com.ventapasajes.identity.auth.GoogleIdTokenVerifier;
 import com.ventapasajes.identity.auth.GoogleIdTokenVerifier.GooglePrincipal;
@@ -48,6 +57,7 @@ import com.ventapasajes.identity.persistence.entity.GoogleIdentity;
 import com.ventapasajes.identity.persistence.entity.IdentitySession;
 import com.ventapasajes.identity.persistence.entity.InternalProfile;
 import com.ventapasajes.identity.persistence.entity.LocalCredential;
+import com.ventapasajes.identity.persistence.entity.MenuItem;
 import com.ventapasajes.identity.persistence.entity.PasswordResetToken;
 import com.ventapasajes.identity.persistence.entity.PermissionCatalogItem;
 import com.ventapasajes.identity.persistence.entity.Role;
@@ -214,6 +224,40 @@ public class IdentityApplicationService {
     }
 
     @Transactional
+    public CurrentUserResponse updateCurrentUserAvatar(UUID userId, ProfilePhotoRequest request) {
+        UserAccount user = requireUser(userId);
+        user.avatarUrl = normalizeAvatar(request == null ? null : request.avatarUrl());
+        user.persist();
+        return toCurrentUser(user);
+    }
+
+    @Transactional
+    public CurrentUserResponse updateCurrentUserTheme(UUID userId, ThemePreferenceRequest request) {
+        UserAccount user = requireUser(userId);
+        user.darkMode = request != null && request.darkMode();
+        user.persist();
+        return toCurrentUser(user);
+    }
+
+    @Transactional
+    public AuthTokenResponse refreshCurrentSession(AuthenticatedUser user) {
+        IdentitySession session = IdentitySession.findById(user.sessionId());
+        if (session == null || session.revokedAt != null) {
+            throw ApiException.unauthorized("SESSION_REVOKED", "La sesion ya no esta activa.");
+        }
+
+        Instant now = Instant.now();
+        session.lastSeenAt = now;
+        session.expiresAt = now.plusSeconds(jwtService.accessTokenTtlSeconds());
+        session.persist();
+        return new AuthTokenResponse(
+                jwtService.issueAccessToken(user, session.id),
+                "Bearer",
+                jwtService.accessTokenTtlSeconds(),
+                toCurrentUser(user));
+    }
+
+    @Transactional
     public List<UserResponse> listUsers() {
         return UserAccount.<UserAccount>list("retiredAt is null order by login").stream()
                 .map(this::toUserResponse)
@@ -223,6 +267,84 @@ public class IdentityApplicationService {
     @Transactional
     public UserResponse getUser(UUID userId) {
         return toUserResponse(requireUser(userId));
+    }
+
+    @Transactional
+    public List<MenuItemResponse> listVisibleMenu(List<String> roleCodes) {
+        Set<String> allowedRoles = new HashSet<>((roleCodes == null ? List.<String>of() : roleCodes).stream()
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .toList());
+        List<MenuItem> activeItems = MenuItem.<MenuItem>list("active = true order by level, sortOrder, label");
+        Map<UUID, MenuItem> byId = activeItems.stream().collect(java.util.stream.Collectors.toMap(item -> item.id, item -> item));
+        Set<UUID> visibleIds = new HashSet<>();
+        for (MenuItem item : activeItems) {
+            boolean visible = menuItemVisibleForRoles(item, byId, allowedRoles);
+            if (!visible) {
+                continue;
+            }
+            UUID cursor = item.id;
+            while (cursor != null && visibleIds.add(cursor)) {
+                MenuItem current = byId.get(cursor);
+                cursor = current == null ? null : current.parentId;
+            }
+        }
+        return menuTree(activeItems.stream().filter(item -> visibleIds.contains(item.id)).toList(), false);
+    }
+
+    private boolean menuItemVisibleForRoles(MenuItem item, Map<UUID, MenuItem> byId, Set<String> allowedRoles) {
+        UUID cursor = item.id;
+        Set<UUID> visited = new HashSet<>();
+        while (cursor != null && visited.add(cursor)) {
+            MenuItem current = byId.get(cursor);
+            if (current == null) {
+                return false;
+            }
+            List<String> roles = menuRoleCodes(current.id);
+            if (!roles.isEmpty()) {
+                return roles.stream().anyMatch(role -> allowedRoles.contains(role.toLowerCase(Locale.ROOT)));
+            }
+            cursor = current.parentId;
+        }
+        return false;
+    }
+
+    @Transactional
+    public List<MenuItemResponse> listMenuAdmin() {
+        return menuTree(MenuItem.<MenuItem>list("order by level, sortOrder, label"), true);
+    }
+
+    @Transactional
+    public MenuItemResponse createMenuItem(MenuItemRequest request) {
+        request = requirePayload(request);
+        String code = normalizeMenuCode(required(request.code(), "code"));
+        if (MenuItem.find("code", code).firstResult() != null) {
+            throw ApiException.conflict("MENU_ITEM_ALREADY_EXISTS", "Ya existe una opcion de menu con ese codigo.");
+        }
+        MenuItem item = new MenuItem();
+        applyMenuItem(item, request, code);
+        item.persist();
+        replaceMenuItemRoles(item.id, request.roleIds());
+        return menuItemResponse(item);
+    }
+
+    @Transactional
+    public MenuItemResponse updateMenuItem(UUID menuItemId, MenuItemRequest request) {
+        request = requirePayload(request);
+        MenuItem item = requireMenuItem(menuItemId);
+        String code = request.code() == null ? item.code : normalizeMenuCode(required(request.code(), "code"));
+        MenuItem duplicate = MenuItem.find("code", code).firstResult();
+        if (duplicate != null && !duplicate.id.equals(item.id)) {
+            throw ApiException.conflict("MENU_ITEM_ALREADY_EXISTS", "Ya existe una opcion de menu con ese codigo.");
+        }
+        applyMenuItem(item, request, code);
+        replaceMenuItemRoles(item.id, request.roleIds());
+        return menuItemResponse(item);
+    }
+
+    @Transactional
+    public void deleteMenuItem(UUID menuItemId) {
+        MenuItem item = requireMenuItem(menuItemId);
+        item.delete();
     }
 
     @Transactional
@@ -753,7 +875,18 @@ public class IdentityApplicationService {
     }
 
     private CurrentUserResponse toCurrentUser(AuthenticatedUser user, String status) {
-        return new CurrentUserResponse(user.id(), user.login(), user.email(), user.displayName(), status, user.roles(), user.permissions());
+        UserAccount persisted = UserAccount.findById(user.id());
+        return new CurrentUserResponse(
+                user.id(),
+                persisted == null ? null : persisted.identityType.name(),
+                user.login(),
+                user.email(),
+                user.displayName(),
+                persisted == null ? null : persisted.avatarUrl,
+                persisted != null && persisted.darkMode,
+                status,
+                user.roles(),
+                user.permissions());
     }
 
     private UserResponse toUserResponse(UserAccount user) {
@@ -786,12 +919,158 @@ public class IdentityApplicationService {
         return new RoleResponse(role.id, role.code, role.name, role.description, status == RoleStatus.ACTIVE, status.name(), permissionCodesForRole(role.id));
     }
 
+    private void applyMenuItem(MenuItem item, MenuItemRequest request, String code) {
+        UUID parentId = request.parentId();
+        if (parentId != null && parentId.equals(item.id)) {
+            throw ApiException.validation("MENU_PARENT_INVALID", "Una opcion no puede ser su propio padre.");
+        }
+        if (parentId != null && isMenuDescendant(parentId, item.id)) {
+            throw ApiException.validation("MENU_PARENT_INVALID", "No se puede mover una opcion debajo de uno de sus descendientes.");
+        }
+        MenuItem parent = parentId == null ? null : requireMenuItem(parentId);
+        int level = parent == null ? 1 : parent.level + 1;
+        String label = required(request.label() == null ? item.label : request.label(), "label");
+        boolean informationalOnly = request.informationalOnly() == null ? item.informationalOnly : request.informationalOnly();
+        String targetUrl = informationalOnly ? "" : required(request.targetUrl() == null ? item.targetUrl : request.targetUrl(), "targetUrl");
+        if (!informationalOnly && !targetUrl.startsWith("/") && !targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+            throw ApiException.validation("MENU_URL_INVALID", "La URL debe ser relativa o comenzar con http:// o https://.");
+        }
+        item.code = code;
+        item.label = label;
+        item.icon = trimNullable(request.icon() == null ? item.icon : request.icon());
+        item.targetUrl = targetUrl;
+        item.manifestUrl = informationalOnly ? null : trimNullable(request.manifestUrl() == null ? item.manifestUrl : request.manifestUrl());
+        item.informationalOnly = informationalOnly;
+        item.parentId = parentId;
+        item.level = level;
+        item.sortOrder = request.sortOrder() == null ? (item.id == null ? nextMenuSortOrder(parentId) : item.sortOrder) : request.sortOrder();
+        item.active = request.active() == null ? item.active : request.active();
+        if (item.id == null) {
+            item.persist();
+        }
+        // Ensure the moved node is visible to the recursive descendant query.
+        entityManager().flush();
+        updateMenuDescendantLevels(item.id, item.level);
+    }
+
+    private void updateMenuDescendantLevels(UUID parentId, int parentLevel) {
+        List<MenuItem> children = MenuItem.list("parentId", parentId);
+        for (MenuItem child : children) {
+            child.level = parentLevel + 1;
+            updateMenuDescendantLevels(child.id, child.level);
+        }
+    }
+
+    private int nextMenuSortOrder(UUID parentId) {
+        List<MenuItem> siblings = parentId == null
+                ? MenuItem.list("parentId is null")
+                : MenuItem.list("parentId", parentId);
+        return siblings.stream().mapToInt(item -> item.sortOrder).max().orElse(0) + 10;
+    }
+
+    private boolean isMenuDescendant(UUID candidateParentId, UUID itemId) {
+        UUID cursor = candidateParentId;
+        Set<UUID> visited = new HashSet<>();
+        while (cursor != null && visited.add(cursor)) {
+            if (cursor.equals(itemId)) {
+                return true;
+            }
+            MenuItem current = MenuItem.findById(cursor);
+            cursor = current == null ? null : current.parentId;
+        }
+        return false;
+    }
+
+    private void replaceMenuItemRoles(UUID menuItemId, List<UUID> roleIds) {
+        if (roleIds == null) {
+            return;
+        }
+        for (UUID roleId : roleIds) {
+            Role role = Role.findById(roleId);
+            if (role == null || roleStatus(role) != RoleStatus.ACTIVE) {
+                throw ApiException.validation("ROLE_NOT_FOUND", "El rol no existe o esta inactivo: " + roleId + ".");
+            }
+        }
+        entityManager().createNativeQuery("DELETE FROM menu_item_roles WHERE menu_item_id = ?1")
+                .setParameter(1, menuItemId)
+                .executeUpdate();
+        for (UUID roleId : roleIds) {
+            entityManager().createNativeQuery("INSERT INTO menu_item_roles (menu_item_id, role_id) VALUES (?1, ?2) ON CONFLICT DO NOTHING")
+                    .setParameter(1, menuItemId)
+                    .setParameter(2, roleId)
+                    .executeUpdate();
+        }
+    }
+
+    private MenuItem requireMenuItem(UUID menuItemId) {
+        MenuItem item = MenuItem.findById(menuItemId);
+        if (item == null) {
+            throw ApiException.notFound("MENU_ITEM_NOT_FOUND", "La opcion de menu no existe.");
+        }
+        return item;
+    }
+
+    private String normalizeMenuCode(String value) {
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        if (!normalized.matches("[a-z0-9]+(?:[-_.][a-z0-9]+)*")) {
+            throw ApiException.validation("MENU_CODE_INVALID", "El codigo solo puede contener letras, numeros, guion, punto o guion bajo.");
+        }
+        return normalized;
+    }
+
+    private List<MenuItemResponse> menuTree(List<MenuItem> items, boolean includeRoles) {
+        Map<UUID, List<MenuItem>> children = new HashMap<>();
+        for (MenuItem item : items) {
+            children.computeIfAbsent(item.parentId, ignored -> new ArrayList<>()).add(item);
+        }
+        return menuTreeNodes(children, null, includeRoles);
+    }
+
+    private List<MenuItemResponse> menuTreeNodes(Map<UUID, List<MenuItem>> children, UUID parentId, boolean includeRoles) {
+        List<MenuItem> nodes = children.getOrDefault(parentId, List.of());
+        return nodes.stream()
+                .sorted(java.util.Comparator.comparingInt((MenuItem item) -> item.sortOrder).thenComparing(item -> item.label))
+                .map(item -> new MenuItemResponse(
+                        item.id,
+                        item.code,
+                        item.label,
+                        item.icon,
+                        item.targetUrl,
+                        item.manifestUrl,
+                        item.informationalOnly,
+                        item.parentId,
+                        item.level,
+                        item.sortOrder,
+                        item.active,
+                        includeRoles ? menuRoleCodes(item.id) : List.of(),
+                        menuTreeNodes(children, item.id, includeRoles)))
+                .toList();
+    }
+
+    private MenuItemResponse menuItemResponse(MenuItem item) {
+        return new MenuItemResponse(item.id, item.code, item.label, item.icon, item.targetUrl, item.manifestUrl,
+                item.informationalOnly, item.parentId, item.level, item.sortOrder, item.active, menuRoleCodes(item.id), List.of());
+    }
+
+    private List<String> menuRoleCodes(UUID menuItemId) {
+        return entityManager().createNativeQuery("""
+                SELECT r.code::text
+                FROM roles r
+                JOIN menu_item_roles mir ON mir.role_id = r.id
+                WHERE mir.menu_item_id = ?1
+                ORDER BY r.code
+                """, String.class)
+                .setParameter(1, menuItemId)
+                .getResultList();
+    }
+
     private UserAccount createGoogleUser(GooglePrincipal principal) {
         UserAccount user = new UserAccount();
         user.identityType = IdentityType.GOOGLE;
         user.login = principal.email();
         user.email = principal.email();
         user.googleSubject = principal.subject();
+        user.avatarUrl = principal.pictureUrl();
         user.displayName = principal.displayName() == null || principal.displayName().isBlank() ? principal.email() : principal.displayName();
         user.status = UserStatus.ACTIVE;
         user.persist();
@@ -823,6 +1102,9 @@ public class IdentityApplicationService {
         googleIdentity.lastSeenAt = now;
         googleIdentity.persist();
         user.googleSubject = principal.subject();
+        if ((user.avatarUrl == null || user.avatarUrl.isBlank()) && principal.pictureUrl() != null && !principal.pictureUrl().isBlank()) {
+            user.avatarUrl = principal.pictureUrl();
+        }
         if (user.email == null) {
             user.email = principal.email();
         }
@@ -1118,6 +1400,18 @@ public class IdentityApplicationService {
     private String displayNameOrFallback(String displayName, String fallback) {
         String trimmed = trimNullable(displayName);
         return trimmed == null ? fallback : trimmed;
+    }
+
+    private String normalizeAvatar(String value) {
+        String avatarUrl = trimNullable(value);
+        if (avatarUrl == null) {
+            return null;
+        }
+        if (avatarUrl.length() > 1_000_000
+                || !avatarUrl.matches("^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$")) {
+            throw ApiException.validation("AVATAR_INVALID", "La foto debe ser una imagen JPG, PNG o WebP valida de hasta 750 KB.");
+        }
+        return avatarUrl;
     }
 
     private void validatePasswordPolicy(String password) {

@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import type { MicrofrontendManifest } from "@venta-pasajes/shared-types";
-import { CircleAlert, CircleCheck, RefreshCw, TriangleAlert, WifiOff, X } from "lucide-react";
+import { ChevronRight, CircleAlert, CircleCheck, Home, TriangleAlert, WifiOff, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type LoadStatus = "loading" | "ready" | "error" | "unconfigured";
@@ -15,12 +15,20 @@ type ShellGrowl = {
   summary: string;
 };
 
+type BreadcrumbItem = {
+  code: string;
+  label: string;
+  navigable?: boolean;
+};
+
 type RemoteMfeFrameProps = {
   accessToken?: string | null;
-  fallbackName: string;
+  breadcrumbs?: BreadcrumbItem[];
+  entryUrl?: string;
   fallbackTitle: string;
   manifestUrl: string;
   onAuthRevoked?: () => void;
+  onBreadcrumbSelect?: (code: string) => void;
   shellName?: string;
 };
 
@@ -44,7 +52,7 @@ function parseGrowlSeverity(value: unknown): GrowlSeverity {
   return "info";
 }
 
-export function RemoteMfeFrame({ accessToken = null, fallbackName, fallbackTitle, manifestUrl, onAuthRevoked, shellName = "frontend-shell" }: Readonly<RemoteMfeFrameProps>) {
+export function RemoteMfeFrame({ accessToken = null, breadcrumbs = [], entryUrl = "", fallbackTitle, manifestUrl, onAuthRevoked, onBreadcrumbSelect, shellName = "frontend-shell" }: Readonly<RemoteMfeFrameProps>) {
   const [frameHeight, setFrameHeight] = useState(720);
   const [reloadToken, setReloadToken] = useState(0);
   const [growls, setGrowls] = useState<ShellGrowl[]>([]);
@@ -57,28 +65,31 @@ export function RemoteMfeFrame({ accessToken = null, fallbackName, fallbackTitle
     queryFn: () => fetchManifest(manifestUrl)
   });
   const manifest = manifestQuery.data ?? null;
-  const status: LoadStatus = !manifestUrl ? "unconfigured" : manifestQuery.isPending ? "loading" : manifestQuery.isError ? "error" : "ready";
+  const breadcrumbItems = breadcrumbs.length > 0 ? breadcrumbs : [{ code: "current", label: fallbackTitle, navigable: false }];
+  const status: LoadStatus = !manifestUrl && !entryUrl ? "unconfigured" : manifestUrl && manifestQuery.isPending ? "loading" : manifestUrl && manifestQuery.isError ? "error" : "ready";
   const error = manifestQuery.error instanceof Error ? manifestQuery.error.message : "No se pudo cargar el MFE";
 
   const frameSrc = useMemo(() => {
-    if (!manifest?.entry_url) {
+    const targetUrl = manifest?.entry_url ?? entryUrl;
+    if (!targetUrl) {
       return null;
     }
 
-    const separator = manifest.entry_url.includes("?") ? "&" : "?";
-    return `${manifest.entry_url}${separator}shell=${shellName}&reload=${reloadToken}`;
-  }, [manifest, reloadToken, shellName]);
+    const separator = targetUrl.includes("?") ? "&" : "?";
+    return `${targetUrl}${separator}shell=${shellName}&reload=${reloadToken}`;
+  }, [entryUrl, manifest, reloadToken, shellName]);
   const manifestOrigin = useMemo(() => {
-    if (!manifest?.entry_url) {
+    const targetUrl = manifest?.entry_url ?? entryUrl;
+    if (!targetUrl) {
       return null;
     }
 
     try {
-      return new URL(manifest.entry_url).origin;
+      return new URL(targetUrl).origin;
     } catch {
       return null;
     }
-  }, [manifest]);
+  }, [entryUrl, manifest]);
 
   const dismissGrowl = useCallback((id: number) => {
     const timer = growlTimers.current.get(id);
@@ -194,28 +205,38 @@ export function RemoteMfeFrame({ accessToken = null, fallbackName, fallbackTitle
       ) : null}
 
       <div className="remote-panel">
-        <header className="remote-header">
-          <div>
-            <p className="eyebrow">Modulo activo</p>
-            <h2>{manifest?.title ?? fallbackTitle}</h2>
-          </div>
+        <nav aria-label="Ruta del menu" className="breadcrumb-bar">
           <button
-            className="icon-button"
-            onClick={() => {
-              setReloadToken((value) => value + 1);
-            }}
-            title="Recargar modulo"
+            aria-label="Actualizar modulo"
+            className="breadcrumb-home breadcrumb-home-button"
+            onClick={() => setReloadToken((value) => value + 1)}
+            title="Actualizar modulo"
             type="button"
           >
-            <RefreshCw aria-hidden="true" size={18} />
+            <Home aria-hidden="true" size={16} />
           </button>
-        </header>
-
-        <div className="manifest-bar">
-          <span>{manifest?.name ?? fallbackName}</span>
-          <span>{manifest?.version ?? "pendiente"}</span>
-          <span>{status}</span>
-        </div>
+          {breadcrumbItems.map((label, index) => (
+            <span className="breadcrumb-segment" key={`${label.code}-${index}`}>
+              <ChevronRight aria-hidden="true" className="breadcrumb-separator" size={16} />
+              <span
+                aria-current={index === breadcrumbItems.length - 1 ? "page" : undefined}
+                aria-label={label.navigable && onBreadcrumbSelect ? `Ir a ${label.label}` : undefined}
+                className={index === breadcrumbItems.length - 1 ? "breadcrumb-current" : ""}
+                onClick={label.navigable && onBreadcrumbSelect ? () => onBreadcrumbSelect(label.code) : undefined}
+                onKeyDown={label.navigable && onBreadcrumbSelect ? (event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onBreadcrumbSelect(label.code);
+                  }
+                } : undefined}
+                role={label.navigable && onBreadcrumbSelect ? "link" : undefined}
+                tabIndex={label.navigable && onBreadcrumbSelect ? 0 : undefined}
+              >
+                {label.label}
+              </span>
+            </span>
+          ))}
+        </nav>
 
         {status === "error" ? (
           <div className="remote-empty" role="status">

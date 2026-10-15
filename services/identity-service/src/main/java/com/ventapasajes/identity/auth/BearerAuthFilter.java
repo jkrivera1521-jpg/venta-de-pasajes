@@ -76,8 +76,29 @@ public class BearerAuthFilter implements ContainerRequestFilter {
             return null;
         }
 
-        if (resourcePath.equals("auth/logout") || resourcePath.equals("me")) {
+        if (resourcePath.equals("auth/logout")
+                || resourcePath.equals("auth/logout/current")
+                || resourcePath.equals("auth/refresh")
+                || resourcePath.equals("me")
+                || resourcePath.equals("me/avatar")
+                || resourcePath.equals("me/theme")) {
             return RequiredAccess.authenticated();
+        }
+
+        if (resourcePath.equals("menu") && "GET".equals(method)) {
+            return RequiredAccess.authenticated();
+        }
+
+        if (resourcePath.equals("menu/admin") && "GET".equals(method)) {
+            return RequiredAccess.permission("identity.menu.read");
+        }
+
+        if (resourcePath.equals("menu") && "POST".equals(method)) {
+            return RequiredAccess.permission("identity.menu.manage");
+        }
+
+        if (resourcePath.matches("menu/[^/]+") && ("PATCH".equals(method) || "DELETE".equals(method))) {
+            return RequiredAccess.permission("identity.menu.manage");
         }
 
         if (resourcePath.equals("sessions") && "GET".equals(method)) {

@@ -12,11 +12,13 @@ import com.ventapasajes.identity.api.dto.PasswordLoginRequest;
 import com.ventapasajes.identity.api.dto.PasswordResetRequest;
 import com.ventapasajes.identity.api.dto.PermissionResponse;
 import com.ventapasajes.identity.api.dto.PublicLocalRegisterRequest;
+import com.ventapasajes.identity.api.dto.ProfilePhotoRequest;
 import com.ventapasajes.identity.api.dto.ReplaceUserRolesRequest;
 import com.ventapasajes.identity.api.dto.RoleCreateRequest;
 import com.ventapasajes.identity.api.dto.RoleResponse;
 import com.ventapasajes.identity.api.dto.RoleUpdateRequest;
 import com.ventapasajes.identity.api.dto.StatusReasonRequest;
+import com.ventapasajes.identity.api.dto.ThemePreferenceRequest;
 import com.ventapasajes.identity.api.dto.UserCreateRequest;
 import com.ventapasajes.identity.api.dto.UserResponse;
 import com.ventapasajes.identity.api.dto.UserUpdateRequest;
@@ -39,6 +41,8 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
         PasswordResetRequest.class,
         PermissionResponse.class,
         PublicLocalRegisterRequest.class,
+        ProfilePhotoRequest.class,
+        ThemePreferenceRequest.class,
         ReplaceUserRolesRequest.class,
         RoleCreateRequest.class,
         RoleResponse.class,

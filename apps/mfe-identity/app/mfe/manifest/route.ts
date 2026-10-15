@@ -24,6 +24,7 @@ export function GET() {
       "usuarios-locales",
       "roles",
       "permisos",
+      "menu-dinamico",
       "recuperacion-contrasena"
     ]
   };

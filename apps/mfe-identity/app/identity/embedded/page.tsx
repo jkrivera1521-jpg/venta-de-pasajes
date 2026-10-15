@@ -6,28 +6,69 @@ import {
   useQueryClient
 } from "@tanstack/react-query";
 import {
+  BarChart3,
+  Archive,
+  Bell,
+  BookOpen,
+  BusFront,
+  Building2,
+  CalendarClock,
+  CalendarDays,
+  CheckCircle2,
+  ClipboardList,
+  Clock3,
+  Cloud,
+  CreditCard,
+  FileText,
+  Filter,
+  Flag,
+  Folder,
+  Globe2,
+  Heart,
+  HelpCircle,
+  Home,
+  Inbox,
+  Info,
   CircleAlert,
   Eye,
+  GripVertical,
   KeyRound,
+  LayoutDashboard,
   LockKeyhole,
   LogOut,
+  Menu as MenuIcon,
+  Map,
+  MapPin,
+  MessageSquare,
+  Package,
   Pencil,
   Plus,
   Power,
   PowerOff,
+  Plane,
   RefreshCw,
+  Route,
+  Search,
   ShieldCheck,
+  ShoppingCart,
+  Settings,
+  Ticket,
+  Truck,
+  Upload,
   Trash2,
   UserCheck,
   UserPlus,
   Users,
+  Wallet,
+  Wrench,
+  XCircle,
   X
 } from "lucide-react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type IdentityType = "GOOGLE" | "LOCAL";
-type TabKey = "users" | "roles" | "permissions" | "sessions";
+type TabKey = "users" | "roles" | "permissions" | "sessions" | "menu";
 type RoleStatus = "ACTIVE" | "DISABLED" | "DELETED";
 type GrowlSeverity = "info" | "warn" | "error";
 
@@ -78,6 +119,83 @@ type Permission = {
   code: string;
   description: string;
 };
+
+type MenuItem = {
+  id: string;
+  code: string;
+  label: string;
+  icon?: string | null;
+  target_url: string;
+  manifest_url?: string | null;
+  informational_only: boolean;
+  parent_id?: string | null;
+  level: number;
+  sort_order: number;
+  active: boolean;
+  roles: string[];
+  children: MenuItem[];
+};
+
+type MenuForm = {
+  code: string;
+  label: string;
+  icon: string;
+  target_url: string;
+  manifest_url: string;
+  informational_only: boolean;
+  parent_id: string;
+  sort_order: number | null;
+  active: boolean;
+  role_ids: string[];
+};
+
+const menuIconCatalog = [
+  { code: "Archive", label: "Archivo", icon: Archive },
+  { code: "Bell", label: "Alertas", icon: Bell },
+  { code: "BookOpen", label: "Ayuda", icon: BookOpen },
+  { code: "ShoppingCart", label: "Venta", icon: ShoppingCart },
+  { code: "LayoutDashboard", label: "Panel", icon: LayoutDashboard },
+  { code: "ShieldCheck", label: "Identidad", icon: ShieldCheck },
+  { code: "Building2", label: "Empresa", icon: Building2 },
+  { code: "CalendarClock", label: "Calendario", icon: CalendarClock },
+  { code: "CalendarDays", label: "Agenda", icon: CalendarDays },
+  { code: "CheckCircle2", label: "Completado", icon: CheckCircle2 },
+  { code: "ClipboardList", label: "Tareas", icon: ClipboardList },
+  { code: "Clock3", label: "Tiempo", icon: Clock3 },
+  { code: "Cloud", label: "Nube", icon: Cloud },
+  { code: "CreditCard", label: "Pagos", icon: CreditCard },
+  { code: "FileText", label: "Documento", icon: FileText },
+  { code: "Filter", label: "Filtros", icon: Filter },
+  { code: "Flag", label: "Marcador", icon: Flag },
+  { code: "Folder", label: "Carpeta", icon: Folder },
+  { code: "Globe2", label: "Global", icon: Globe2 },
+  { code: "Heart", label: "Favoritos", icon: Heart },
+  { code: "HelpCircle", label: "Soporte", icon: HelpCircle },
+  { code: "Home", label: "Inicio", icon: Home },
+  { code: "Inbox", label: "Bandeja", icon: Inbox },
+  { code: "Info", label: "Informacion", icon: Info },
+  { code: "Ticket", label: "Boleteria", icon: Ticket },
+  { code: "BarChart3", label: "Reportes", icon: BarChart3 },
+  { code: "Settings", label: "Configuracion", icon: Settings },
+  { code: "Users", label: "Usuarios", icon: Users },
+  { code: "KeyRound", label: "Permisos", icon: KeyRound },
+  { code: "UserCheck", label: "Usuarios activos", icon: UserCheck },
+  { code: "BusFront", label: "Transporte", icon: BusFront },
+  { code: "Map", label: "Mapa", icon: Map },
+  { code: "MapPin", label: "Ubicacion", icon: MapPin },
+  { code: "MessageSquare", label: "Mensajes", icon: MessageSquare },
+  { code: "Package", label: "Paquete", icon: Package },
+  { code: "Pencil", label: "Edicion", icon: Pencil },
+  { code: "Plane", label: "Viajes", icon: Plane },
+  { code: "Power", label: "Estado", icon: Power },
+  { code: "Route", label: "Ruta", icon: Route },
+  { code: "Search", label: "Busqueda", icon: Search },
+  { code: "Truck", label: "Carga", icon: Truck },
+  { code: "Upload", label: "Carga", icon: Upload },
+  { code: "Wallet", label: "Caja", icon: Wallet },
+  { code: "Wrench", label: "Herramientas", icon: Wrench },
+  { code: "XCircle", label: "Cancelado", icon: XCircle }
+];
 
 type IdentitySession = {
   id: string;
@@ -223,6 +341,57 @@ function emptyRoleForm() {
     name: "",
     permission_codes: [] as string[]
   };
+}
+
+function emptyMenuForm(): MenuForm {
+  return {
+    active: true,
+    code: "",
+    icon: "LayoutDashboard",
+    informational_only: false,
+    label: "",
+    manifest_url: "",
+    parent_id: "",
+    role_ids: [],
+    sort_order: null,
+    target_url: "/"
+  };
+}
+
+function flattenMenu(items: MenuItem[], result: MenuItem[] = []) {
+  for (const item of items) {
+    result.push(item);
+    flattenMenu(item.children, result);
+  }
+  return result;
+}
+
+function findMenuItem(items: MenuItem[], id: string | null): MenuItem | null {
+  if (!id) {
+    return null;
+  }
+  for (const item of items) {
+    if (item.id === id) {
+      return item;
+    }
+    const descendant = findMenuItem(item.children, id);
+    if (descendant) {
+      return descendant;
+    }
+  }
+  return null;
+}
+
+function findMenuRoot(items: MenuItem[], id: string | null): MenuItem | null {
+  if (!id) {
+    return null;
+  }
+  for (const item of items) {
+    if (item.id === id || findMenuItem(item.children, id)) {
+      return item;
+    }
+  }
+  return null;
 }
 
 function passwordStrength(password: string): PasswordStrength {
@@ -382,6 +551,18 @@ export default function EmbeddedIdentity() {
   const [roleForm, setRoleForm] = useState(emptyRoleForm);
   const [roleDeleteCandidate, setRoleDeleteCandidate] = useState<Role | null>(null);
   const [roleDeleteConfirmation, setRoleDeleteConfirmation] = useState("");
+  const [menuForm, setMenuForm] = useState<MenuForm>(emptyMenuForm);
+  const [editingMenuId, setEditingMenuId] = useState<string | null>(null);
+  const [menuDialogOpen, setMenuDialogOpen] = useState(false);
+  const [menuActionsOpen, setMenuActionsOpen] = useState(false);
+  const [iconCatalogOpen, setIconCatalogOpen] = useState(false);
+  const [iconSearch, setIconSearch] = useState("");
+  const [selectedMenuPreview, setSelectedMenuPreview] = useState<MenuItem | null>(null);
+  const [selectedMenuParent, setSelectedMenuParent] = useState<MenuItem | null>(null);
+  const [draggingTreeMenuId, setDraggingTreeMenuId] = useState<string | null>(null);
+  const menuDialogRef = useRef<HTMLDialogElement>(null);
+  const iconCatalogDialogRef = useRef<HTMLDialogElement>(null);
+  const menuTreeContentRef = useRef<HTMLDivElement>(null);
   const [selectedPermission, setSelectedPermission] = useState<Permission | null>(null);
   const [selectedUserDetail, setSelectedUserDetail] = useState<User | null>(null);
   const [selectedUserEdit, setSelectedUserEdit] = useState<User | null>(null);
@@ -410,6 +591,23 @@ export default function EmbeddedIdentity() {
     queryKey: identityQueryKeys.sessions(accessToken ?? "sin-token"),
     queryFn: () => apiRequest<IdentitySession[]>("/sessions", {}, accessToken)
   });
+  const canReadMenu = Boolean(currentUser?.permissions.includes("identity.menu.read"));
+  const canManageMenu = Boolean(currentUser?.permissions.includes("identity.menu.manage"));
+  const menuQuery = useQuery({
+    enabled: Boolean(accessToken && canReadMenu),
+    queryKey: ["identity", "menu", "admin", accessToken],
+    queryFn: () => apiRequest<MenuItem[]>("/menu/admin", {}, accessToken)
+  });
+  const menuItems = menuQuery.data ?? [];
+  const flatMenuItems = useMemo(() => flattenMenu(menuItems), [menuItems]);
+  const filteredMenuIcons = useMemo(() => {
+    const query = iconSearch.trim().toLowerCase();
+    if (!query) {
+      return menuIconCatalog;
+    }
+    return menuIconCatalog.filter((option) => `${option.code} ${option.label}`.toLowerCase().includes(query));
+  }, [iconSearch]);
+  const selectedMenuIcon = menuIconCatalog.find((option) => option.code === menuForm.icon) ?? menuIconCatalog[0];
   const sessions = sessionsQuery.data ?? [];
   const activeRoles = useMemo(() => roles.filter((role) => isRoleActive(role)), [roles]);
   const roleDeleteAssignedUsers = useMemo(() => {
@@ -463,16 +661,17 @@ export default function EmbeddedIdentity() {
       notifyShell("info", "Operacion completada", variables.successMessage);
     }
   });
-  const busy = sessionQuery.isFetching || sessionsQuery.isFetching || actionMutation.isPending;
+  const busy = sessionQuery.isFetching || sessionsQuery.isFetching || menuQuery.isFetching || actionMutation.isPending;
 
   const tabs = useMemo(
     () => [
       { key: "users" as const, label: "Usuarios", icon: Users },
       { key: "roles" as const, label: "Roles", icon: ShieldCheck },
       { key: "permissions" as const, label: "Permisos", icon: KeyRound },
-      { key: "sessions" as const, label: "Sesiones", icon: UserCheck }
-    ].filter((tab) => tab.key !== "sessions" || canViewSessions),
-    [canViewSessions]
+      { key: "sessions" as const, label: "Sesiones", icon: UserCheck },
+      { key: "menu" as const, label: "Menu", icon: MenuIcon }
+    ].filter((tab) => (tab.key !== "sessions" || canViewSessions) && (tab.key !== "menu" || canReadMenu)),
+    [canReadMenu, canViewSessions]
   );
 
   const stats = useMemo(
@@ -507,6 +706,48 @@ export default function EmbeddedIdentity() {
       }
     };
   }, [hasSession, newUserOpen]);
+
+  useEffect(() => {
+    const dialog = menuDialogRef.current;
+    if (!menuDialogOpen || !hasSession || !dialog) {
+      return;
+    }
+
+    dialog.showModal();
+    return () => {
+      dialog.close();
+    };
+  }, [hasSession, menuDialogOpen]);
+
+  useEffect(() => {
+    const dialog = iconCatalogDialogRef.current;
+    if (!iconCatalogOpen || !hasSession || !dialog) {
+      return;
+    }
+
+    dialog.showModal();
+    return () => {
+      dialog.close();
+    };
+  }, [hasSession, iconCatalogOpen]);
+
+  useEffect(() => {
+    if (!menuItems.length) {
+      setSelectedMenuPreview(null);
+      setSelectedMenuParent(null);
+      return;
+    }
+    setSelectedMenuPreview((current) => findMenuRoot(menuItems, current?.id ?? null) ?? current ?? menuItems[0]);
+    setSelectedMenuParent((current) => findMenuItem(menuItems, current?.id ?? null) ?? current ?? menuItems[0]);
+  }, [menuItems]);
+
+  useEffect(() => {
+    const treeContent = menuTreeContentRef.current;
+    if (treeContent) {
+      treeContent.scrollLeft = 0;
+      treeContent.scrollTop = 0;
+    }
+  }, [selectedMenuPreview?.id]);
 
   const checkIdentityReady = useCallback(async () => {
     try {
@@ -966,6 +1207,186 @@ export default function EmbeddedIdentity() {
     }));
   }
 
+  function selectMenuForEdit(item: MenuItem) {
+    const root = item.level === 1 ? item : flatMenuItems.find((candidate) => candidate.id === item.parent_id) ?? null;
+    setSelectedMenuPreview(root);
+    setSelectedMenuParent(root);
+    setEditingMenuId(item.id);
+    setMenuForm({
+      active: item.active,
+      code: item.code,
+      icon: item.icon ?? "LayoutDashboard",
+      informational_only: item.informational_only ?? false,
+      label: item.label,
+      manifest_url: item.manifest_url ?? "",
+      parent_id: item.parent_id ?? "",
+      role_ids: roles.filter((role) => item.roles.includes(role.code)).map((role) => role.id),
+      sort_order: item.sort_order,
+      target_url: item.target_url
+    });
+    setErrorMessage(null);
+    setMenuDialogOpen(true);
+  }
+
+  function clearMenuForm() {
+    setEditingMenuId(null);
+    setMenuForm(emptyMenuForm());
+  }
+
+  function openNewMenu() {
+    clearMenuForm();
+    setErrorMessage(null);
+    setMenuActionsOpen(false);
+    setMenuDialogOpen(true);
+  }
+
+  function openNewMenuChild(parent: MenuItem) {
+    clearMenuForm();
+    setMenuForm((current) => ({ ...current, parent_id: parent.id }));
+    setErrorMessage(null);
+    setMenuDialogOpen(true);
+  }
+
+  function closeMenuDialog() {
+    if (actionMutation.isPending) {
+      return;
+    }
+    setMenuDialogOpen(false);
+    clearMenuForm();
+  }
+
+  function openIconCatalog() {
+    setIconSearch("");
+    setIconCatalogOpen(true);
+  }
+
+  function closeIconCatalog() {
+    setIconCatalogOpen(false);
+  }
+
+  function selectMenuIcon(code: string) {
+    setMenuForm((current) => ({ ...current, icon: code }));
+    setIconCatalogOpen(false);
+  }
+
+  function toggleMenuRole(roleId: string) {
+    setMenuForm((current) => ({
+      ...current,
+      role_ids: current.role_ids.includes(roleId)
+        ? current.role_ids.filter((id) => id !== roleId)
+        : [...current.role_ids, roleId]
+    }));
+  }
+
+  async function submitMenuItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!accessToken || !canManageMenu) {
+      return;
+    }
+    await runAction(async () => {
+      await apiRequest<MenuItem>(editingMenuId ? `/menu/${editingMenuId}` : "/menu", {
+        body: JSON.stringify(menuForm),
+        method: editingMenuId ? "PATCH" : "POST"
+      }, accessToken);
+      clearMenuForm();
+      setMenuDialogOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ["identity", "menu"] });
+    }, editingMenuId ? "Opcion de menu actualizada" : "Opcion de menu creada");
+  }
+
+  async function deleteMenuItem(item: MenuItem) {
+    if (!accessToken || !canManageMenu || !window.confirm(`¿Eliminar ${item.label} y sus subniveles?`)) {
+      return;
+    }
+    await runAction(async () => {
+      await apiRequest<void>(`/menu/${item.id}`, { method: "DELETE" }, accessToken);
+      if (editingMenuId === item.id) {
+        clearMenuForm();
+      }
+      await queryClient.invalidateQueries({ queryKey: ["identity", "menu"] });
+    }, "Opcion de menu eliminada");
+  }
+
+  async function moveMenuNode(sourceId: string, target: MenuItem) {
+    if (!accessToken || !draggingTreeMenuId || sourceId === target.id) {
+      return;
+    }
+    const source = flatMenuItems.find((item) => item.id === sourceId);
+    if (!source) {
+      setDraggingTreeMenuId(null);
+      return;
+    }
+
+    const movingToFirstPosition = source.parent_id === target.id;
+    const siblingSortOrders = movingToFirstPosition
+      ? target.children.filter((child) => child.id !== source.id).map((child) => child.sort_order)
+      : [];
+    const nextSortOrder = movingToFirstPosition
+      ? (siblingSortOrders.length > 0 ? Math.min(...siblingSortOrders) - 10 : 10)
+      : (target.children.length + 1) * 10;
+
+    await runAction(async () => {
+      await apiRequest<MenuItem>(`/menu/${source.id}`, {
+        body: JSON.stringify({ parent_id: target.id, sort_order: nextSortOrder }),
+        method: "PATCH"
+      }, accessToken);
+      await queryClient.invalidateQueries({ queryKey: ["identity", "menu"] });
+      const refreshedMenu = queryClient.getQueryData<MenuItem[]>(["identity", "menu", "admin", accessToken]) ?? [];
+      setSelectedMenuPreview(refreshedMenu.find((item) => item.id === selectedMenuPreview?.id) ?? refreshedMenu[0] ?? null);
+      setSelectedMenuParent(findMenuItem(refreshedMenu, selectedMenuParent?.id ?? null) ?? refreshedMenu[0] ?? null);
+    }, movingToFirstPosition
+      ? `${source.label} ahora es la primera subopcion de ${target.label}`
+      : `${source.label} ahora depende de ${target.label}`);
+    setDraggingTreeMenuId(null);
+  }
+
+  const SelectedMenuIcon = selectedMenuIcon.icon;
+
+  function renderMenuPreview(items: MenuItem[], depth = 0): ReactNode {
+    return items.map((item) => {
+      const Icon = menuIconCatalog.find((option) => option.code === item.icon)?.icon ?? LayoutDashboard;
+      return (
+        <div className="menu-tree-node" key={item.id} style={{ marginLeft: `${depth * 18}px` }}>
+          <div
+            aria-pressed={selectedMenuParent?.id === item.id}
+            className={selectedMenuParent?.id === item.id ? "menu-tree-node-label menu-tree-node-label-selected" : "menu-tree-node-label"}
+            draggable={!busy}
+            onDragEnd={() => setDraggingTreeMenuId(null)}
+            onDragOver={(event) => event.preventDefault()}
+            onDragStart={() => setDraggingTreeMenuId(item.id)}
+            onDrop={() => {
+              if (draggingTreeMenuId) {
+                void moveMenuNode(draggingTreeMenuId, item);
+              }
+            }}
+            onClick={() => setSelectedMenuParent(item)}
+            title="Selecciona este nodo para agregarle hijos o arrastralo para cambiar su nivel"
+          >
+            <GripVertical aria-hidden="true" size={15} />
+            <Icon aria-hidden="true" size={16} />
+            <div><strong>{item.label}</strong><span>{item.code}</span></div>
+            {item.level > 1 && canManageMenu ? (
+              <button
+                aria-label={`Editar ${item.label}`}
+                className="menu-tree-edit-button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  selectMenuForEdit(item);
+                }}
+                onMouseDown={(event) => event.stopPropagation()}
+                title={`Editar ${item.label}`}
+                type="button"
+              >
+                <Pencil aria-hidden="true" size={14} />
+              </button>
+            ) : null}
+          </div>
+          {item.children.length > 0 ? renderMenuPreview(item.children, depth + 1) : null}
+        </div>
+      );
+    });
+  }
+
   return (
     <main className="identity-module">
       <header className="module-header">
@@ -1152,6 +1573,193 @@ export default function EmbeddedIdentity() {
             </div>
           </section>
         </section>
+      ) : null}
+
+      {hasSession && activeTab === "menu" ? (
+        <section className="work-grid">
+          <section className="table-panel" aria-label="Arbol de menu">
+            <div className="table-header">
+              <div>
+                <h2>Arbol de menu</h2>
+                <span>{menuItems.length} opciones de nivel 1, arbol recursivo</span>
+              </div>
+              {canManageMenu ? (
+                <div className="table-menu-actions">
+                  <button
+                    aria-expanded={menuActionsOpen}
+                    aria-haspopup="menu"
+                    aria-label="Acciones del menu"
+                    className="icon-button"
+                    onClick={() => setMenuActionsOpen((current) => !current)}
+                    title="Acciones del menu"
+                    type="button"
+                  >
+                    <MenuIcon aria-hidden="true" size={20} />
+                  </button>
+                  {menuActionsOpen ? (
+                    <div className="table-action-menu" role="menu">
+                      <button onClick={openNewMenu} role="menuitem" type="button">
+                        <Plus aria-hidden="true" size={16} />
+                        <span>Nueva opcion</span>
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : <MenuIcon aria-hidden="true" size={22} />}
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Opcion</th>
+                    <th>URL del MFE</th>
+                    <th>Roles</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {menuItems.map((item) => (
+                    <tr className={selectedMenuPreview?.id === item.id ? "menu-row-selected" : undefined} key={item.id} onClick={() => { setSelectedMenuPreview(item); setSelectedMenuParent(item); }}>
+                      <td>
+                        <strong style={{ paddingLeft: `${Math.max(item.level - 1, 0) * 18}px` }}>{item.label}</strong>
+                        <span>{item.code}</span>
+                      </td>
+                      <td>{item.manifest_url || item.target_url}</td>
+                      <td>{item.roles.join(", ") || "Sin roles"}</td>
+                      <td><span className={item.active ? "pill pill-ok" : "pill pill-wait"}>{item.active ? "ACTIVA" : "INACTIVA"}</span></td>
+                      <td>
+                        <div className="row-actions">
+                          <button disabled={!canManageMenu} onClick={(event) => { event.stopPropagation(); selectMenuForEdit(item); }} title={`Editar ${item.label}`} type="button">
+                            <Pencil aria-hidden="true" size={16} />
+                          </button>
+                          <button className="danger-icon-button" disabled={!canManageMenu} onClick={(event) => { event.stopPropagation(); void deleteMenuItem(item); }} title={`Eliminar ${item.label}`} type="button">
+                            <Trash2 aria-hidden="true" size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <aside className="menu-tree-preview" aria-label="Vista previa del arbol de menu">
+            <div className="table-header">
+              <div>
+                <h2>Vista del arbol</h2>
+                <span>{selectedMenuPreview ? `Estructura de ${selectedMenuPreview.label}` : "Selecciona una opcion para visualizarla"}</span>
+              </div>
+              {canManageMenu && selectedMenuParent ? (
+                <button
+                  className="secondary-action menu-add-child-button"
+                  onClick={() => openNewMenuChild(selectedMenuParent)}
+                  title={`Agregar hijo a ${selectedMenuParent.label}`}
+                  type="button"
+                >
+                  <Plus aria-hidden="true" size={16} />
+                  <span>Agregar hijo</span>
+                </button>
+              ) : <MenuIcon aria-hidden="true" size={22} />}
+            </div>
+            <div className="menu-tree-content" ref={menuTreeContentRef}>
+              {selectedMenuPreview ? renderMenuPreview([selectedMenuPreview]) : <div className="empty-state">Selecciona una opcion de la tabla.</div>}
+            </div>
+          </aside>
+        </section>
+      ) : null}
+
+      {hasSession && menuDialogOpen ? (
+        <dialog aria-labelledby="menu-dialog-title" className="modal-panel user-create-dialog menu-dialog" ref={menuDialogRef}>
+          <div className="modal-heading">
+            <div className="panel-heading">
+              <MenuIcon aria-hidden="true" size={19} />
+              <h2 id="menu-dialog-title">
+                {editingMenuId ? "Editar opcion" : menuForm.parent_id ? "Nuevo hijo" : "Nueva opcion"}
+              </h2>
+            </div>
+            <button aria-label="Cerrar ventana" className="icon-button modal-close" onClick={closeMenuDialog} type="button"><X aria-hidden="true" size={17} /></button>
+          </div>
+          <form className="user-create-fields" onSubmit={submitMenuItem}>
+            <label>Codigo<input required onChange={(event) => setMenuForm((current) => ({ ...current, code: event.target.value }))} value={menuForm.code} /></label>
+            <label>Etiqueta<input required onChange={(event) => setMenuForm((current) => ({ ...current, label: event.target.value }))} value={menuForm.label} /></label>
+            <fieldset className="menu-icon-fieldset">
+              <legend>Icono</legend>
+              <div className="menu-icon-picker">
+                <div className="menu-icon-selected" aria-label={`Icono seleccionado: ${selectedMenuIcon.label}`}>
+                  <SelectedMenuIcon aria-hidden="true" size={22} />
+                  <span>{selectedMenuIcon.label}</span>
+                </div>
+                <button className="secondary-action menu-icon-change" onClick={openIconCatalog} type="button">
+                  <Pencil aria-hidden="true" size={16} />
+                  <span>Cambiar</span>
+                </button>
+              </div>
+            </fieldset>
+            {menuForm.parent_id ? (
+              <label className="checkbox-line menu-informational-toggle">
+                <input
+                  checked={menuForm.informational_only}
+                  onChange={(event) => setMenuForm((current) => ({
+                    ...current,
+                    informational_only: event.target.checked,
+                    manifest_url: event.target.checked ? "" : current.manifest_url,
+                    target_url: event.target.checked ? "" : current.target_url
+                  }))}
+                  type="checkbox"
+                />
+                <span>Solo informativo (no navega)</span>
+              </label>
+            ) : null}
+            <label>URL de pantalla<input disabled={menuForm.informational_only} required={!menuForm.informational_only && Boolean(menuForm.parent_id)} onChange={(event) => setMenuForm((current) => ({ ...current, target_url: event.target.value }))} value={menuForm.target_url} /></label>
+            <label>URL del manifest MFE<input disabled={menuForm.informational_only} required={!menuForm.informational_only && Boolean(menuForm.parent_id)} onChange={(event) => setMenuForm((current) => ({ ...current, manifest_url: event.target.value }))} value={menuForm.manifest_url} /></label>
+            {menuForm.parent_id ? (
+              <div className="menu-parent-context">
+                <span>Padre</span>
+                <strong>{flatMenuItems.find((item) => item.id === menuForm.parent_id)?.label ?? "Opcion seleccionada"}</strong>
+              </div>
+            ) : null}
+            <div className="checkbox-stack checkbox-stack-scroll" aria-label="Roles autorizados">
+              {roles.filter((role) => isRoleActive(role)).map((role) => <label className="checkbox-line" key={role.id}><input checked={menuForm.role_ids.includes(role.id)} onChange={() => toggleMenuRole(role.id)} type="checkbox" /><span>{role.code}</span></label>)}
+            </div>
+            <label className="checkbox-line"><input checked={menuForm.active} onChange={(event) => setMenuForm((current) => ({ ...current, active: event.target.checked }))} type="checkbox" /><span>Opcion activa</span></label>
+            <div className="user-create-actions">
+              <button className="primary-action" disabled={busy} type="submit"><MenuIcon aria-hidden="true" size={17} /><span>{editingMenuId ? "Actualizar opcion" : "Crear opcion"}</span></button>
+              <button className="secondary-action" disabled={busy} onClick={closeMenuDialog} type="button"><X aria-hidden="true" size={17} /><span>Cancelar</span></button>
+            </div>
+          </form>
+        </dialog>
+      ) : null}
+
+      {hasSession && iconCatalogOpen ? (
+        <dialog aria-labelledby="icon-catalog-title" className="modal-panel icon-catalog-dialog" ref={iconCatalogDialogRef}>
+          <div className="modal-heading">
+            <div className="panel-heading">
+              <MenuIcon aria-hidden="true" size={19} />
+              <h2 id="icon-catalog-title">Seleccionar icono</h2>
+            </div>
+            <button aria-label="Cerrar catalogo" className="icon-button modal-close" onClick={closeIconCatalog} type="button"><X aria-hidden="true" size={17} /></button>
+          </div>
+          <label className="icon-search-field">Buscar icono<input autoFocus onChange={(event) => setIconSearch(event.target.value)} placeholder="Ej. usuario, viaje, reporte..." value={iconSearch} /></label>
+          <div className="menu-icon-catalog" aria-label="Catalogo de iconos">
+            {filteredMenuIcons.map((option) => {
+              const Icon = option.icon;
+              return (
+                <button
+                  aria-pressed={menuForm.icon === option.code}
+                  className={menuForm.icon === option.code ? "menu-icon-option menu-icon-option-selected" : "menu-icon-option"}
+                  key={option.code}
+                  onClick={() => selectMenuIcon(option.code)}
+                  type="button"
+                >
+                  <Icon aria-hidden="true" size={20} />
+                  <span>{option.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          {filteredMenuIcons.length === 0 ? <span className="empty-inline">No se encontraron iconos.</span> : null}
+        </dialog>
       ) : null}
 
       {hasSession && activeTab === "roles" ? (

@@ -10,10 +10,13 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import com.ventapasajes.identity.api.dto.GoogleTokenExchangeRequest;
 import com.ventapasajes.identity.api.dto.IdentitySessionResponse;
 import com.ventapasajes.identity.api.dto.LocalLoginRequest;
+import com.ventapasajes.identity.api.dto.MenuItemRequest;
 import com.ventapasajes.identity.api.dto.PasswordForgotRequest;
 import com.ventapasajes.identity.api.dto.PasswordLoginRequest;
 import com.ventapasajes.identity.api.dto.PasswordResetRequest;
 import com.ventapasajes.identity.api.dto.PublicLocalRegisterRequest;
+import com.ventapasajes.identity.api.dto.ProfilePhotoRequest;
+import com.ventapasajes.identity.api.dto.ThemePreferenceRequest;
 import com.ventapasajes.identity.api.dto.ReplaceUserRolesRequest;
 import com.ventapasajes.identity.api.dto.RoleCreateRequest;
 import com.ventapasajes.identity.api.dto.RoleUpdateRequest;
@@ -96,6 +99,27 @@ public class IdentityBaseResource {
         return Response.noContent().build();
     }
 
+    @POST
+    @Path("/auth/logout/current")
+    @Consumes(MediaType.WILDCARD)
+    @RequiresPermission
+    @Operation(summary = "Logout only the current authenticated session.")
+    @APIResponse(responseCode = "204", description = "Current session revoked.")
+    public Response logoutCurrentSession() {
+        identityService.revokeSession(requestIdentity.user().sessionId());
+        return Response.noContent().build();
+    }
+
+    @POST
+    @Path("/auth/refresh")
+    @Consumes(MediaType.WILDCARD)
+    @RequiresPermission
+    @Operation(summary = "Refresh the current authenticated session token.")
+    @APIResponse(responseCode = "200", description = "Authenticated session token refreshed.")
+    public Response refreshSession() {
+        return Response.ok(identityService.refreshCurrentSession(requestIdentity.user())).build();
+    }
+
     @GET
     @Path("/sessions")
     @RequiresPermission("identity.sessions.read")
@@ -134,6 +158,71 @@ public class IdentityBaseResource {
     @APIResponse(responseCode = "200", description = "Current user profile.")
     public Response currentUser() {
         return Response.ok(identityService.currentUser(requestIdentity.user().id())).build();
+    }
+
+    @PATCH
+    @Path("/me/avatar")
+    @RequiresPermission
+    @Operation(summary = "Update the current user's profile photo.")
+    @APIResponse(responseCode = "200", description = "Profile photo updated.")
+    public Response updateCurrentUserAvatar(ProfilePhotoRequest request) {
+        return Response.ok(identityService.updateCurrentUserAvatar(requestIdentity.user().id(), request)).build();
+    }
+
+    @PATCH
+    @Path("/me/theme")
+    @RequiresPermission
+    @Operation(summary = "Update the current user's theme preference.")
+    @APIResponse(responseCode = "200", description = "Theme preference updated.")
+    public Response updateCurrentUserTheme(ThemePreferenceRequest request) {
+        return Response.ok(identityService.updateCurrentUserTheme(requestIdentity.user().id(), request)).build();
+    }
+
+    @GET
+    @Path("/menu")
+    @RequiresPermission
+    @Operation(summary = "List the menu authorized for the current user.")
+    @APIResponse(responseCode = "200", description = "Authorized menu listed.")
+    public Response listVisibleMenu() {
+        return Response.ok(identityService.listVisibleMenu(requestIdentity.user().roles())).build();
+    }
+
+    @GET
+    @Path("/menu/admin")
+    @RequiresPermission("identity.menu.read")
+    @Operation(summary = "List all menu items for administration.")
+    @APIResponse(responseCode = "200", description = "Menu administration tree listed.")
+    public Response listMenuAdmin() {
+        return Response.ok(identityService.listMenuAdmin()).build();
+    }
+
+    @POST
+    @Path("/menu")
+    @RequiresPermission("identity.menu.manage")
+    @Operation(summary = "Create one menu item.")
+    @APIResponse(responseCode = "201", description = "Menu item created.")
+    public Response createMenuItem(MenuItemRequest request) {
+        var response = identityService.createMenuItem(request);
+        return Response.created(URI.create("/api/v1/identity/menu/" + response.id())).entity(response).build();
+    }
+
+    @PATCH
+    @Path("/menu/{menuItemId}")
+    @RequiresPermission("identity.menu.manage")
+    @Operation(summary = "Update one menu item.")
+    @APIResponse(responseCode = "200", description = "Menu item updated.")
+    public Response updateMenuItem(@PathParam("menuItemId") String menuItemId, MenuItemRequest request) {
+        return Response.ok(identityService.updateMenuItem(parseUuid(menuItemId, "menuItemId"), request)).build();
+    }
+
+    @DELETE
+    @Path("/menu/{menuItemId}")
+    @RequiresPermission("identity.menu.manage")
+    @Operation(summary = "Delete one menu item and its descendants.")
+    @APIResponse(responseCode = "204", description = "Menu item deleted.")
+    public Response deleteMenuItem(@PathParam("menuItemId") String menuItemId) {
+        identityService.deleteMenuItem(parseUuid(menuItemId, "menuItemId"));
+        return Response.noContent().build();
     }
 
     @GET

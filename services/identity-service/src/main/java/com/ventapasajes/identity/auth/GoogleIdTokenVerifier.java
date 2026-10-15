@@ -126,6 +126,7 @@ public class GoogleIdTokenVerifier {
                 requiredText(claims, "email").toLowerCase(),
                 emailVerified,
                 optionalText(claims, "name"),
+                optionalText(claims, "picture"),
                 optionalText(claims, "hd"),
                 Instant.ofEpochSecond(expiresAt));
     }
@@ -237,6 +238,7 @@ public class GoogleIdTokenVerifier {
             String email,
             boolean emailVerified,
             String displayName,
+            String pictureUrl,
             String hostedDomain,
             Instant expiresAt) {
     }

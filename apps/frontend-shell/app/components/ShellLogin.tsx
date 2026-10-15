@@ -15,7 +15,10 @@ import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
 type CurrentUser = {
+  avatar_url?: string | null;
   display_name: string;
+  email: string;
+  identity_type: "GOOGLE" | "LOCAL";
   login: string;
   permissions: string[];
   roles: string[];

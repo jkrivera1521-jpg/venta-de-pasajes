@@ -34,6 +34,12 @@ public class UserAccount extends AuditablePanacheEntity {
     @Column(name = "display_name", nullable = false)
     public String displayName;
 
+    @Column(name = "avatar_url")
+    public String avatarUrl;
+
+    @Column(name = "dark_mode", nullable = false)
+    public boolean darkMode;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     public UserStatus status = UserStatus.PENDING_ACTIVATION;
