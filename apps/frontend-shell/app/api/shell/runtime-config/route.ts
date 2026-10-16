@@ -1,7 +1,8 @@
-type ManifestKey = "admin" | "dispatch" | "identity" | "onlineSales" | "reporting" | "ticketing";
+type ManifestKey = "admin" | "aviatorscript" | "dispatch" | "identity" | "onlineSales" | "reporting" | "ticketing";
 
 const manifestDefaults: Record<ManifestKey, string> = {
   admin: "http://localhost:3005/mfe/manifest",
+  aviatorscript: "http://localhost:3006/mfe/manifest",
   dispatch: "http://localhost:3002/mfe/manifest",
   identity: "http://localhost:3001/mfe/manifest",
   onlineSales: "",
@@ -11,6 +12,7 @@ const manifestDefaults: Record<ManifestKey, string> = {
 
 const manifestEnvKeys: Record<ManifestKey, string> = {
   admin: "NEXT_PUBLIC_MFE_ADMIN_MANIFEST_URL",
+  aviatorscript: "NEXT_PUBLIC_MFE_AVIATORSCRIPT_MANIFEST_URL",
   dispatch: "NEXT_PUBLIC_MFE_DISPATCH_MANIFEST_URL",
   identity: "NEXT_PUBLIC_MFE_IDENTITY_MANIFEST_URL",
   onlineSales: "NEXT_PUBLIC_MFE_ONLINE_SALES_MANIFEST_URL",
@@ -28,6 +30,7 @@ function manifestUrlFor(key: ManifestKey) {
 export function GET() {
   const manifests = {
     admin: manifestUrlFor("admin"),
+    aviatorscript: manifestUrlFor("aviatorscript"),
     dispatch: manifestUrlFor("dispatch"),
     identity: manifestUrlFor("identity"),
     onlineSales: manifestUrlFor("onlineSales"),

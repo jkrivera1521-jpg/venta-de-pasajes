@@ -159,6 +159,14 @@ npm run dev:mfe-reporting
 npm run dev:mfe-admin
 ```
 
+Arrancar el motor de calculos desde la raiz:
+
+```powershell
+.\scripts\start-aviatorscript-service.ps1
+```
+
+El script levanta la base PostgreSQL local y luego Quarkus. Su API usa el puerto `8087`, la ruta `POST /api/v1/calculos/ejecutar` y la base `aviatorscript_db` con esquema `calculos`. Para detener la base usa `.scriptsstop-aviatorscript-service.ps1`.
+
 ## Variables de entorno y seguridad
 
 - Usar `.env.example` como referencia de nombres y valores seguros de desarrollo.
@@ -234,6 +242,9 @@ Para trabajo paralelo, usar una rama con prefijo `codex/`, por ejemplo `codex/aj
 - `apps/frontend-shell/app/globals.css`: estilos globales, temas y responsive.
 - `apps/mfe-identity`: pantallas de identidad, usuarios y configuración de menú.
 - `services/identity-service`: APIs y persistencia de identidad.
+- `services/aviatorscript-service`: motor de calculo dinamico con AviatorScript, formulas versionadas y registro de ejecuciones.
+- `services/aviatorscript-service/README.md`: desarrollo local y contrato inicial del motor de calculos.
+- `docs/openapi/aviatorscript-service.openapi.yaml`: contrato REST inicial del servicio.
 - `docs/`: decisiones, contratos y material operativo del proyecto.
 
 ## Checklist para cambios de UI

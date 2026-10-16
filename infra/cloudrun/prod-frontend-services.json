@@ -237,6 +237,27 @@
       }
     },
     {
+      "id": "mfe-aviatorscript",
+      "group": "frontend",
+      "service_name": "mfe-aviatorscript-prod",
+      "image_name": "mfe-aviatorscript",
+      "source_path": "apps/mfe-aviatorscript",
+      "port": 3006,
+      "allow_unauthenticated": true,
+      "service_account": "frontend-prod-run@${PROJECT_ID}.iam.gserviceaccount.com",
+      "cloud_sql": false,
+      "cpu": "1",
+      "memory": "512Mi",
+      "min_instances": 0,
+      "max_instances": 2,
+      "health_path": "/api/health",
+      "env": {
+        "NEXT_PUBLIC_APP_ENV": "prod",
+        "NEXT_PUBLIC_MFE_PUBLIC_URL": "${SERVICE_URL:mfe-aviatorscript}",
+        "NEXT_PUBLIC_RULES_API_BASE_URL": "${SERVICE_URL:aviatorscript-service}/api/v1/rules"
+      }
+    },
+    {
       "id": "frontend-shell",
       "group": "frontend",
       "service_name": "frontend-shell-prod",
@@ -259,7 +280,8 @@
         "NEXT_PUBLIC_MFE_DISPATCH_MANIFEST_URL": "${SERVICE_URL:mfe-dispatch}/mfe/manifest",
         "NEXT_PUBLIC_MFE_TICKETING_MANIFEST_URL": "${SERVICE_URL:mfe-ticketing}/mfe/manifest",
         "NEXT_PUBLIC_MFE_REPORTING_MANIFEST_URL": "${SERVICE_URL:mfe-reporting}/mfe/manifest",
-        "NEXT_PUBLIC_MFE_ADMIN_MANIFEST_URL": "${SERVICE_URL:mfe-admin}/mfe/manifest"
+        "NEXT_PUBLIC_MFE_ADMIN_MANIFEST_URL": "${SERVICE_URL:mfe-admin}/mfe/manifest",
+        "NEXT_PUBLIC_MFE_AVIATORSCRIPT_MANIFEST_URL": "${SERVICE_URL:mfe-aviatorscript}/mfe/manifest"
       }
     }
   ]

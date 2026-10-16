@@ -10,6 +10,7 @@
     "apps/mfe-identity",
     "apps/mfe-reporting",
     "apps/mfe-ticketing",
+    "apps/mfe-aviatorscript",
     "packages/shared-types"
   ],
   "scripts": {
@@ -20,11 +21,12 @@
     "dev:mfe-dispatch": "npm run dev -w @venta-pasajes/mfe-dispatch -- --hostname 127.0.0.1 -p 3002",
     "dev:mfe-ticketing": "npm run dev -w @venta-pasajes/mfe-ticketing -- --hostname 127.0.0.1 -p 3003",
     "dev:mfe-reporting": "npm run dev -w @venta-pasajes/mfe-reporting -- --hostname 127.0.0.1 -p 3004",
+    "dev:mfe-aviatorscript": "npm run dev -w @venta-pasajes/mfe-aviatorscript -- --hostname 127.0.0.1 -p 3006",
     "stop:frontend": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/stop-frontend-dev.ps1",
     "build:frontend-artifacts": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-frontend-artifacts.ps1",
     "build:frontend-images": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-frontend-images.ps1",
-    "build:frontend": "npm run build -w @venta-pasajes/shared-types && npm run build -w @venta-pasajes/mfe-identity && npm run build -w @venta-pasajes/mfe-dispatch && npm run build -w @venta-pasajes/mfe-ticketing && npm run build -w @venta-pasajes/mfe-reporting && npm run build -w @venta-pasajes/mfe-admin && npm run build -w @venta-pasajes/frontend-shell",
-    "typecheck:frontend": "npm run typecheck -w @venta-pasajes/shared-types && npm run typecheck -w @venta-pasajes/mfe-identity && npm run typecheck -w @venta-pasajes/mfe-dispatch && npm run typecheck -w @venta-pasajes/mfe-ticketing && npm run typecheck -w @venta-pasajes/mfe-reporting && npm run typecheck -w @venta-pasajes/mfe-admin && npm run typecheck -w @venta-pasajes/frontend-shell"
+    "build:frontend": "npm run build -w @venta-pasajes/shared-types && npm run build -w @venta-pasajes/mfe-identity && npm run build -w @venta-pasajes/mfe-dispatch && npm run build -w @venta-pasajes/mfe-ticketing && npm run build -w @venta-pasajes/mfe-reporting && npm run build -w @venta-pasajes/mfe-admin && npm run build -w @venta-pasajes/mfe-aviatorscript && npm run build -w @venta-pasajes/frontend-shell",
+    "typecheck:frontend": "npm run typecheck -w @venta-pasajes/shared-types && npm run typecheck -w @venta-pasajes/mfe-identity && npm run typecheck -w @venta-pasajes/mfe-dispatch && npm run typecheck -w @venta-pasajes/mfe-ticketing && npm run typecheck -w @venta-pasajes/mfe-reporting && npm run typecheck -w @venta-pasajes/mfe-admin && npm run typecheck -w @venta-pasajes/mfe-aviatorscript && npm run typecheck -w @venta-pasajes/frontend-shell"
   },
   "engines": {
     "node": ">=24.0.0",

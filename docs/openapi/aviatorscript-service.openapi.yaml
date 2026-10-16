@@ -1,0 +1,103 @@
+openapi: 3.0.3
+info:
+  title: AviatorScript Service API
+  version: 0.1.0
+  description: Ejecuta formulas versionadas almacenadas en PostgreSQL mediante AviatorScript.
+servers:
+  - url: http://localhost:8087
+paths:
+  /api/v1/calculos/ejecutar:
+    post:
+      summary: Ejecuta una formula activa
+      operationId: ejecutarCalculo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CalculoRequest'
+      responses:
+        '200':
+          description: Formula ejecutada correctamente o error de evaluacion controlado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalculoResponse'
+        '400':
+          description: La solicitud no cumple las validaciones.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalculoResponse'
+        '404':
+          description: No existe una formula activa con el codigo solicitado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalculoResponse'
+  /q/health:
+    get:
+      summary: Estado de salud del servicio
+      operationId: health
+      responses:
+        '200':
+          description: Estado de salud de Quarkus.
+components:
+  schemas:
+    CalculoRequest:
+      type: object
+      required:
+        - idSolicitud
+        - codigoFormula
+        - parametros
+      properties:
+        idSolicitud:
+          type: string
+          maxLength: 100
+        codigoFormula:
+          type: string
+          maxLength: 100
+        parametros:
+          type: object
+          additionalProperties: true
+    CalculoResponse:
+      type: object
+      properties:
+        idEjecucion:
+          type: integer
+          format: int64
+          nullable: true
+        idSolicitud:
+          type: string
+        codigoFormula:
+          type: string
+        versionFormula:
+          type: integer
+          nullable: true
+        parametros:
+          type: object
+          additionalProperties: true
+        resultado:
+          nullable: true
+        tipoResultado:
+          type: string
+          nullable: true
+        estado:
+          type: string
+          enum:
+            - EXITOSO
+            - SOLICITUD_INVALIDA
+            - FORMULA_NO_ENCONTRADA
+            - ERROR_CALCULO
+        fechaInicio:
+          type: string
+          format: date-time
+        fechaFin:
+          type: string
+          format: date-time
+        duracionMs:
+          type: integer
+          format: int64
+        error:
+          type: string
+          nullable: true

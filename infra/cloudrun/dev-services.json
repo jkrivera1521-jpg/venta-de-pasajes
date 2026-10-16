@@ -42,6 +42,36 @@
       }
     },
     {
+      "id": "aviatorscript-service",
+      "group": "backend",
+      "service_name": "aviatorscript-service",
+      "image_name": "aviatorscript-service",
+      "source_path": "services/aviatorscript-service",
+      "port": 8087,
+      "allow_unauthenticated": false,
+      "service_account": "aviatorscript-service-run@${PROJECT_ID}.iam.gserviceaccount.com",
+      "cloud_sql": true,
+      "cpu": "1",
+      "memory": "512Mi",
+      "min_instances": 0,
+      "max_instances": 2,
+      "health_path": "/q/health",
+      "env": {
+        "APP_ENV": "dev",
+        "APP_RUNTIME_TARGET": "gcp",
+        "APP_SECRETS_PROVIDER": "google-secret-manager",
+        "GOOGLE_CLOUD_PROJECT": "${PROJECT_ID}",
+        "QUARKUS_PROFILE": "gcp",
+        "QUARKUS_HTTP_PORT": "8087",
+        "CLOUD_SQL_CONNECTION_NAME": "${CLOUD_SQL_CONNECTION_NAME}",
+        "APP_DB_JDBC_URL": "jdbc:postgresql:///aviatorscript_db?cloudSqlInstance=${CLOUD_SQL_CONNECTION_NAME}&socketFactory=com.google.cloud.sql.postgres.SocketFactory&enableIamAuth=true&sslmode=disable",
+        "APP_DATABASE_SECRET_NAME": "aviatorscript-service__db-connection",
+        "APP_DB_USERNAME": "aviatorscript-service-run@${PROJECT_ID}.iam",
+        "QUARKUS_FLYWAY_MIGRATE_AT_START": "true",
+        "QUARKUS_FLYWAY_BASELINE_ON_MIGRATE": "true"
+      }
+    },
+    {
       "id": "dispatch-service",
       "group": "backend",
       "service_name": "dispatch-service",
@@ -317,6 +347,28 @@
       }
     },
     {
+      "id": "mfe-aviatorscript",
+      "group": "frontend",
+      "service_name": "mfe-aviatorscript",
+      "image_name": "mfe-aviatorscript",
+      "source_path": "apps/mfe-aviatorscript",
+      "port": 3006,
+      "allow_unauthenticated": true,
+      "service_account": "frontend-shell-run@${PROJECT_ID}.iam.gserviceaccount.com",
+      "cloud_sql": false,
+      "cpu": "1",
+      "memory": "512Mi",
+      "min_instances": 0,
+      "max_instances": 2,
+      "health_path": "/api/health",
+      "env": {
+        "PORT": "3006",
+        "NEXT_PUBLIC_APP_ENV": "dev",
+        "NEXT_PUBLIC_MFE_PUBLIC_URL": "${SERVICE_URL:mfe-aviatorscript}",
+        "NEXT_PUBLIC_RULES_API_BASE_URL": ""
+      }
+    },
+    {
       "id": "frontend-shell",
       "group": "frontend",
       "service_name": "frontend-shell",
@@ -340,7 +392,8 @@
         "NEXT_PUBLIC_MFE_DISPATCH_MANIFEST_URL": "${SERVICE_URL:mfe-dispatch}/mfe/manifest",
         "NEXT_PUBLIC_MFE_TICKETING_MANIFEST_URL": "${SERVICE_URL:mfe-ticketing}/mfe/manifest",
         "NEXT_PUBLIC_MFE_REPORTING_MANIFEST_URL": "${SERVICE_URL:mfe-reporting}/mfe/manifest",
-        "NEXT_PUBLIC_MFE_ADMIN_MANIFEST_URL": "${SERVICE_URL:mfe-admin}/mfe/manifest"
+        "NEXT_PUBLIC_MFE_ADMIN_MANIFEST_URL": "${SERVICE_URL:mfe-admin}/mfe/manifest",
+        "NEXT_PUBLIC_MFE_AVIATORSCRIPT_MANIFEST_URL": "${SERVICE_URL:mfe-aviatorscript}/mfe/manifest"
       }
     }
   ]

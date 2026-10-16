@@ -5,6 +5,7 @@ param(
     [int]$MfeTicketingPort = 3003,
     [int]$MfeReportingPort = 3004,
     [int]$MfeAdminPort = 3005,
+    [int]$MfeAviatorscriptPort = 3006,
     [string]$IdentityApiUrl = "http://localhost:8081/api/v1/identity",
     [string]$DispatchApiUrl = "http://localhost:8082/api/v1/dispatch",
     [string]$TicketingApiUrl = "http://localhost:8083/api/v1/ticketing",
@@ -97,12 +98,14 @@ Assert-PortAvailable -Port $MfeDispatchPort
 Assert-PortAvailable -Port $MfeTicketingPort
 Assert-PortAvailable -Port $MfeReportingPort
 Assert-PortAvailable -Port $MfeAdminPort
+Assert-PortAvailable -Port $MfeAviatorscriptPort
 
 $MfeIdentityUrl = "http://localhost:$MfeIdentityPort"
 $MfeDispatchUrl = "http://localhost:$MfeDispatchPort"
 $MfeTicketingUrl = "http://localhost:$MfeTicketingPort"
 $MfeReportingUrl = "http://localhost:$MfeReportingPort"
 $MfeAdminUrl = "http://localhost:$MfeAdminPort"
+$MfeAviatorscriptUrl = "http://localhost:$MfeAviatorscriptPort"
 $ShellUrl = "http://localhost:$ShellPort"
 
 $MfeIdentityProcess = Start-NextApp `
@@ -169,6 +172,15 @@ $MfeAdminProcess = Start-NextApp `
         NEXT_PUBLIC_AUDIT_API_URL = $AuditApiUrl
     }
 
+$MfeAviatorscriptProcess = Start-NextApp `
+    -Name "mfe-aviatorscript" `
+    -WorkingDirectory (Join-Path $Root "apps/mfe-aviatorscript") `
+    -Port $MfeAviatorscriptPort `
+    -Environment @{
+        NEXT_PUBLIC_MFE_PUBLIC_URL = $MfeAviatorscriptUrl
+        NEXT_PUBLIC_RULES_API_BASE_URL = ""
+    }
+
 $ShellProcess = Start-NextApp `
     -Name "frontend-shell" `
     -WorkingDirectory (Join-Path $Root "apps/frontend-shell") `
@@ -181,6 +193,7 @@ $ShellProcess = Start-NextApp `
         NEXT_PUBLIC_MFE_TICKETING_MANIFEST_URL = "$MfeTicketingUrl/mfe/manifest"
         NEXT_PUBLIC_MFE_REPORTING_MANIFEST_URL = "$MfeReportingUrl/mfe/manifest"
         NEXT_PUBLIC_MFE_ADMIN_MANIFEST_URL = "$MfeAdminUrl/mfe/manifest"
+        NEXT_PUBLIC_MFE_AVIATORSCRIPT_MANIFEST_URL = "$MfeAviatorscriptUrl/mfe/manifest"
     }
 
 [pscustomobject]@{
@@ -196,4 +209,6 @@ $ShellProcess = Start-NextApp `
     mfe_reporting_pid = $MfeReportingProcess.Id
     mfe_admin_url = $MfeAdminUrl
     mfe_admin_pid = $MfeAdminProcess.Id
+    mfe_aviatorscript_url = $MfeAviatorscriptUrl
+    mfe_aviatorscript_pid = $MfeAviatorscriptProcess.Id
 } | ConvertTo-Json -Compress

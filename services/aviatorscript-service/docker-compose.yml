@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: venta-pasajes-aviatorscript-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: aviatorscript_db
+      POSTGRES_USER: aviatorscript_user
+      POSTGRES_PASSWORD: aviatorscript_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - aviatorscript_service_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aviatorscript_user -d aviatorscript_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  aviatorscript_service_pgdata:

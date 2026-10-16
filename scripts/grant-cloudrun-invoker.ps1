@@ -8,7 +8,8 @@ param(
     "ticketing-service",
     "document-service",
     "reporting-service",
-    "audit-service"
+    "audit-service",
+    "aviatorscript-service"
   ),
   [switch]$Execute
 )

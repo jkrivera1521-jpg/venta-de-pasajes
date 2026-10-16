@@ -10,6 +10,7 @@ Avance documentado:
 
 - Dias 1 a 90 documentados en `docs`.
 - Monorepo base preparado para desarrollo multi-modulo.
+- `aviatorscript-service` incorporado desde el proyecto `motor-calculos`, con calculo de formulas versionadas mediante AviatorScript.
 - Toolchain backend Quarkus validada con servicio demo JVM y nativo.
 - Toolchain frontend Next.js/MFE validada con shell y MFE Identity demo.
 - Bootstrap Google Cloud dev preparado; ejecucion real pendiente de `gcloud`, autenticacion y billing.
@@ -79,6 +80,7 @@ services/
   document-service/
   reporting-service/
   audit-service/
+  aviatorscript-service/
 packages/
   ui/
   auth-client/
@@ -113,10 +115,13 @@ backups/
 - `document-service`: plantillas, PDFs y almacenamiento documental.
 - `reporting-service`: modelos de lectura y reportes.
 - `audit-service`: auditoria funcional inmutable.
+- `aviatorscript-service`: ejecucion de formulas versionadas con AviatorScript y registro de resultados.
 
 ## Documentacion principal
 
 - `vitacora.md`: registro de trabajo ejecutado.
+- `services/aviatorscript-service/README.md`: desarrollo local y contrato inicial del motor de calculos.
+- `docs/openapi/aviatorscript-service.openapi.yaml`: contrato OpenAPI inicial del servicio AviatorScript.
 - `docs/dia-05-definicion-dominios-microservicios.md`: limites de dominio.
 - `docs/dia-06-diseno-contratos-api.md`: contratos API.
 - `docs/dia-07-diseno-eventos-mensajeria.md`: eventos y Pub/Sub.

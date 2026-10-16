@@ -24,6 +24,7 @@ import {
   Filter,
   Flag,
   Folder,
+  GitBranch,
   Globe2,
   Heart,
   HelpCircle,
@@ -121,6 +122,7 @@ const shellDateFormatter = new Intl.DateTimeFormat("es-EC", {
 type ShellRuntimeConfig = {
   manifests: {
     admin: string;
+    aviatorscript: string;
     dispatch: string;
     identity: string;
     onlineSales: string;
@@ -476,6 +478,15 @@ export function ShellConsole() {
           fallbackName: "mfe-admin",
           fallbackTitle: "Administracion",
           manifestUrl: manifestUrls?.admin ?? ""
+        },
+        {
+          key: "aviatorscript" as const,
+          label: "Constructor de reglas",
+          icon: GitBranch,
+          enabled: true,
+          fallbackName: "mfe-aviatorscript",
+          fallbackTitle: "Constructor de reglas",
+          manifestUrl: manifestUrls?.aviatorscript ?? ""
         }
       ];
     },

@@ -10,10 +10,11 @@ Backend workspace for Quarkus microservices.
 - `document-service`
 - `reporting-service`
 - `audit-service`
+- `aviatorscript-service`
 - `quarkus-service-template` (plantilla reusable para microservicios Quarkus)
 - `toolchain-demo-service` (solo validacion local de Dia 10; no es modulo funcional)
 
-Each service owns its database, exposes OpenAPI and publishes/consumes events according to `docs/events`.
+Each service owns its database, exposes OpenAPI and publishes/consumes events according to `docs/events`. `aviatorscript-service` owns the `aviatorscript_db` database and the `calculos` schema for versioned formulas and calculation executions.
 
 ## Crear servicios backend
 

@@ -5,7 +5,8 @@ param(
     "mfe-dispatch",
     "mfe-ticketing",
     "mfe-reporting",
-    "mfe-admin"
+    "mfe-admin",
+    "mfe-aviatorscript"
   ),
   [string]$ImageTag = "0.1.0-frontend",
   [string]$ConfigPath = "infra\cloudrun\dev-services.json",

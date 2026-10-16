@@ -192,6 +192,36 @@
         "QUARKUS_FLYWAY_MIGRATE_AT_START": "true",
         "QUARKUS_FLYWAY_BASELINE_ON_MIGRATE": "true"
       }
+    },
+    {
+      "id": "aviatorscript-service",
+      "group": "backend",
+      "service_name": "aviatorscript-service-prod",
+      "image_name": "aviatorscript-service",
+      "source_path": "services/aviatorscript-service",
+      "port": 8087,
+      "allow_unauthenticated": false,
+      "service_account": "aviatorscript-prod-run@${PROJECT_ID}.iam.gserviceaccount.com",
+      "cloud_sql": true,
+      "cpu": "1",
+      "memory": "512Mi",
+      "min_instances": 0,
+      "max_instances": 2,
+      "health_path": "/q/health",
+      "env": {
+        "APP_ENV": "prod",
+        "APP_RUNTIME_TARGET": "gcp",
+        "APP_SECRETS_PROVIDER": "google-secret-manager",
+        "GOOGLE_CLOUD_PROJECT": "${PROJECT_ID}",
+        "QUARKUS_PROFILE": "gcp",
+        "QUARKUS_HTTP_PORT": "8087",
+        "CLOUD_SQL_CONNECTION_NAME": "${CLOUD_SQL_CONNECTION_NAME}",
+        "APP_DB_JDBC_URL": "jdbc:postgresql:///aviatorscript_db?cloudSqlInstance=${CLOUD_SQL_CONNECTION_NAME}&socketFactory=com.google.cloud.sql.postgres.SocketFactory&enableIamAuth=true&sslmode=disable",
+        "APP_DATABASE_SECRET_NAME": "aviatorscript-service-prod__db-connection",
+        "APP_DB_USERNAME": "aviatorscript-prod-run@${PROJECT_ID}.iam",
+        "QUARKUS_FLYWAY_MIGRATE_AT_START": "true",
+        "QUARKUS_FLYWAY_BASELINE_ON_MIGRATE": "true"
+      }
     }
   ]
 }

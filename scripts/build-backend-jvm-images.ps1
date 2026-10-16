@@ -9,7 +9,8 @@ param(
     "ticketing-service",
     "document-service",
     "reporting-service",
-    "audit-service"
+    "audit-service",
+    "aviatorscript-service"
   ),
   [string]$ImageTag = "0.1.1-jvm",
   [string]$DockerfilePath = "infra\docker\Dockerfile.quarkus-jvm",

@@ -41,6 +41,7 @@ jobs:
       matrix:
         service:
           - audit-service
+          - aviatorscript-service
           - dispatch-service
           - document-service
           - identity-service
@@ -84,6 +85,7 @@ jobs:
             "services/document-service/pom.xml",
             "services/reporting-service/pom.xml",
             "services/audit-service/pom.xml"
+            "services/aviatorscript-service/pom.xml"
           )
 
           $Missing = $RequiredPaths | Where-Object { -not (Test-Path -Path $_) }

@@ -5,7 +5,7 @@ Aplicacion: Sistema de Venta de Pasajes
 
 ## Objetivo
 
-Definir convenciones compartidas para los contratos REST de los microservicios. Estas reglas aplican a `identity-service`, `dispatch-service`, `ticketing-service`, `document-service`, `reporting-service` y `audit-service`.
+Definir convenciones compartidas para los contratos REST de los microservicios. Estas reglas aplican a `identity-service`, `dispatch-service`, `ticketing-service`, `document-service`, `reporting-service`, `audit-service` y `aviatorscript-service`.
 
 ## Versionado
 

@@ -1,5 +1,5 @@
 param(
-    [int[]]$Ports = @(3000, 3001, 3002, 3003, 3004, 3005),
+    [int[]]$Ports = @(3000, 3001, 3002, 3003, 3004, 3005, 3006),
     [switch]$PidOnly
 )
 
@@ -13,7 +13,8 @@ $PidFiles = @(
     (Join-Path -Path $LogsDir -ChildPath "mfe-dispatch.pid"),
     (Join-Path -Path $LogsDir -ChildPath "mfe-ticketing.pid"),
     (Join-Path -Path $LogsDir -ChildPath "mfe-reporting.pid"),
-    (Join-Path -Path $LogsDir -ChildPath "mfe-admin.pid")
+    (Join-Path -Path $LogsDir -ChildPath "mfe-admin.pid"),
+    (Join-Path -Path $LogsDir -ChildPath "mfe-aviatorscript.pid")
 )
 
 $StopRequests = New-Object System.Collections.Generic.List[object]
