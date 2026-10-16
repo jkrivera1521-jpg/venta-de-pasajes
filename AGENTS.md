@@ -33,6 +33,7 @@ El monorepo usa npm workspaces y contiene:
 - `apps/mfe-ticketing`: boletería y venta de pasajes.
 - `apps/mfe-reporting`: reportes.
 - `apps/mfe-admin`: administración.
+- `apps/mfe-aviatorscript`: constructor visual de reglas de negocio.
 - `packages/shared-types`: tipos compartidos entre frontend y contratos comunes.
 
 Puertos de desarrollo frontend previstos:
@@ -45,12 +46,15 @@ Puertos de desarrollo frontend previstos:
 | mfe-ticketing | 3003 |
 | mfe-reporting | 3004 |
 | mfe-admin | 3005 |
+| mfe-aviatorscript | 3006 |
 
 ### Backend
 
 Los servicios backend están organizados por dominio, incluyendo identidad, despachos, boletería, documentos, reportes y auditoría. El servicio de identidad administra autenticación, usuarios, roles, permisos, menú, sesiones e información de perfil. La base de datos usa PostgreSQL y migraciones Flyway; los servicios Java usan Quarkus y Maven.
 
 El shell espera normalmente el servicio de identidad en `http://localhost:8081/api/v1/identity`, salvo que las variables de entorno indiquen otra URL.
+
+El servicio `services/aviatorscript-service` usa Quarkus, Java 21, Maven, AviatorScript y PostgreSQL. Su API local escucha normalmente en `http://localhost:8087`.
 
 ## Decisiones funcionales vigentes
 
@@ -114,6 +118,57 @@ El formulario de crear/editar hijos incluye un check de “solo informativo”:
 - El botón de ingreso debe permanecer bloqueado hasta que la verificación automática tenga un payload válido.
 - Mantener la validación del payload en el servidor; “automático” no significa eliminar la protección ni confiar en el cliente.
 - Si la verificación automática falla, mostrar un estado recuperable y permitir reintentar sin romper el formulario.
+
+## MFE de reglas y servicio AviatorScript
+
+### Propósito y experiencia del MFE
+
+- `apps/mfe-aviatorscript` es un constructor no-code/low-code para analistas de negocio no técnicos. La interfaz debe permitir crear, validar y probar reglas sin exigir que el usuario escriba AviatorScript.
+- Representar las reglas como un AST JSON tipado con grupos lógicos `AND`/`OR`, condiciones y subgrupos anidados. Mantener las actualizaciones del árbol inmutables y conservar todos los niveles al editar, validar, guardar y probar.
+- Los campos disponibles provienen del esquema del contexto JVM. El tipo del campo determina operadores válidos y el editor de valor correspondiente (texto, número, fecha, booleano u opciones enumeradas).
+- Mantener visibles la estructura de la regla, los errores por campo y el estado de validación. No depender únicamente del color para indicar errores o éxito.
+- El panel de variables permite buscar, insertar y arrastrar variables; el sandbox permite introducir JSON de prueba y consultar resultado, estado y tiempo de ejecución.
+- El diseño debe ser responsive para móvil, tableta y escritorio. En pantallas estrechas, las variables y el sandbox se presentan como paneles superpuestos accesibles; las condiciones se apilan y los controles no deben provocar desbordamiento horizontal ni tapar contenido.
+- Seguir el estilo visual de los MFEs y las convenciones locales de componentes. El tema vino/rojo queda reservado al landing y al login; no trasladarlo a este constructor sin solicitud expresa.
+- El MFE se integra actualmente con el shell mediante su manifest y la entrada embebida cargada como remoto. La exportación tipada del componente es un punto de integración adicional, no significa que Module Federation o Single-SPA estén configurados.
+
+### Contratos del constructor
+
+- Rutas mock locales actuales: `GET /api/v1/rules/schema`, `POST /api/v1/rules/validate` y `POST /api/v1/rules/test`.
+- Para apuntar a un backend de reglas se usa `NEXT_PUBLIC_RULES_API_BASE_URL`. Si está vacía, conservar los mocks locales para desarrollo independiente.
+- Mantener sincronizados los tipos TypeScript, el AST, los validadores del frontend y los contratos REST. Manejar errores de red, respuestas inválidas y estados de espera sin perder el borrador de la regla.
+- La validación en cliente mejora la interacción, pero no sustituye la validación y compilación del lado Java. No usar `eval`, `Function` ni ejecutar expresiones arbitrarias en el navegador; el evaluador mock solo sirve para pruebas locales acotadas.
+- No guardar ni ejecutar reglas sin una confirmación clara del resultado de validación requerido por el flujo. Mostrar al usuario mensajes accionables y la ubicación del error en el árbol.
+
+### Responsabilidades del servicio
+
+- `services/aviatorscript-service` es un servicio Quarkus independiente con Java 21, Maven, PostgreSQL, Flyway y AviatorScript. Respetar sus capas existentes: recursos REST, DTO, servicios, entidades y repositorios.
+- El contrato implementado actualmente es de ejecución de fórmulas versionadas: `POST /api/v1/calculos/ejecutar`. La base local es `aviatorscript_db`, el esquema es `calculos` y el puerto API por defecto es `8087`.
+- No asumir que el servicio ya implementa los endpoints de reglas del MFE (`/api/v1/rules/schema`, `/validate`, `/test`). Antes de conectar o ampliar el contrato, revisar OpenAPI, recursos, pruebas y migraciones existentes; documentar y probar cualquier nuevo endpoint.
+- Las fórmulas publicadas son inmutables por versión; publicar una modificación como una versión nueva y conservar la trazabilidad de cada ejecución.
+- Tratar reglas y fórmulas como entrada no confiable. Validar estructura, tamaño, profundidad y tipos; limitar funciones AviatorScript permitidas, tiempo y recursos de ejecución; no exponer el evaluador sin autenticación/autorización y controles apropiados.
+- Persistir cambios de esquema con migraciones Flyway nuevas y compatibles. No modificar silenciosamente migraciones ya aplicadas ni incluir secretos en configuración, README, logs o pruebas.
+- Mantener contratos OpenAPI y pruebas REST alineados con las respuestas de éxito y error. Las pruebas que dependen de PostgreSQL deben indicar y usar una base local disponible; no ocultar fallas de conexión como si fueran fallas de lógica.
+
+### Desarrollo y validación del MFE
+
+Desde la raíz del monorepo:
+
+```powershell
+npm run dev:mfe-aviatorscript
+```
+
+Abrir `http://localhost:3006/rules/embedded`. Para ejecutar el servicio Java junto con su PostgreSQL local:
+
+```powershell
+.\scripts\start-aviatorscript-service.ps1
+```
+
+La base dedicada del servicio usa el puerto host `55437` para no interferir con PostgreSQL de otros servicios. Usar `.\scripts\stop-aviatorscript-service.ps1` para detenerla cuando corresponda.
+
+Al cambiar el MFE, ejecutar `npm run typecheck -w @venta-pasajes/mfe-aviatorscript` y `npm run build -w @venta-pasajes/mfe-aviatorscript`, además de probar reglas vacías, condiciones por tipo, anidación AND/OR, búsqueda e inserción de variables, validación, pruebas JSON y vista móvil.
+
+Al cambiar el servicio, ejecutar `mvn -f .\services\aviatorscript-service\pom.xml test`; cuando haya PostgreSQL disponible, verificar también las pruebas de recurso y el empaquetado Maven. Probar solicitudes válidas e inválidas, versionado de fórmulas y persistencia del registro de ejecución.
 
 ## Desarrollo local
 
@@ -241,8 +296,10 @@ Para trabajo paralelo, usar una rama con prefijo `codex/`, por ejemplo `codex/aj
 - `apps/frontend-shell/app/components/RemoteMfeFrame.tsx`: integración de MFEs remotos.
 - `apps/frontend-shell/app/globals.css`: estilos globales, temas y responsive.
 - `apps/mfe-identity`: pantallas de identidad, usuarios y configuración de menú.
+- `apps/mfe-aviatorscript`: constructor visual, esquema de contexto, AST, validación y sandbox.
 - `services/identity-service`: APIs y persistencia de identidad.
 - `services/aviatorscript-service`: motor de calculo dinamico con AviatorScript, formulas versionadas y registro de ejecuciones.
+- `apps/mfe-aviatorscript/README.md`: ejecución, mocks e integración del constructor.
 - `services/aviatorscript-service/README.md`: desarrollo local y contrato inicial del motor de calculos.
 - `docs/openapi/aviatorscript-service.openapi.yaml`: contrato REST inicial del servicio.
 - `docs/`: decisiones, contratos y material operativo del proyecto.
