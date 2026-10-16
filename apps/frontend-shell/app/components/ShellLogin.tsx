@@ -586,7 +586,7 @@ export function ShellLogin() {
             <div className="altcha-login-check">
               <altcha-widget
                 key={altchaKey}
-                auto="off"
+                auto="onload"
                 challenge="/api/security/altcha/challenge"
                 language="es-419"
                 name="altcha"
@@ -597,7 +597,9 @@ export function ShellLogin() {
               <span className={`altcha-login-status altcha-login-status-${altchaState}`}>
                 {altchaState === "verified"
                   ? "Verificacion completada."
-                  : "Marca la verificacion anti-robots para continuar."}
+                  : altchaState === "verifying"
+                    ? "Verificando automaticamente..."
+                    : "Preparando la verificacion anti-robots..."}
               </span>
             </div>
 

@@ -1417,10 +1417,10 @@ button:disabled {
 .workspace {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 0;
   min-height: 100vh;
   min-width: 0;
-  padding: 24px;
+  padding: 0;
 }
 
 .topbar {
@@ -1498,7 +1498,7 @@ h2 {
 .global-session-actions {
   position: absolute;
   right: 24px;
-  top: 16px;
+  top: 14px;
   z-index: 240;
 }
 
@@ -2411,6 +2411,10 @@ h2 {
   flex: 0 0 auto;
 }
 
+.mobile-sidebar-toggle {
+  display: none;
+}
+
 .sidebar-toggle-mobile-icon {
   display: none;
 }
@@ -2620,6 +2624,10 @@ h2 {
     grid-template-columns: 1fr;
   }
 
+  .login-brand-block {
+    display: none;
+  }
+
   .login-back {
     top: -58px;
   }
@@ -2699,12 +2707,20 @@ h2 {
     background: var(--background);
     border-bottom: 1px solid var(--line);
     justify-content: flex-end;
-    min-height: 58px;
-    padding: 8px 16px;
+    min-height: 52px;
+    padding: 2px 16px;
     position: relative;
     right: auto;
     top: auto;
     width: 100%;
+  }
+
+  .mobile-sidebar-toggle {
+    display: inline-flex;
+  }
+
+  .sidebar-header-toggle {
+    display: none;
   }
 
   .nav-list {
@@ -2734,7 +2750,7 @@ h2 {
   }
 
   .workspace {
-    padding: 16px;
+    padding: 0;
   }
 
   .topbar {

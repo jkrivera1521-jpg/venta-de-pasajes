@@ -857,6 +857,13 @@ export function ShellConsole() {
     }
   }
 
+  function handleMenuSelect(code: string, collapseMobile = true) {
+    setActiveModuleKey(code);
+    if (collapseMobile && window.matchMedia("(max-width: 820px)").matches) {
+      setSidebarCollapsed(true);
+    }
+  }
+
   async function saveAvatar(avatarUrl: string): Promise<boolean> {
     if (!accessToken || !currentUser) {
       return false;
@@ -1115,13 +1122,13 @@ export function ShellConsole() {
                     const samePath = openMenuPath.length === itemPath.length && itemPath.every((code, index) => openMenuPath[index] === code);
                     setOpenMenuPath(samePath ? parentPath : itemPath);
                     if (enabled) {
-                      setActiveModuleKey(item.code);
+                      handleMenuSelect(item.code, false);
                     }
                     return;
                   }
 
                   if (enabled) {
-                    setActiveModuleKey(item.code);
+                    handleMenuSelect(item.code);
                     setOpenMenuPath([]);
                   }
                 }}
@@ -1169,6 +1176,18 @@ export function ShellConsole() {
           >
             <PanelLeftOpen aria-hidden="true" className="sidebar-toggle-desktop-icon" size={18} />
             <ChevronDown aria-hidden="true" className="sidebar-toggle-mobile-icon" size={18} />
+          </button>
+        ) : null}
+        {!sidebarCollapsed ? (
+          <button
+            aria-label="Ocultar barra lateral"
+            className="icon-button sidebar-toggle mobile-sidebar-toggle workspace-sidebar-toggle"
+            onClick={() => setSidebarCollapsed(true)}
+            title="Ocultar barra lateral"
+            type="button"
+          >
+            <PanelLeftClose aria-hidden="true" className="sidebar-toggle-desktop-icon" size={18} />
+            <ChevronUp aria-hidden="true" className="sidebar-toggle-mobile-icon" size={18} />
           </button>
         ) : null}
         {currentUser ? (
@@ -1275,7 +1294,7 @@ export function ShellConsole() {
             </div>
             <button
               aria-label="Ocultar barra lateral"
-              className="icon-button sidebar-toggle"
+              className="icon-button sidebar-toggle sidebar-header-toggle"
               onClick={() => setSidebarCollapsed(true)}
               title="Ocultar barra lateral"
               type="button"
@@ -1288,7 +1307,7 @@ export function ShellConsole() {
           <nav className="nav-list">
             {dynamicMenuItems.length > 0 ? renderDynamicMenu(dynamicMenuItems) : modules.map((item) => {
               const Icon = item.icon;
-              return <button className={activeModuleKey === item.key ? "nav-item nav-item-active" : "nav-item"} disabled={!item.enabled} key={item.label} onClick={() => item.enabled && setActiveModuleKey(item.key)} type="button"><Icon aria-hidden="true" size={18} /><span>{item.label}</span></button>;
+              return <button className={activeModuleKey === item.key ? "nav-item nav-item-active" : "nav-item"} disabled={!item.enabled} key={item.label} onClick={() => item.enabled && handleMenuSelect(item.key)} type="button"><Icon aria-hidden="true" size={18} /><span>{item.label}</span></button>;
             })}
           </nav>
           <div className="sidebar-clock">
@@ -1304,9 +1323,6 @@ export function ShellConsole() {
       ) : null}
 
       <section className="workspace">
-        <header className="topbar">
-        </header>
-
         <section className="module-surface" aria-label="Modulo remoto">
           <RemoteMfeFrame
             accessToken={accessToken}
