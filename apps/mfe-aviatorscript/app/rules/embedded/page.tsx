@@ -1,5 +1,5 @@
-import { RuleBuilder } from "../../../components/RuleBuilder";
+import { VisualFormulaBuilder } from "../../../components/VisualFormulaBuilder";
 
 export default function EmbeddedRuleBuilderPage() {
-  return <RuleBuilder />;
+  return <VisualFormulaBuilder />;
 }

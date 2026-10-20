@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.googlecode.aviator.AviatorEvaluator;
 import com.googlecode.aviator.Expression;
+import com.googlecode.aviator.exception.StandardError;
 import ec.gob.iess.calculos.dto.CalculoRequest;
 import ec.gob.iess.calculos.dto.CalculoResponse;
 import ec.gob.iess.calculos.entity.EjecucionEntity;
@@ -69,8 +70,13 @@ public class AviatorCalculationService {
             registro.estado = "SOLICITUD_INVALIDA";
             registro.error = mensajeSeguro(e);
         } catch (Exception e) {
-            registro.estado = "ERROR_CALCULO";
-            registro.error = "No fue posible evaluar la fórmula. Revise los registros internos.";
+            if (e instanceof StandardError) {
+                registro.estado = "SOLICITUD_INVALIDA";
+                registro.error = mensajeSeguro(e);
+            } else {
+                registro.estado = "ERROR_CALCULO";
+                registro.error = "No fue posible evaluar la fórmula. Revise los registros internos.";
+            }
         }
 
         return guardarRespuesta(registro, inicioNanos);
@@ -104,7 +110,7 @@ public class AviatorCalculationService {
         );
     }
 
-    private String mensajeSeguro(IllegalArgumentException e) {
+    private String mensajeSeguro(Throwable e) {
         String mensaje = e.getMessage();
         return mensaje == null || mensaje.isBlank() ? "Solicitud inválida." : mensaje;
     }

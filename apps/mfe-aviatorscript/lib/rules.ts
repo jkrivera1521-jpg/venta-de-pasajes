@@ -71,7 +71,8 @@ export const OPERATORS_BY_TYPE: Record<SchemaFieldType, ComparisonOperator[]> = 
   date: ["equals", "not_equals", "greater_than", "greater_or_equal", "less_than", "less_or_equal"],
   enum: ["equals", "not_equals", "in"],
   number: ["equals", "not_equals", "greater_than", "greater_or_equal", "less_than", "less_or_equal"],
-  string: ["equals", "not_equals", "contains", "starts_with", "ends_with", "in"]
+  string: ["equals", "not_equals", "contains", "starts_with", "ends_with", "in"],
+  unknown: ["equals", "not_equals"]
 };
 
 export function createId(prefix: string) {

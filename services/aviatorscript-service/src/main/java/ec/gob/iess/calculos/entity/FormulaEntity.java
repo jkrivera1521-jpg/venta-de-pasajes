@@ -29,6 +29,9 @@ public class FormulaEntity extends PanacheEntityBase {
     @Column(nullable = false, columnDefinition = "text")
     public String expresion;
 
+    @Column(columnDefinition = "text")
+    public String descripcion;
+
     @Column(nullable = false)
     public Boolean activa;
 

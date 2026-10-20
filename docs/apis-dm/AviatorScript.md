@@ -61,17 +61,6 @@ Guarda el siguiente script como la expresión de la fórmula en tu tabla `calcul
 
 ```
 
-/*
- * FORM-NOMINA-AVANZADA-001
- * Motor de cálculo de nómina demostrativo.
- *
- * Los porcentajes y tarifas son ilustrativos.
- */
-
-// =====================================================
-// 1. VALIDACIONES DE ENTRADA
-// =====================================================
-
 if (salarioMensual <= 0) {
     throw "El salario mensual debe ser mayor que cero";
 }
@@ -89,15 +78,7 @@ if (calificacionDesempeno < 0 ||
     throw "La calificación debe estar entre 0 y 100";
 }
 
-// =====================================================
-// 2. SUELDO BASE PROPORCIONAL
-// =====================================================
-
 let salarioBase = salarioMensual * diasTrabajados / diasMes;
-
-// =====================================================
-// 3. BONIFICACIÓN POR ANTIGÜEDAD
-// =====================================================
 
 let bonificacionAntiguedad = 0;
 
@@ -111,10 +92,6 @@ if (aniosAntiguedad >= 10) {
     bonificacionAntiguedad = 0;
 }
 
-// =====================================================
-// 4. BONIFICACIÓN SEGÚN TIPO DE EMPLEADO
-// =====================================================
-
 let bonificacionCargo = 0;
 
 if (tipoEmpleado == "TECNICO") {
@@ -126,10 +103,6 @@ if (tipoEmpleado == "TECNICO") {
 } else {
     bonificacionCargo = 0;
 }
-
-// =====================================================
-// 5. INCENTIVO POR DESEMPEÑO
-// =====================================================
 
 let bonificacionDesempeno = 0;
 
@@ -143,11 +116,7 @@ if (calificacionDesempeno >= 95) {
     bonificacionDesempeno = 0;
 }
 
-// =====================================================
-// 6. CÁLCULO DE HORAS EXTRAS MEDIANTE UN CICLO
-// =====================================================
-
-let valorHora = salarioMensual / 240;
+let valorHora = salarioMensual / 240.0;
 let totalHorasExtras = 0;
 let detalleHorasExtras = seq.list();
 
@@ -185,10 +154,6 @@ for item in horasExtras {
     );
 }
 
-// =====================================================
-// 7. INGRESOS BRUTOS
-// =====================================================
-
 let totalBonificaciones =
     bonificacionAntiguedad +
     bonificacionCargo +
@@ -198,10 +163,6 @@ let ingresosBrutos =
     salarioBase +
     totalBonificaciones +
     totalHorasExtras;
-
-// =====================================================
-// 8. DESCUENTO PROGRESIVO DEMOSTRATIVO
-// =====================================================
 
 let descuentoProgresivo = 0;
 
@@ -215,10 +176,6 @@ if (ingresosBrutos <= 1500) {
         500 * 0.05 +
         (ingresosBrutos - 2000) * 0.08;
 }
-
-// =====================================================
-// 9. DESCUENTOS ADICIONALES MEDIANTE OTRO CICLO
-// =====================================================
 
 let totalDescuentosAdicionales = 0;
 let detalleDescuentos = seq.list();
@@ -241,10 +198,6 @@ for descuento in descuentosAdicionales {
     );
 }
 
-// =====================================================
-// 10. TOTAL NETO Y CLASIFICACIÓN
-// =====================================================
-
 let totalDescuentos =
     descuentoProgresivo +
     totalDescuentosAdicionales;
@@ -262,10 +215,6 @@ if (salarioNeto < 0) {
 } else {
     clasificacion = "NOMINA_ALTA";
 }
-
-// =====================================================
-// 11. RESULTADO ESTRUCTURADO
-// =====================================================
 
 return seq.map(
     "salarioBase", salarioBase,
@@ -395,11 +344,12 @@ La respuesta de tu API debería incluir el resultado calculado dentro de la estr
 |Bonificación por antigüedad|124,80|
 |Bonificación por cargo|78,00|
 |Incentivo por desempeño|156,00|
-|Horas extras|208,125|
-|Ingresos brutos|2.126,925|
-|Descuento progresivo|35,154|
+|Horas extras|138,75|
+|Ingresos brutos|2.057,55|
+|Descuento progresivo|29,604|
 |Descuentos adicionales|115,00|
-|Sueldo neto|1.976,771|
+|Total descuentos|144,604|
+|Sueldo neto|1.912,946|
 
 Los valores están sin redondear a dos decimales para que puedas contrastar la aritmética de la fórmula. En producción deberías definir explícitamente la política de precisión y redondeo.
 

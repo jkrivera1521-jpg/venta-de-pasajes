@@ -68,7 +68,7 @@ La configuracion local por defecto usa:
 - Usuario: `aviatorscript_user`
 - Esquema: `calculos`
 
-Flyway crea el esquema, las tablas y la formula de ejemplo `FORM-NOMINA-001` al iniciar. Para cambiar los valores, usa las variables `APP_DB_JDBC_URL`, `APP_DB_USERNAME`, `APP_DB_PASSWORD` y `QUARKUS_HTTP_PORT`. El archivo `.env.example` contiene valores locales de referencia y no debe contener secretos reales.
+Flyway crea el esquema, las tablas y precarga `FORM-NOMINA-001` junto con el ejercicio `FORM-NOMINA-AVANZADA-001`. La formula avanzada incluye una descripcion breve, validaciones, sueldo proporcional, bonificaciones, horas extra, descuentos y clasificacion del salario neto. Sus tasas son solo ilustrativas, no normativa laboral. La migracion inserta el ejercicio con `ON CONFLICT DO NOTHING`: no actualiza ni reemplaza formulas ni versiones existentes. Para cambiar los valores de conexion, usa `APP_DB_JDBC_URL`, `APP_DB_USERNAME`, `APP_DB_PASSWORD` y `QUARKUS_HTTP_PORT`. El archivo `.env.example` contiene valores locales de referencia y no debe contener secretos reales.
 
 ## API
 
@@ -82,11 +82,31 @@ curl.exe -X POST http://localhost:8087/api/v1/calculos/ejecutar `
 
 La respuesta contiene el identificador de ejecucion, la version usada, el resultado, el tipo de resultado, el estado y los tiempos de procesamiento. Los estados principales son `EXITOSO`, `SOLICITUD_INVALIDA`, `FORMULA_NO_ENCONTRADA` y `ERROR_CALCULO`.
 
+Consultar las formulas guardadas para usarlas como plantillas de nuevas formulas:
+
+```powershell
+curl.exe http://localhost:8087/api/v1/calculos/formulas
+```
+
+Este catalogo devuelve todas las versiones registradas, activas e inactivas, con su codigo, nombre, descripcion, expresion y fecha. Las filas anteriores a la migracion de descripcion pueden devolver `descripcion: null`. El endpoint es de solo lectura: no ofrece operaciones para editar o eliminar formulas existentes. El constructor visual convierte las expresiones compatibles en una copia nueva en el navegador; guardar esa copia desde el MFE no modifica la fila original ni la persiste en PostgreSQL.
+
+Analizar codigo AviatorScript para visualizar su flujo de control:
+
+```powershell
+curl.exe -X POST http://localhost:8087/api/v1/aviator/visualize `
+  -H "Content-Type: application/json" `
+  -d '{"source":"if (salarioMensual <= 0) { throw \"salario invalido\"; } return seq.map(\"salario\", salarioMensual);","includeSourceMapping":true}'
+```
+
+La respuesta contiene `nodes`, `edges` y `diagnostics`. Cada nodo incluye tipo (`decision`, `iteration`, `exception`, `return`, `process` o `function`), variables referenciadas, variables asignadas y rango de lineas. El analisis es estatico: no ejecuta, no compila y no modifica formulas almacenadas. El parser aplica limites de 10.000 caracteres, 4.096 tokens y 80 niveles de anidacion; ante codigo incompleto devuelve diagnosticos recuperables para que el editor conserve la fuente.
+
 ## Formula y versionado
 
-Las formulas se almacenan en `calculos.formula`. Una version publicada debe ser inmutable; para publicar una nueva version se inserta otra fila con el mismo codigo y un numero de version mayor. La migracion inicial se encuentra en `src/main/resources/db/migration/V1__crear_motor_calculos.sql`.
+Las formulas se almacenan en `calculos.formula`. Una version publicada debe ser inmutable; para publicar una nueva version se inserta otra fila con el mismo codigo y un numero de version mayor. Flyway crea el esquema inicial en `src/main/resources/db/migration/V1__crear_motor_calculos.sql` y agrega la descripcion y la formula demostrativa en `src/main/resources/db/migration/V2__precargar_formula_nomina_avanzada.sql`.
 
 Las expresiones AviatorScript deben validarse y limitarse antes de exponer este servicio fuera de una red confiable. Antes de un despliegue compartido deben agregarse autenticacion/autorizacion, limites de entrada y ejecucion, funciones permitidas y proteccion contra formulas no confiables.
+
+El visualizador esta separado de `AviatorCalculationService`: `AviatorVisualizationService` construye un grafo de control intermedio con un lexer y parser recursivo, sin reutilizar el motor de ejecucion como analizador. La API de visualizacion no debe convertirse en un endpoint de ejecucion ni aceptar secretos del cliente.
 
 ## Pruebas
 

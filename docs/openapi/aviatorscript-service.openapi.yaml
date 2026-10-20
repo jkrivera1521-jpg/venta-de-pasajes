@@ -2,10 +2,26 @@ openapi: 3.0.3
 info:
   title: AviatorScript Service API
   version: 0.1.0
-  description: Ejecuta formulas versionadas almacenadas en PostgreSQL mediante AviatorScript.
+  description: Ejecuta formulas versionadas almacenadas en PostgreSQL mediante AviatorScript y ofrece un catalogo de solo lectura para usar como plantilla.
 servers:
   - url: http://localhost:8087
 paths:
+  /api/v1/calculos/formulas:
+    get:
+      summary: Lista formulas guardadas disponibles como plantillas
+      description: Devuelve todas las versiones almacenadas, incluidas las inactivas. Es una operacion de solo lectura y no permite modificar ni eliminar formulas.
+      operationId: listarFormulas
+      responses:
+        '200':
+          description: Catalogo ordenado por codigo y version descendente.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FormulaTemplate'
+        '500':
+          description: No se pudo consultar el catalogo de formulas.
   /api/v1/calculos/ejecutar:
     post:
       summary: Ejecuta una formula activa
@@ -24,7 +40,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CalculoResponse'
         '400':
-          description: La solicitud no cumple las validaciones.
+          description: La solicitud no cumple las validaciones de entrada o la formula lanzo un error de validacion.
           content:
             application/json:
               schema:
@@ -35,6 +51,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CalculoResponse'
+  /api/v1/aviator/visualize:
+    post:
+      summary: Analiza codigo AviatorScript y devuelve un grafo de flujo
+      description: Analisis estatico sin compilar ni ejecutar el codigo. El resultado sirve para el visualizador del MFE.
+      operationId: visualizarAviatorScript
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AviatorVisualizationRequest'
+      responses:
+        '200':
+          description: Grafo de control, mapeo a codigo y diagnosticos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AviatorVisualizationResponse'
+        '400':
+          description: El cuerpo no contiene source.
+        '413':
+          description: El codigo supera los limites de analisis.
   /q/health:
     get:
       summary: Estado de salud del servicio
@@ -44,6 +82,33 @@ paths:
           description: Estado de salud de Quarkus.
 components:
   schemas:
+    FormulaTemplate:
+      type: object
+      description: Vista de solo lectura de una formula almacenada, para copiar su expresion como nueva plantilla en el editor. Las formulas historicas pueden no tener descripcion.
+      required:
+        - codigo
+        - nombre
+        - version
+        - expresion
+        - activa
+        - fechaCreacion
+      properties:
+        codigo:
+          type: string
+        nombre:
+          type: string
+        descripcion:
+          type: string
+          nullable: true
+        version:
+          type: integer
+        expresion:
+          type: string
+        activa:
+          type: boolean
+        fechaCreacion:
+          type: string
+          format: date-time
     CalculoRequest:
       type: object
       required:
@@ -100,4 +165,119 @@ components:
           format: int64
         error:
           type: string
+          nullable: true
+    AviatorVisualizationRequest:
+      type: object
+      required:
+        - source
+      properties:
+        source:
+          type: string
+          maxLength: 10000
+        includeSourceMapping:
+          type: boolean
+          default: true
+    AviatorVisualizationResponse:
+      type: object
+      required:
+        - valid
+        - nodes
+        - edges
+        - diagnostics
+      properties:
+        valid:
+          type: boolean
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AviatorVisualizationNode'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/AviatorVisualizationEdge'
+        diagnostics:
+          type: array
+          items:
+            $ref: '#/components/schemas/AviatorVisualizationDiagnostic'
+    AviatorVisualizationNode:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [start, end, process, decision, iteration, exception, return, function]
+        label:
+          type: string
+        instruction:
+          type: string
+        sourceCode:
+          type: string
+        source:
+          $ref: '#/components/schemas/AviatorSourceRange'
+        referencedVariables:
+          type: array
+          items:
+            type: string
+        assignedVariables:
+          type: array
+          items:
+            type: string
+        branches:
+          type: array
+          items:
+            $ref: '#/components/schemas/AviatorVisualizationBranch'
+        previousIds:
+          type: array
+          items:
+            type: string
+        nextIds:
+          type: array
+          items:
+            type: string
+        synthetic:
+          type: boolean
+    AviatorVisualizationEdge:
+      type: object
+      properties:
+        id:
+          type: string
+        source:
+          type: string
+        target:
+          type: string
+        label:
+          type: string
+          nullable: true
+    AviatorVisualizationBranch:
+      type: object
+      properties:
+        label:
+          type: string
+        targetId:
+          type: string
+    AviatorSourceRange:
+      type: object
+      properties:
+        startLine:
+          type: integer
+        startColumn:
+          type: integer
+        endLine:
+          type: integer
+        endColumn:
+          type: integer
+    AviatorVisualizationDiagnostic:
+      type: object
+      properties:
+        severity:
+          type: string
+          enum: [error, warning]
+        message:
+          type: string
+        line:
+          type: integer
+          nullable: true
+        column:
+          type: integer
           nullable: true

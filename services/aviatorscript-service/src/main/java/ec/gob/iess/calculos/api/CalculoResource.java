@@ -2,14 +2,18 @@ package ec.gob.iess.calculos.api;
 
 import ec.gob.iess.calculos.dto.CalculoRequest;
 import ec.gob.iess.calculos.dto.CalculoResponse;
+import ec.gob.iess.calculos.dto.FormulaTemplateResponse;
 import ec.gob.iess.calculos.service.AviatorCalculationService;
+import ec.gob.iess.calculos.service.FormulaCatalogService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.util.List;
 
 @Path("/api/v1/calculos")
 @Consumes(MediaType.APPLICATION_JSON)
@@ -17,6 +21,13 @@ import jakarta.ws.rs.core.Response;
 public class CalculoResource {
 
     @Inject AviatorCalculationService servicio;
+    @Inject FormulaCatalogService catalogoFormulas;
+
+    @GET
+    @Path("/formulas")
+    public List<FormulaTemplateResponse> listarFormulas() {
+        return catalogoFormulas.listarPlantillas();
+    }
 
     @POST
     @Path("/ejecutar")

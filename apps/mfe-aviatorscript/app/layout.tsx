@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import "@xyflow/react/dist/style.css";
 import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "Constructor de reglas",
-  description: "Constructor visual de reglas de negocio para AviatorScript"
+  title: "Constructor visual de formulas",
+  description: "Construye formulas de negocio con bloques visuales para AviatorScript"
 };
 
 export const viewport: Viewport = {

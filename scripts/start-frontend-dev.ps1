@@ -11,7 +11,8 @@ param(
     [string]$TicketingApiUrl = "http://localhost:8083/api/v1/ticketing",
     [string]$DocumentApiUrl = "http://localhost:8084/api/v1/document",
     [string]$ReportingApiUrl = "http://localhost:8085/api/v1/reporting",
-    [string]$AuditApiUrl = "http://localhost:8086/api/v1/audit"
+    [string]$AuditApiUrl = "http://localhost:8086/api/v1/audit",
+    [string]$AviatorScriptApiUrl = "http://localhost:8087"
 )
 
 $ErrorActionPreference = "Stop"
@@ -177,6 +178,7 @@ $MfeAviatorscriptProcess = Start-NextApp `
     -WorkingDirectory (Join-Path $Root "apps/mfe-aviatorscript") `
     -Port $MfeAviatorscriptPort `
     -Environment @{
+        AVIATORSCRIPT_SERVICE_URL = $AviatorScriptApiUrl
         NEXT_PUBLIC_MFE_PUBLIC_URL = $MfeAviatorscriptUrl
         NEXT_PUBLIC_RULES_API_BASE_URL = ""
     }

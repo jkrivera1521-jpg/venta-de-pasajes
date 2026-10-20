@@ -1,4 +1,4 @@
-export type SchemaFieldType = "string" | "number" | "boolean" | "date" | "enum";
+export type SchemaFieldType = "string" | "number" | "boolean" | "date" | "enum" | "unknown";
 
 export type LogicalOperator = "AND" | "OR";
 
