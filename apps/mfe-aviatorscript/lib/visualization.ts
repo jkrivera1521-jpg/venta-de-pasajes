@@ -41,6 +41,89 @@ export interface AviatorFlowGraph {
   diagnostics: AviatorFlowDiagnostic[];
 }
 
+/**
+ * Hides the contents of selected decisions/loops behind one visible summary
+ * node while preserving the exits that can still be reached afterwards.
+ */
+export function collapseAviatorFlowGraph(graph: AviatorFlowGraph, collapsedIds: Set<string>): AviatorFlowGraph {
+  if (!collapsedIds.size) return graph;
+  const outgoing = new Map<string, string[]>();
+  graph.edges.forEach((edge) => outgoing.set(edge.source, [...(outgoing.get(edge.source) ?? []), edge.target]));
+  const hidden = new Set<string>();
+  const boundaries = new Map<string, Set<string>>();
+
+  collapsedIds.forEach((rootId) => {
+    const root = graph.nodes.find((node) => node.id === rootId);
+    if (!root || (root.data.kind !== "decision" && root.data.kind !== "iteration")) return;
+    const seen = new Set<string>([rootId]);
+    const queue = [...(outgoing.get(rootId) ?? [])];
+    const rootBoundaries = new Set<string>();
+    while (queue.length) {
+      const currentId = queue.shift()!;
+      if (seen.has(currentId)) continue;
+      seen.add(currentId);
+      const current = graph.nodes.find((node) => node.id === currentId);
+      if (!current || current.data.synthetic || current.data.kind === "end") {
+        if (current) rootBoundaries.add(currentId);
+        continue;
+      }
+      hidden.add(currentId);
+      queue.push(...(outgoing.get(currentId) ?? []));
+    }
+    hidden.delete(rootId);
+    boundaries.set(rootId, rootBoundaries);
+  });
+
+  const visibleNodes = graph.nodes.filter((node) => !hidden.has(node.id));
+  const visibleNodeIds = new Set(visibleNodes.map((node) => node.id));
+  const collapsedSummaryNodes = [...boundaries.keys()].flatMap((rootId) => {
+    const root = graph.nodes.find((node) => node.id === rootId);
+    if (!root || !visibleNodeIds.has(rootId)) return [];
+    return [{
+      id: `collapsed-content-${rootId}`,
+      type: "aviator-flow-node" as const,
+      position: { x: 0, y: 0 },
+      data: {
+        kind: "process" as const,
+        label: "Contenido oculto",
+        instruction: "Contenido contraido",
+        sourceCode: "",
+        source: root.data.source,
+        referencedVariables: [],
+        assignedVariables: [],
+        previousIds: [rootId],
+        nextIds: [...(boundaries.get(rootId) ?? [])],
+        synthetic: true
+      }
+    } satisfies AviatorFlowNode];
+  });
+  visibleNodes.push(...collapsedSummaryNodes);
+  const visibleNodeIdsWithSummary = new Set(visibleNodes.map((node) => node.id));
+  const visibleEdges = graph.edges.filter((edge) => visibleNodeIdsWithSummary.has(edge.source) && visibleNodeIdsWithSummary.has(edge.target) && !boundaries.has(edge.source));
+  boundaries.forEach((targets, rootId) => {
+    const summaryId = `collapsed-content-${rootId}`;
+    if (!visibleNodeIdsWithSummary.has(rootId) || !visibleNodeIdsWithSummary.has(summaryId)) return;
+    visibleEdges.push({
+      id: `collapsed-${rootId}`,
+      source: rootId,
+      target: summaryId,
+      type: "aviator-flow-edge",
+      label: "contenido oculto"
+    });
+    targets.forEach((targetId) => {
+      if (!visibleNodeIdsWithSummary.has(targetId)) return;
+      visibleEdges.push({
+        id: `collapsed-${summaryId}-${targetId}`,
+        source: summaryId,
+        target: targetId,
+        type: "aviator-flow-edge",
+        label: "continuacion"
+      });
+    });
+  });
+  return { ...graph, nodes: visibleNodes, edges: visibleEdges };
+}
+
 type RemoteFlowNode = Partial<AviatorFlowNode> & {
   data?: Partial<AviatorFlowNodeData>;
   type?: string;
@@ -130,29 +213,36 @@ function expressionLabel(expression: FormulaExpression): string {
     case "unary": return `${expression.operator}${expressionLabel(expression.operand)}`;
     case "conditional": return `${expressionLabel(expression.condition)} ? ... : ...`;
     case "call": return `${expression.name}(${expression.args.map(expressionLabel).join(", ")})`;
+    case "lambda": return `lambda(${expression.parameters.join(", ")}) -> ${expressionLabel(expression.body)} end`;
     case "array": return `seq.list(${expression.items.map(expressionLabel).join(", ")})`;
     case "object": return `seq.map(${expression.entries.map(({ key, value }) => `${key}: ${expressionLabel(value)}`).join(", ")})`;
     case "payroll": return "Calculo de nomina avanzada";
   }
 }
 
-function expressionVariables(expression: FormulaExpression, referenced = new Set<string>()) {
+function expressionVariables(expression: FormulaExpression, referenced = new Set<string>(), locals = new Set<string>()) {
   switch (expression.kind) {
-    case "variable": referenced.add(expression.key); break;
-    case "member": expressionVariables(expression.object, referenced); break;
-    case "unary": expressionVariables(expression.operand, referenced); break;
+    case "variable": if (!locals.has(expression.key)) referenced.add(expression.key); break;
+    case "member": expressionVariables(expression.object, referenced, locals); break;
+    case "unary": expressionVariables(expression.operand, referenced, locals); break;
     case "binary":
-      expressionVariables(expression.left, referenced);
-      expressionVariables(expression.right, referenced);
+      expressionVariables(expression.left, referenced, locals);
+      expressionVariables(expression.right, referenced, locals);
       break;
     case "conditional":
-      expressionVariables(expression.condition, referenced);
-      expressionVariables(expression.whenTrue, referenced);
-      expressionVariables(expression.whenFalse, referenced);
+      expressionVariables(expression.condition, referenced, locals);
+      expressionVariables(expression.whenTrue, referenced, locals);
+      expressionVariables(expression.whenFalse, referenced, locals);
       break;
-    case "call": expression.args.forEach((argument) => expressionVariables(argument, referenced)); break;
-    case "array": expression.items.forEach((item) => expressionVariables(item, referenced)); break;
-    case "object": expression.entries.forEach(({ value }) => expressionVariables(value, referenced)); break;
+    case "call": expression.args.forEach((argument) => expressionVariables(argument, referenced, locals)); break;
+    case "lambda": {
+      const lambdaLocals = new Set(locals);
+      expression.parameters.forEach((parameter) => lambdaLocals.add(parameter));
+      expressionVariables(expression.body, referenced, lambdaLocals);
+      break;
+    }
+    case "array": expression.items.forEach((item) => expressionVariables(item, referenced, locals)); break;
+    case "object": expression.entries.forEach(({ value }) => expressionVariables(value, referenced, locals)); break;
     case "literal":
     case "payroll":
       break;

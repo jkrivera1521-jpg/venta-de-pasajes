@@ -1,4 +1,8 @@
-export type SchemaFieldType = "string" | "number" | "boolean" | "date" | "enum" | "unknown";
+export type SchemaFieldType = "string" | "number" | "currency" | "boolean" | "date" | "enum" | "unknown";
+
+export function roundCurrency(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
 
 export type LogicalOperator = "AND" | "OR";
 

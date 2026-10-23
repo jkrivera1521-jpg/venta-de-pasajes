@@ -33,6 +33,47 @@ jobs:
       - name: Build frontends
         run: npm run build:frontend
 
+  aviatorscript-compatibility:
+    name: AviatorScript semantic compatibility
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Execute shared fixtures with AviatorScript Java
+        working-directory: services/aviatorscript-service
+        run: mvn -B -Dtest=AviatorCompatibilityFixtureTest test
+
+      - name: Compare TypeScript evaluator with Java report
+        env:
+          AVIATOR_REQUIRE_JAVA_REPORT: "true"
+          AVIATOR_JAVA_REPORT: services/aviatorscript-service/target/aviator-compatibility/java-results.json
+        run: npm run test:compatibility -w @venta-pasajes/mfe-aviatorscript
+
+      - name: Publish compatibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aviatorscript-compatibility-report
+          path: services/aviatorscript-service/target/aviator-compatibility
+          if-no-files-found: warn
+
   backend-tests:
     name: Backend tests
     runs-on: windows-latest

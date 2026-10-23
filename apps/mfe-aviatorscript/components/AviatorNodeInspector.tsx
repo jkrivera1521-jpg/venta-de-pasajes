@@ -17,18 +17,67 @@ type AviatorNodeInspectorProps = {
 
 export function AviatorNodeInspector({ flowNodes, node, onClose, onFocusNode, onHoverRelated, onHoverNode, onSelectRelated }: AviatorNodeInspectorProps) {
   const dialogRef = useRef<HTMLElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
   const dragRef = useRef<{ startX: number; startY: number; startOffsetX: number; startOffsetY: number; baseLeft: number; baseTop: number; width: number; height: number } | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (!node) return;
-    const previousFocus = document.activeElement as HTMLElement | null;
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const focusFrame = window.requestAnimationFrame(() => dialogRef.current?.focus());
     return () => {
       window.cancelAnimationFrame(focusFrame);
-      previousFocus?.focus();
+      const previousFocus = previousFocusRef.current;
+      previousFocusRef.current = null;
+      if (previousFocus && document.contains(previousFocus)) previousFocus.focus();
     };
-  }, [node?.id]);
+  }, [Boolean(node)]);
+
+  useEffect(() => {
+    if (!node) return;
+    const dialogElement = dialogRef.current as HTMLElement | null;
+    if (!dialogElement) return;
+    const activeDialog = dialogElement as HTMLElement;
+
+    function getFocusableElements() {
+      return Array.from(activeDialog.querySelectorAll<HTMLElement>(
+        "button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex=\"-1\"]), [contenteditable=\"true\"]"
+      )).filter((element) => element.getClientRects().length > 0 && !element.hidden);
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusableElements = getFocusableElements();
+      if (!focusableElements.length) {
+        event.preventDefault();
+        activeDialog.focus();
+        return;
+      }
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+      const activeElement = document.activeElement;
+      if (event.shiftKey && (activeElement === first || activeElement === activeDialog || !activeDialog.contains(activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (activeElement === last || activeElement === activeDialog || !activeDialog.contains(activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    activeDialog.addEventListener("keydown", handleKeyDown);
+    return () => activeDialog.removeEventListener("keydown", handleKeyDown);
+  }, [Boolean(node)]);
 
   useEffect(() => {
     if (!node) setDragOffset({ x: 0, y: 0 });
@@ -106,7 +155,7 @@ export function AviatorNodeInspector({ flowNodes, node, onClose, onFocusNode, on
             <span className="formula-eyebrow">INSPECTOR DEL FLUJO</span>
             <h2 id="aviator-inspector-title">{node.data.instruction}</h2>
           </div>
-          <button aria-label="Cerrar inspector" onClick={onClose} type="button"><X size={17} /></button>
+          <button aria-label="Cerrar inspector" onClick={onClose} title="Cerrar el inspector del componente" type="button"><X size={17} /></button>
         </div>
         <strong className="aviator-inspector-label">{node.data.label}</strong>
         <div className="aviator-inspector-meta">
@@ -141,11 +190,11 @@ export function AviatorNodeInspector({ flowNodes, node, onClose, onFocusNode, on
           <h3>Rutas</h3>
           <div className="aviator-inspector-links">
             {!!node.data.previousIds.length && <div className="aviator-inspector-route-group">
-              {node.data.previousIds.map((id) => <button className={`aviator-inspector-route-${relatedKind(id)}`} key={`previous-${id}`} onBlur={() => onHoverRelated()} onClick={() => onSelectRelated(id)} onFocus={() => onHoverRelated({ sourceId: id, targetId: node.id, nodeId: id })} onMouseEnter={() => onHoverRelated({ sourceId: id, targetId: node.id, nodeId: id })} onMouseLeave={() => onHoverRelated()} type="button">Anterior: {id}</button>)}
+              {node.data.previousIds.map((id) => <button className={`aviator-inspector-route-${relatedKind(id)}`} key={`previous-${id}`} onBlur={() => onHoverRelated()} onClick={() => onSelectRelated(id)} onFocus={() => onHoverRelated({ sourceId: id, targetId: node.id, nodeId: id })} onMouseEnter={() => onHoverRelated({ sourceId: id, targetId: node.id, nodeId: id })} onMouseLeave={() => onHoverRelated()} title={`Ir al componente anterior ${id}`} type="button">Anterior: {id}</button>)}
             </div>}
             {!!node.data.previousIds.length && !!node.data.nextIds.length && <span aria-hidden="true" className="aviator-inspector-route-divider" />}
             {!!node.data.nextIds.length && <div className="aviator-inspector-route-group">
-              {node.data.nextIds.map((id) => <button className={`aviator-inspector-route-${relatedKind(id)}`} key={`next-${id}`} onBlur={() => onHoverRelated()} onClick={() => onSelectRelated(id)} onFocus={() => onHoverRelated({ sourceId: node.id, targetId: id, nodeId: id })} onMouseEnter={() => onHoverRelated({ sourceId: node.id, targetId: id, nodeId: id })} onMouseLeave={() => onHoverRelated()} type="button">Siguiente: {id}</button>)}
+              {node.data.nextIds.map((id) => <button className={`aviator-inspector-route-${relatedKind(id)}`} key={`next-${id}`} onBlur={() => onHoverRelated()} onClick={() => onSelectRelated(id)} onFocus={() => onHoverRelated({ sourceId: node.id, targetId: id, nodeId: id })} onMouseEnter={() => onHoverRelated({ sourceId: node.id, targetId: id, nodeId: id })} onMouseLeave={() => onHoverRelated()} title={`Ir al componente siguiente ${id}`} type="button">Siguiente: {id}</button>)}
             </div>}
             {!node.data.previousIds.length && !node.data.nextIds.length && <p>Sin conexiones adicionales.</p>}
           </div>

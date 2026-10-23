@@ -10,46 +10,10 @@ import type {
   SchemaFieldType,
   ValidationIssue
 } from "./types";
+import { CANONICAL_AVIATOR_SCHEMA } from "./aviator-contract";
 
-export const DEFAULT_SCHEMA: SchemaField[] = [
-  {
-    key: "user.isVip",
-    label: "Usuario VIP",
-    type: "boolean",
-    description: "Indica si el pasajero tiene una cuenta VIP."
-  },
-  {
-    key: "user.age",
-    label: "Edad del usuario",
-    type: "number",
-    description: "Edad registrada del pasajero."
-  },
-  {
-    key: "order.amount",
-    label: "Monto del pedido",
-    type: "number",
-    description: "Valor total de la orden antes de descuentos."
-  },
-  {
-    key: "order.category",
-    label: "Categoria del pedido",
-    type: "enum",
-    options: ["ELECTRO", "ROPA", "HOGAR"],
-    description: "Categoria comercial de la orden."
-  },
-  {
-    key: "order.createdAt",
-    label: "Fecha de la orden",
-    type: "date",
-    description: "Fecha en la que fue creada la orden."
-  },
-  {
-    key: "passenger.email",
-    label: "Correo del pasajero",
-    type: "string",
-    description: "Correo usado para la compra."
-  }
-];
+/** @deprecated Use CANONICAL_AVIATOR_SCHEMA in new code. Kept for legacy rules. */
+export const DEFAULT_SCHEMA: SchemaField[] = CANONICAL_AVIATOR_SCHEMA;
 
 export const OPERATOR_LABELS: Record<ComparisonOperator, string> = {
   equals: "Es igual a",
@@ -70,6 +34,7 @@ export const OPERATORS_BY_TYPE: Record<SchemaFieldType, ComparisonOperator[]> = 
   boolean: ["equals", "not_equals", "is_true", "is_false"],
   date: ["equals", "not_equals", "greater_than", "greater_or_equal", "less_than", "less_or_equal"],
   enum: ["equals", "not_equals", "in"],
+  currency: ["equals", "not_equals", "greater_than", "greater_or_equal", "less_than", "less_or_equal"],
   number: ["equals", "not_equals", "greater_than", "greater_or_equal", "less_than", "less_or_equal"],
   string: ["equals", "not_equals", "contains", "starts_with", "ends_with", "in"],
   unknown: ["equals", "not_equals"]
@@ -123,7 +88,7 @@ export function defaultValueForField(field?: SchemaField, operator?: ComparisonO
   if (field?.type === "boolean") {
     return true;
   }
-  if (field?.type === "number") {
+  if (field?.type === "number" || field?.type === "currency") {
     return 0;
   }
   return field?.type === "enum" ? (field.options?.[0] ?? "") : "";
@@ -228,7 +193,7 @@ export function validateRuleDocument(rule: RuleDocument, schema: SchemaField[]):
       });
     }
 
-    if (field.type === "number" && (typeof node.value !== "number" || Number.isNaN(node.value))) {
+    if ((field.type === "number" || field.type === "currency") && (typeof node.value !== "number" || Number.isNaN(node.value))) {
       issues.push({
         message: "El valor debe ser un numero.",
         nodeId: node.id,
@@ -291,7 +256,7 @@ export function toAviatorScript(rule: RuleDocument, schema: SchemaField[]) {
       ? `string.${condition.operator}(${fieldExpression}, ${value})`
       : undefined;
     if (stringOperator) return stringOperator;
-    if (condition.operator === "in") return `${value}.contains(${fieldExpression})`;
+    if (condition.operator === "in") return `seq.contains(${fieldExpression}, ${value})`;
     const operators: Record<ComparisonOperator, string> = {
       equals: "==",
       not_equals: "!=",

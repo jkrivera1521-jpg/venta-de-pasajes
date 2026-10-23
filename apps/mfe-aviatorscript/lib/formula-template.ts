@@ -1,10 +1,11 @@
 import type { FormulaBinaryOperator, FormulaExpression, FormulaFunctionName, FormulaProgram, FormulaRoot, FormulaStatement, FormulaValueType } from "./formula";
-import { payrollSchemaForTemplate } from "./payroll-formula";
+import { PAYROLL_SCHEMA, payrollSchemaForTemplate } from "./payroll-formula";
 import type { SchemaField } from "./types";
+import { AVIATOR_FUNCTIONS } from "./aviator-contract";
 
 type Token = { kind: "number" | "string" | "identifier" | "operator" | "section" | "end"; value: string };
 
-const OPERATORS = [">>>", "**", "<<", ">>", "&&", "||", "==", "!=", "=~", ">=", "<=", "+", "-", "*", "/", "%", "&", "|", "^", ">", "<", "!", "~", "?", ":", "(", ")", ",", "=", ";", "{", "}"];
+const OPERATORS = [">>>", "**", "<<", ">>", "&&", "||", "==", "!=", "=~", ">=", "<=", "->", "+", "-", "*", "/", "%", "&", "|", "^", ">", "<", "!", "~", "?", ":", "(", ")", ",", "=", ";", "{", "}"];
 const PRECEDENCE: Record<string, number> = {
   "||": 1,
   "&&": 2,
@@ -28,11 +29,6 @@ const PRECEDENCE: Record<string, number> = {
   "%": 10,
   "**": 11
 };
-const ALLOWED_FUNCTIONS = new Set<FormulaFunctionName>([
-  "math.abs", "math.sqrt", "math.round", "math.pow",
-  "string.contains", "string.starts_with", "string.ends_with",
-  "seq.list", "seq.map", "seq.add"
-]);
 const MAX_VISUAL_TOKENS = 4096;
 
 function tokenize(source: string): Token[] {
@@ -149,11 +145,30 @@ export function parseAviatorTemplate(source: string, fields: SchemaField[]): For
     }
     if (token.kind !== "identifier") throw new Error("La formula contiene una expresion que no se reconoce.");
     consume();
+    if (token.value === "nil") return { kind: "literal", valueType: "null", value: null };
     if (token.value === "true" || token.value === "false") {
       return { kind: "literal", valueType: "boolean", value: token.value === "true" };
     }
+    if (token.value === "lambda") {
+      consume("(");
+      const parameters: string[] = [];
+      if (current().value !== ")") {
+        do {
+          const parameter = consume();
+          if (parameter.kind !== "identifier" || parameter.value.includes(".")) throw new Error("Los parametros de lambda deben ser nombres simples.");
+          parameters.push(parameter.value);
+          if (current().value !== ",") break;
+          consume(",");
+        } while (true);
+      }
+      consume(")");
+      consume("->");
+      const body = parseExpression(0);
+      consume("end");
+      return { kind: "lambda", parameters, body, valueType: "lambda" };
+    }
     if (current().value === "(") {
-      if (!ALLOWED_FUNCTIONS.has(token.value as FormulaFunctionName)) {
+      if (!AVIATOR_FUNCTIONS.has(token.value as FormulaFunctionName)) {
         throw new Error(`La funcion ${token.value} no esta disponible como plantilla visual.`);
       }
       consume("(");
@@ -168,9 +183,17 @@ export function parseAviatorTemplate(source: string, fields: SchemaField[]): For
       consume(")");
       const name = token.value as FormulaFunctionName;
       if (name === "seq.map" && args.length % 2 !== 0) throw new Error("seq.map requiere pares de clave y valor.");
-      const expectedArgs = name === "math.pow" || name.startsWith("string.") ? 2 : name === "seq.add" ? 2 : undefined;
+      const expectedArgs = name === "math.pow" || name === "math.min" || name === "math.max" || name.startsWith("string.") || name === "seq.add" || name === "seq.include" ? 2
+        : name === "seq.count" ? 1
+          : name === "seq.filter" ? 2
+            : name === "seq.reduce" ? 3 : undefined;
       if (expectedArgs !== undefined && args.length !== expectedArgs) throw new Error(`${name} requiere ${expectedArgs} argumento(s).`);
-      const valueType: FormulaValueType = name === "seq.map" ? "object" : name === "seq.list" || name === "seq.add" ? "array" : name.startsWith("string.") ? "boolean" : "number";
+      if (["seq.filter", "seq.reduce"].includes(name) && args[1]?.kind !== "lambda") throw new Error(`${name} requiere una lambda como segundo argumento.`);
+      const valueType: FormulaValueType = name === "seq.map" ? "object"
+        : name === "seq.list" || name === "seq.add" || name === "seq.filter" ? "array"
+          : name === "seq.include" ? "boolean"
+          : name === "seq.count" || name.startsWith("math.") ? "number"
+            : name.startsWith("string.") ? "boolean" : "unknown";
       return { kind: "call", name, args, valueType };
     }
     if (schema.has(token.value) || !token.value.includes(".")) {
@@ -250,11 +273,30 @@ export function parseAviatorProgram(source: string, fields: SchemaField[]): Form
     }
     if (token.kind !== "identifier") throw new Error("La formula contiene una expresion que no se reconoce.");
     consume();
+    if (token.value === "nil") return { kind: "literal", valueType: "null", value: null };
     if (token.value === "true" || token.value === "false") {
       return { kind: "literal", valueType: "boolean", value: token.value === "true" };
     }
+    if (token.value === "lambda") {
+      consume("(");
+      const parameters: string[] = [];
+      if (current().value !== ")") {
+        do {
+          const parameter = consume();
+          if (parameter.kind !== "identifier" || parameter.value.includes(".")) throw new Error("Los parametros de lambda deben ser nombres simples.");
+          parameters.push(parameter.value);
+          if (current().value !== ",") break;
+          consume(",");
+        } while (true);
+      }
+      consume(")");
+      consume("->");
+      const body = parseExpression(0);
+      consume("end");
+      return { kind: "lambda", parameters, body, valueType: "lambda" };
+    }
     if (current().value === "(") {
-      if (!ALLOWED_FUNCTIONS.has(token.value as FormulaFunctionName)) {
+      if (!AVIATOR_FUNCTIONS.has(token.value as FormulaFunctionName)) {
         throw new Error(`La funcion ${token.value} no esta disponible como plantilla visual.`);
       }
       consume("(");
@@ -269,9 +311,17 @@ export function parseAviatorProgram(source: string, fields: SchemaField[]): Form
       consume(")");
       const name = token.value as FormulaFunctionName;
       if (name === "seq.map" && args.length % 2 !== 0) throw new Error("seq.map requiere pares de clave y valor.");
-      const expectedArgs = name === "math.pow" || name.startsWith("string.") ? 2 : name === "seq.add" ? 2 : undefined;
+      const expectedArgs = name === "math.pow" || name === "math.min" || name === "math.max" || name.startsWith("string.") || name === "seq.add" || name === "seq.include" ? 2
+        : name === "seq.count" ? 1
+          : name === "seq.filter" ? 2
+            : name === "seq.reduce" ? 3 : undefined;
       if (expectedArgs !== undefined && args.length !== expectedArgs) throw new Error(`${name} requiere ${expectedArgs} argumento(s).`);
-      const valueType: FormulaValueType = name === "seq.map" ? "object" : name === "seq.list" || name === "seq.add" ? "array" : name.startsWith("string.") ? "boolean" : "number";
+      if (["seq.filter", "seq.reduce"].includes(name) && args[1]?.kind !== "lambda") throw new Error(`${name} requiere una lambda como segundo argumento.`);
+      const valueType: FormulaValueType = name === "seq.map" ? "object"
+        : name === "seq.list" || name === "seq.add" || name === "seq.filter" ? "array"
+          : name === "seq.include" ? "boolean"
+          : name === "seq.count" || name.startsWith("math.") ? "number"
+            : name.startsWith("string.") ? "boolean" : "unknown";
       return { kind: "call", name, args, valueType };
     }
     if (schema.has(token.value) || !token.value.includes(".")) {
@@ -448,6 +498,13 @@ export function schemaForTemplate(expression: FormulaRoot, fields: SchemaField[]
       visit(node.whenTrue);
       visit(node.whenFalse);
     } else if (node.kind === "call") node.args.forEach(visit);
+    else if (node.kind === "lambda") {
+      const previous = new Set(localNames);
+      node.parameters.forEach((parameter) => localNames.add(parameter));
+      visit(node.body);
+      localNames.clear();
+      previous.forEach((name) => localNames.add(name));
+    }
     else if (node.kind === "array") node.items.forEach(visit);
     else if (node.kind === "object") node.entries.forEach(({ value }) => visit(value));
     else {
@@ -509,4 +566,105 @@ export function schemaForTemplate(expression: FormulaRoot, fields: SchemaField[]
     visitStatements(expression.statements);
   } else visit(expression);
   return result;
+}
+
+export function variablesForTemplate(expression: FormulaRoot, fields: SchemaField[]): SchemaField[] {
+  const available = new Map<string, SchemaField>();
+  [...PAYROLL_SCHEMA, ...fields].forEach((field) => available.set(field.key, field));
+
+  if (expression.kind === "payroll") {
+    return PAYROLL_SCHEMA.map((field) => available.get(field.key) ?? field);
+  }
+
+  const keys = new Set<string>();
+  const localNames = new Set<string>();
+  function visit(node: FormulaExpression) {
+    if (node.kind === "payroll") return;
+    if (node.kind === "variable") {
+      if (!localNames.has(node.key)) keys.add(node.key);
+      return;
+    }
+    if (node.kind === "literal") return;
+    if (node.kind === "member") visit(node.object);
+    else if (node.kind === "unary") visit(node.operand);
+    else if (node.kind === "conditional") {
+      visit(node.condition);
+      visit(node.whenTrue);
+      visit(node.whenFalse);
+    } else if (node.kind === "call") node.args.forEach(visit);
+    else if (node.kind === "lambda") {
+      const previous = new Set(localNames);
+      node.parameters.forEach((parameter) => localNames.add(parameter));
+      visit(node.body);
+      localNames.clear();
+      previous.forEach((name) => localNames.add(name));
+    }
+    else if (node.kind === "array") node.items.forEach(visit);
+    else if (node.kind === "object") node.entries.forEach(({ value }) => visit(value));
+    else {
+      visit(node.left);
+      visit(node.right);
+    }
+  }
+  function collectLocalNames(statements: FormulaStatement[]) {
+    statements.forEach((statement) => {
+      switch (statement.kind) {
+        case "declaration":
+        case "assignment":
+          localNames.add(statement.name);
+          break;
+        case "if":
+          collectLocalNames(statement.then);
+          statement.elseIf.forEach((branch) => collectLocalNames(branch.body));
+          collectLocalNames(statement.otherwise);
+          break;
+        case "for":
+          localNames.add(statement.item);
+          collectLocalNames(statement.body);
+          break;
+        case "while":
+          collectLocalNames(statement.body);
+          break;
+        default:
+          break;
+      }
+    });
+  }
+  function visitStatements(statements: FormulaStatement[]) {
+    statements.forEach((statement) => {
+      switch (statement.kind) {
+        case "declaration":
+        case "assignment":
+          visit(statement.value);
+          break;
+        case "expression": visit(statement.expression); break;
+        case "throw":
+        case "return": visit(statement.kind === "throw" ? statement.message : statement.value); break;
+        case "if":
+          visit(statement.condition);
+          visitStatements(statement.then);
+          statement.elseIf.forEach((branch) => { visit(branch.condition); visitStatements(branch.body); });
+          visitStatements(statement.otherwise);
+          break;
+        case "for": visit(statement.collection); visitStatements(statement.body); break;
+        case "while": visit(statement.condition); visitStatements(statement.body); break;
+        case "section":
+        case "continue":
+        case "break":
+          break;
+      }
+    });
+  }
+
+  if (expression.kind === "program") {
+    collectLocalNames(expression.statements);
+    visitStatements(expression.statements);
+  } else visit(expression);
+
+  return [...keys].map((key) => available.get(key) ?? {
+    key,
+    label: key,
+    type: "unknown",
+    description: "Variable tomada de la formula guardada; confirma su tipo en el esquema JVM."
+  });
 }

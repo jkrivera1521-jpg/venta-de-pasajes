@@ -1,32 +1,48 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, Blocks, Check, CheckCircle2, Clipboard, FilePlus2, FolderOpen, FlaskConical, GitBranch, Maximize2, Minimize2, RefreshCw, Save } from "lucide-react";
-import type { ChangeEvent } from "react";
+import { Code2 } from "lucide-react";
+import type { ChangeEvent, CSSProperties } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { WorkspaceSvg } from "blockly";
-import { getFormulaTemplates, getRuleSchema, visualizeAviatorSource } from "../lib/api";
+import { activateFormula, getCalculationEndpoint, getFormulaTemplates, getRuleSchema, publishFormula, saveFormulaToDatabase as persistFormulaTemplate, testAviatorSource, validateAviatorSource, visualizeAviatorSource } from "../lib/api";
 import { buildFormulaFromWorkspace, compactPayrollGraph, createFormulaToolbox, createStarterFormula, decomposePayrollGraph, fitNestedBlockContainers, getUserVariableFields, isDecomposedPayrollWorkspaceState, loadFormulaExpression, refreshPayrollFormulaGraph, registerAviatorBlocks } from "../lib/blockly-editor";
-import { compileFormula, evaluateFormula, type FormulaDocument, type FormulaIssue, type FormulaRoot, type FormulaTemplate, validateFormula } from "../lib/formula";
-import { parseAviatorSource, parseAviatorTemplate, schemaForTemplate } from "../lib/formula-template";
+import { compileFormula, type FormulaDocument, type FormulaIssue, type FormulaRoot, type FormulaTemplate, validateFormula } from "../lib/formula";
+import { parseAviatorSource, schemaForTemplate, variablesForTemplate } from "../lib/formula-template";
 import { parseAdvancedPayrollConfig, payrollProgramFromConfig } from "../lib/payroll-formula";
-import { createFormulaTestPayload } from "../lib/test-payload";
-import { DEFAULT_SCHEMA } from "../lib/rules";
+import { createFormulaTestPayload, createTemplateTestPayload, readTestPayload } from "../lib/test-payload";
+import { CANONICAL_AVIATOR_SCHEMA } from "../lib/aviator-contract";
+import { cacheTemplateCatalog, downloadFormula, makeFormulaDocument, readCachedTemplateCatalog, saveFormulaToBrowser } from "../lib/formula-persistence";
 import type { SchemaField } from "../lib/types";
 import { buildLocalAviatorFlow, type AviatorFlowGraph, type AviatorFlowNode } from "../lib/visualization";
-import { AviatorVisualizationWorkspace } from "./AviatorVisualizationWorkspace";
-import { FormulaTestValues } from "./FormulaTestValues";
+import { FormulaTemplateCatalog } from "./FormulaTemplateCatalog";
+import { FormulaToolbar } from "./FormulaToolbar";
+import { FormulaScriptPanel, type FormulaTestResult } from "./FormulaScriptPanel";
+import { FormulaWorkspacePanel } from "./FormulaWorkspacePanel";
+import { usePanelResizers } from "../hooks/usePanelResizers";
 
-const STORAGE_KEY = "aviatorscript-formulas-v1";
 const INITIAL_TEST_PAYLOAD = "{}";
-
-type SavedFormula = Pick<FormulaDocument, "name" | "updatedAt" | "expression" | "workspace">;
 type MobileTab = "blocks" | "script";
-type PanelTab = "script" | "test";
+type PanelTab = "script" | "test" | "curl";
 type MaximizedPanel = "workspace" | "script";
-type ViewMode = "builder" | "visualizer";
+type ViewMode = "builder" | "visualizer" | "mermaid";
+type WorkflowStatus = "BORRADOR" | "VALIDADA" | "VERSION_GUARDADA" | "PUBLICADA" | "ACTIVA";
+type FormulaRepresentationMode = "visual" | "code";
+
+const FORMULA_REPRESENTATION: Record<FormulaRepresentationMode, { label: string; description: string }> = {
+  visual: {
+    label: "Editable visualmente",
+    description: "La fórmula está representada en bloques Blockly y puede editarse desde el constructor."
+  },
+  code: {
+    label: "Solo código",
+    description: "La fuente AviatorScript se conserva completa, pero contiene instrucciones que el constructor visual no puede representar sin perder semántica."
+  }
+};
 
 export type VisualFormulaBuilderProps = {
+  accessToken?: string | null;
+  creator?: string;
   schema?: SchemaField[];
   onSave?: (formula: FormulaDocument) => void | Promise<void>;
 };
@@ -35,40 +51,21 @@ function combineIssues(builtIssues: FormulaIssue[], expression?: FormulaRoot, fi
   return expression ? [...builtIssues, ...validateFormula(expression, fields)] : builtIssues;
 }
 
-function makeFormulaDocument(name: string, expression: FormulaRoot, workspace: unknown): FormulaDocument {
-  return {
-    format: "aviatorscript-formula",
-    version: 1,
-    name: name.trim() || "Formula sin titulo",
-    expression,
-    workspace,
-    updatedAt: new Date().toISOString()
-  };
+function powerShellArgument(value: string) {
+  return `"${value.replace(/"/g, "\\\"")}"`;
 }
 
-function saveToBrowser(formula: FormulaDocument) {
-  let existing: SavedFormula[] = [];
+function buildCurlCommand(payload: string, endpoint: string) {
+  let body = payload.trim() || "{}";
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "[]") as unknown;
-    if (Array.isArray(parsed)) existing = parsed as SavedFormula[];
+    body = JSON.stringify(JSON.parse(body));
   } catch {
-    existing = [];
+    body = body.replace(/[\r\n]+/g, " ");
   }
-  const saved = [formula, ...existing.filter((item) => item.name !== formula.name)].slice(0, 25);
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+  return `curl.exe --% --location --request POST ${powerShellArgument(endpoint)} --header ${powerShellArgument("Authorization: Bearer <ACCESS_TOKEN>")} --header ${powerShellArgument("Content-Type: application/json")} --data-raw ${powerShellArgument(body)} --write-out ${powerShellArgument("\\nHTTP status: %{http_code}\\n")}`;
 }
 
-function downloadFormula(formula: FormulaDocument) {
-  const file = new Blob([JSON.stringify(formula, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(file);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${formula.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "formula"}.aviatorscript.json`;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualFormulaBuilderProps = {}) {
+export function VisualFormulaBuilder({ accessToken = null, creator = "desconocido", schema: providedSchema, onSave }: VisualFormulaBuilderProps = {}) {
   const schemaQuery = useQuery({
     enabled: !providedSchema,
     initialData: providedSchema?.length ? providedSchema : undefined,
@@ -76,12 +73,19 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
     queryKey: ["aviatorscript", "schema"]
   });
   const templatesQuery = useQuery({
-    queryFn: getFormulaTemplates,
-    queryKey: ["aviatorscript", "formula-templates"],
+    enabled: Boolean(accessToken),
+    queryFn: () => getFormulaTemplates(accessToken),
+    queryKey: ["aviatorscript", "formula-templates", accessToken ? "authenticated" : "anonymous"],
     refetchOnWindowFocus: false,
     staleTime: 30_000
   });
-  const baseFields = schemaQuery.data?.length ? schemaQuery.data : providedSchema?.length ? providedSchema : DEFAULT_SCHEMA;
+  const calculationEndpointQuery = useQuery({
+    queryFn: getCalculationEndpoint,
+    queryKey: ["aviatorscript", "calculation-endpoint"],
+    refetchOnWindowFocus: false,
+    staleTime: Infinity
+  });
+  const baseFields = schemaQuery.data?.length ? schemaQuery.data : providedSchema?.length ? providedSchema : CANONICAL_AVIATOR_SCHEMA;
   const [templateFields, setTemplateFields] = useState<SchemaField[] | null>(null);
   const [userFields, setUserFields] = useState<SchemaField[]>([]);
   const fields = useMemo(() => {
@@ -100,21 +104,38 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
   const [expression, setExpression] = useState<FormulaRoot | null>(null);
   const [script, setScript] = useState("");
   const [codeDraft, setCodeDraft] = useState("");
+  const [visualSource, setVisualSource] = useState("");
   const [codeIssue, setCodeIssue] = useState("");
   const [issues, setIssues] = useState<FormulaIssue[]>([]);
   const [hasValidated, setHasValidated] = useState(false);
-  const [formulaName, setFormulaName] = useState("Regla de negocio");
+  const [formulaName, setFormulaName] = useState("Fórmula de negocio");
+  const [formulaCode, setFormulaCode] = useState("FORMULA-NUEVA-001");
+  const [formulaDescription, setFormulaDescription] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus>("BORRADOR");
+  const [persistedFormulaId, setPersistedFormulaId] = useState<number | null>(null);
+  const [persistedFormula, setPersistedFormula] = useState<FormulaTemplate | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [sourceOnlyTemplateId, setSourceOnlyTemplateId] = useState<string | null>(null);
+  const sourceOnlyTemplateRef = useRef<string | null>(null);
   const [templateMessage, setTemplateMessage] = useState("");
+  const [offlineTemplateCatalog, setOfflineTemplateCatalog] = useState<FormulaTemplate[]>([]);
+  const [copiedCopyId, setCopiedCopyId] = useState<string | null>(null);
+  const [templateInfoOpen, setTemplateInfoOpen] = useState(false);
+  const [templateInfoMaximized, setTemplateInfoMaximized] = useState(false);
+  const [templateVariableFields, setTemplateVariableFields] = useState<SchemaField[]>([]);
+  const [representationMode, setRepresentationMode] = useState<FormulaRepresentationMode>("visual");
   const [mobileTab, setMobileTab] = useState<MobileTab>("blocks");
   const [panelTab, setPanelTab] = useState<PanelTab>("script");
   const [testPayload, setTestPayload] = useState(INITIAL_TEST_PAYLOAD);
-  const [testResult, setTestResult] = useState<{ value: unknown; elapsed: number } | null>(null);
+  const [testResult, setTestResult] = useState<FormulaTestResult | null>(null);
   const [testError, setTestError] = useState("");
   const [testBusy, setTestBusy] = useState(false);
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [validationBusy, setValidationBusy] = useState(false);
+  const [databaseSaveBusy, setDatabaseSaveBusy] = useState(false);
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [blocklyReady, setBlocklyReady] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
   const [payrollLayout, setPayrollLayout] = useState<"compact" | "decomposed">("compact");
   const [maximizedPanel, setMaximizedPanel] = useState<MaximizedPanel | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("builder");
@@ -122,8 +143,61 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
   const [visualError, setVisualError] = useState("");
   const [visualLoading, setVisualLoading] = useState(false);
   const [selectedFlowNodeId, setSelectedFlowNodeId] = useState<string>();
+  const [flowFocusRequest, setFlowFocusRequest] = useState<{ nodeId: string; requestId: number }>();
+  const flowFocusRequestId = useRef(0);
+  const {
+    workbenchRef,
+    scriptPanelRef,
+    scriptPanelWidth,
+    testPayloadHeight,
+    startWorkbenchResize,
+    resizeWorkbenchWithKeyboard,
+    startTestPanelResize,
+    resizeTestPanelWithKeyboard
+  } = usePanelResizers();
   const maximizeReturnFocusRef = useRef<HTMLElement | null>(null);
-  const selectedTemplate = templatesQuery.data?.find((item) => `${item.codigo}::${item.version}` === selectedTemplateId);
+  const copiedFeedbackTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (templatesQuery.data === undefined) return;
+    cacheTemplateCatalog(templatesQuery.data);
+  }, [templatesQuery.data]);
+
+  useEffect(() => {
+    if (!templatesQuery.isError || templatesQuery.data !== undefined) return;
+    setOfflineTemplateCatalog(readCachedTemplateCatalog());
+  }, [templatesQuery.data, templatesQuery.isError]);
+
+  const catalogSource = templatesQuery.isError && templatesQuery.data === undefined
+    ? offlineTemplateCatalog
+    : templatesQuery.data ?? [];
+  const formulaTemplates = useMemo(
+    () => [...catalogSource].sort((left, right) => left.id - right.id),
+    [catalogSource]
+  );
+  const templateCatalogState = templatesQuery.isLoading
+    ? "loading"
+    : templatesQuery.isError
+      ? formulaTemplates.length ? "offline" : "error"
+      : formulaTemplates.length ? "ready" : "empty";
+  const selectedTemplate = formulaTemplates.find((item) => `${item.codigo}::${item.version}` === selectedTemplateId);
+  // Las plantillas del catalogo siempre se editan como copias; solo una version
+  // guardada desde este editor puede avanzar en el ciclo de publicacion.
+  const lifecycleTemplate = persistedFormula;
+  const representationInfo = FORMULA_REPRESENTATION[representationMode];
+  const representationActionsDisabledReason = representationMode === "code"
+    ? "Esta fórmula está en modo solo código. Corrige o convierte el código desde el editor para habilitar el constructor, Guardar y Probar fórmula."
+    : !isHydrated
+      ? "El editor aun se esta inicializando."
+      : !blocklyReady
+        ? "El constructor visual aun se esta cargando."
+        : "";
+  const actionButtonsDisabled = !isHydrated || !blocklyReady || representationMode === "code" || sourceOnlyTemplateId !== null;
+  const hasBlockingIssues = issues.some((issue) => issue.severity === "error");
+  const databaseSaveDisabled = actionButtonsDisabled || databaseSaveBusy || !formulaCode.trim() || !hasValidated || hasBlockingIssues;
+  const canPublish = Boolean(lifecycleTemplate?.id && lifecycleTemplate.estado === "BORRADOR");
+  const canActivate = Boolean(lifecycleTemplate?.id && lifecycleTemplate.estado === "PUBLICADA" && !lifecycleTemplate.activa);
+  const calculationEndpoint = calculationEndpointQuery.data?.executionUrl ?? "";
+  const curlCommand = useMemo(() => calculationEndpoint ? buildCurlCommand(testPayload, calculationEndpoint) : "", [calculationEndpoint, testPayload]);
 
   fieldsRef.current = fields;
   staticFieldsRef.current = templateFields ?? baseFields;
@@ -133,42 +207,49 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
   }, []);
 
   useEffect(() => {
-    if (viewMode !== "visualizer") return;
-    const source = codeDraft.trim();
+    return () => {
+      if (copiedFeedbackTimerRef.current !== null) {
+        window.clearTimeout(copiedFeedbackTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const source = visualSource.trim();
     if (!source) {
       setVisualGraph(null);
-      setVisualError("No hay codigo para analizar.");
+      setVisualError("No hay código para analizar.");
       setVisualLoading(false);
       return;
     }
 
     let active = true;
     const timer = window.setTimeout(() => {
-      let localGraph: AviatorFlowGraph;
+      let localError = "";
       try {
         const parsed = parseAviatorSource(source, fieldsRef.current);
-        localGraph = buildLocalAviatorFlow(source, parsed);
+        const localGraph = buildLocalAviatorFlow(source, parsed);
         if (active) {
           setVisualGraph(localGraph);
           setVisualError("");
           setSelectedFlowNodeId(undefined);
         }
       } catch (error) {
+        localError = error instanceof Error ? error.message : "No se pudo analizar el código AviatorScript.";
         if (active) {
           setVisualGraph(null);
-          setVisualError(error instanceof Error ? error.message : "No se pudo analizar el codigo AviatorScript.");
+          setVisualError(localError);
           setSelectedFlowNodeId(undefined);
         }
-        return;
       }
 
       setVisualLoading(true);
-      void visualizeAviatorSource(source).then((remoteGraph) => {
+      void visualizeAviatorSource(source, accessToken).then((remoteGraph) => {
         if (!active || !remoteGraph?.nodes?.length) return;
         setVisualGraph(remoteGraph);
         setVisualError("");
       }).catch(() => {
-        if (active) setVisualError("Analisis local activo. El servicio remoto no esta disponible.");
+        if (active) setVisualError(localError || "El servicio remoto no está disponible para analizar esta fórmula.");
       }).finally(() => {
         if (active) setVisualLoading(false);
       });
@@ -178,7 +259,7 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
       active = false;
       window.clearTimeout(timer);
     };
-  }, [codeDraft, fieldsKey, viewMode]);
+  }, [accessToken, fieldsKey, visualSource]);
 
   useEffect(() => {
     if (!maximizedPanel) {
@@ -241,8 +322,12 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
   }
 
   const refreshFormula = useCallback(() => {
+    if (sourceOnlyTemplateRef.current !== null) return;
     const workspace = workspaceRef.current;
     if (!workspace) return;
+    setPersistedFormulaId(null);
+    setPersistedFormula(null);
+    setWorkflowStatus("BORRADOR");
     const Blockly = blocklyRef.current;
     if (Blockly) {
       refreshPayrollFormulaGraph(Blockly, workspace);
@@ -264,6 +349,7 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
     setExpression(built.expression ?? null);
     setScript(nextScript);
     setCodeDraft(nextScript);
+    setVisualSource(nextScript);
     setCodeIssue("");
     if (built.expression) {
       setTestPayload((current) => createFormulaTestPayload(built.expression!, nextFields, current));
@@ -388,10 +474,21 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
     setTemplateFields(null);
     setUserFields([]);
     createStarterFormula(Blockly, workspace, fieldsRef.current);
-    setFormulaName("Nueva formula");
+    setFormulaName("Nueva fórmula");
+    setFormulaCode("FORMULA-NUEVA-001");
+    setFormulaDescription("");
     setSaveMessage("");
+    setWorkflowStatus("BORRADOR");
+    setPersistedFormulaId(null);
+    setPersistedFormula(null);
     setSelectedTemplateId("");
+    sourceOnlyTemplateRef.current = null;
+    setSourceOnlyTemplateId(null);
+    setRepresentationMode("visual");
     setTemplateMessage("");
+    setTemplateInfoOpen(false);
+    setTemplateInfoMaximized(false);
+    setTemplateVariableFields([]);
     setPayrollLayout("compact");
     setMobileTab("blocks");
     setPanelTab("script");
@@ -402,27 +499,38 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
     const Blockly = blocklyRef.current;
     const workspace = workspaceRef.current;
     if (!Blockly || !workspace) return;
-    const previousWorkspace = Blockly.serialization.workspaces.save(workspace);
     const previousFields = fieldsRef.current;
     const previousTemplateFields = templateFields;
+    const previousTemplateVariableFields = templateVariableFields;
     const previousUserFields = userFields;
     try {
       const payrollConfig = parseAdvancedPayrollConfig(template.expresion);
       const parsed = payrollConfig
         ? payrollProgramFromConfig(payrollConfig)
-        : parseAviatorTemplate(template.expresion, baseFields);
+        : parseAviatorSource(template.expresion, baseFields);
       const expandedFields = schemaForTemplate(parsed, baseFields);
+      const usedVariableFields = variablesForTemplate(parsed, baseFields);
       fieldsRef.current = expandedFields;
       staticFieldsRef.current = expandedFields;
       setTemplateFields(expandedFields);
+      setTemplateVariableFields(usedVariableFields);
       setUserFields([]);
       loadFormulaExpression(Blockly, workspace, parsed);
       const shouldDecomposePayroll = parsed.kind === "payroll";
       setFormulaName(`Nueva - ${template.nombre}`.slice(0, 100));
+      setFormulaCode(template.codigo);
+      setFormulaDescription(template.descripcion ?? "");
+      setWorkflowStatus("BORRADOR");
+      setPersistedFormulaId(null);
+      setPersistedFormula(null);
       setSelectedTemplateId(`${template.codigo}::${template.version}`);
-      setTemplateMessage(`Plantilla ${template.codigo} v${template.version} cargada como una formula nueva. La formula guardada no se modifica.`);
+      sourceOnlyTemplateRef.current = null;
+      setSourceOnlyTemplateId(null);
+      setRepresentationMode("visual");
+      setTemplateMessage(`Plantilla ${template.codigo} v${template.version} cargada como una fórmula nueva. La fórmula guardada no se modifica.`);
       setPayrollLayout(shouldDecomposePayroll ? "decomposed" : "compact");
-      setTestPayload(createFormulaTestPayload(parsed, expandedFields, undefined, false));
+      const fallbackPayload = createFormulaTestPayload(parsed, expandedFields, undefined, false, { codigoFormula: template.codigo });
+      const templateTestPayload = createTemplateTestPayload(template.ejemplo, fallbackPayload, { codigoFormula: template.codigo });
       setTestResult(null);
       setTestError("");
       setSaveMessage("");
@@ -431,17 +539,39 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
       setMobileTab("blocks");
       setPanelTab("script");
       refreshFormula();
+      setTestPayload(templateTestPayload);
     } catch (error) {
       fieldsRef.current = previousFields;
       staticFieldsRef.current = previousTemplateFields ?? baseFields;
       setTemplateFields(previousTemplateFields);
+      setTemplateVariableFields(previousTemplateVariableFields);
       setUserFields(previousUserFields);
-      workspace.clear();
-      Blockly.serialization.workspaces.load(previousWorkspace as Record<string, unknown>, workspace);
-      refreshFormula();
-      setTemplateMessage(error instanceof Error
-        ? `No se pudo convertir esta formula en bloques: ${error.message}`
-        : "No se pudo convertir esta formula en bloques.");
+      const templateId = `${template.codigo}::${template.version}`;
+      sourceOnlyTemplateRef.current = templateId;
+      setSourceOnlyTemplateId(templateId);
+      setRepresentationMode("code");
+      setFormulaName(`Nueva - ${template.nombre}`.slice(0, 100));
+      setFormulaCode(template.codigo);
+      setFormulaDescription(template.descripcion ?? "");
+      setWorkflowStatus("BORRADOR");
+      setPersistedFormulaId(null);
+      setPersistedFormula(null);
+      setSelectedTemplateId(templateId);
+      setTemplateVariableFields([]);
+      setTemplateMessage(`Plantilla ${template.codigo} cargada en modo solo código. Sus instrucciones avanzadas no se representan como bloques; el lienzo anterior se conserva y la fórmula completa queda disponible para visualización.`);
+      setScript(template.expresion);
+      setCodeDraft(template.expresion);
+      setVisualSource(template.expresion);
+      setCodeIssue("");
+      setExpression(null);
+      setIssues([]);
+      setHasValidated(false);
+      setTestPayload(createTemplateTestPayload(template.ejemplo, INITIAL_TEST_PAYLOAD, { codigoFormula: template.codigo }));
+      setTestResult(null);
+      setTestError("");
+      setSaveMessage(error instanceof Error ? error.message : "La plantilla se cargó en modo solo código para visualización.");
+      setPanelTab("script");
+      setMobileTab("script");
     }
   }
 
@@ -461,11 +591,110 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
     const formula = makeFormulaDocument(formulaName, built.expression, Blockly.serialization.workspaces.save(workspace));
     if (onSave) {
       await onSave(formula);
-      setSaveMessage("Formula enviada al proceso de guardado.");
+      setSaveMessage("Fórmula enviada al proceso de guardado.");
     } else {
-      saveToBrowser(formula);
+      saveFormulaToBrowser(formula);
       downloadFormula(formula);
       setSaveMessage("Guardada en este navegador y descargada como archivo JSON.");
+    }
+  }
+
+  async function saveFormulaToDatabase() {
+    const workspace = workspaceRef.current;
+    const codigo = formulaCode.trim();
+    if (!workspace || !expression || !codigo) return;
+
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(codigo)) {
+      setSaveMessage("El código solo puede contener letras, números, punto, guion y guion bajo.");
+      return;
+    }
+
+    const built = buildFormulaFromWorkspace(workspace, fieldsRef.current);
+    const currentIssues = combineIssues(built.issues, built.expression, fieldsRef.current);
+    setIssues(currentIssues);
+    setHasValidated(true);
+    if (currentIssues.some((issue) => issue.severity === "error") || !built.expression) {
+      setSaveMessage("Completa los bloques marcados antes de guardar en la base de datos.");
+      return;
+    }
+
+    const parsedPayload = readTestPayload(testPayload);
+    if (!parsedPayload) {
+      setPanelTab("test");
+      setSaveMessage("Corrige el JSON de prueba antes de guardar en la base de datos.");
+      return;
+    }
+
+    const example = { ...parsedPayload, codigoFormula: codigo } as Record<string, unknown>;
+    setDatabaseSaveBusy(true);
+    try {
+      const saved = await persistFormulaTemplate({
+        codigo,
+        descripcion: formulaDescription.trim() || null,
+        ejemplo: example,
+        expresion: compileFormula(built.expression),
+        nombre: formulaName.trim() || "Fórmula sin título"
+      }, accessToken);
+      setFormulaCode(saved.codigo);
+      setPersistedFormulaId(saved.id);
+      setPersistedFormula(saved);
+      setWorkflowStatus("VERSION_GUARDADA");
+      setSelectedTemplateId(`${saved.codigo}::${saved.version}`);
+      setTestPayload(JSON.stringify(example, null, 2));
+      setSaveMessage(`Guardada en la base de datos como ${saved.codigo} v${saved.version}.`);
+      void templatesQuery.refetch();
+    } catch (error) {
+      setSaveMessage(error instanceof Error ? error.message : "No se pudo guardar la fórmula en la base de datos.");
+    } finally {
+      setDatabaseSaveBusy(false);
+    }
+  }
+
+  function createNewVersionFromTemplate(template: FormulaTemplate) {
+    useFormulaTemplate(template);
+    setSelectedTemplateId("");
+    setTemplateInfoOpen(false);
+    setWorkflowStatus("BORRADOR");
+    setPersistedFormulaId(null);
+    setPersistedFormula(null);
+    setSaveMessage(`Nueva versión de ${template.codigo} preparada como borrador.`);
+  }
+
+  async function publishCurrentFormula() {
+    const target = persistedFormula ?? selectedTemplate;
+    if (!target || !canPublish || lifecycleBusy) return;
+    setLifecycleBusy(true);
+    try {
+      const updated = await publishFormula(target.id, accessToken);
+      setPersistedFormulaId(updated.id);
+      setPersistedFormula(updated);
+      setWorkflowStatus(updated.activa ? "ACTIVA" : "PUBLICADA");
+      setSaveMessage(`Versión ${updated.codigo} v${updated.version} publicada.`);
+      setTemplateMessage(`Publicada por ${updated.publicadoPor ?? creator}.`);
+      void templatesQuery.refetch();
+    } catch (error) {
+      setSaveMessage(error instanceof Error ? error.message : "No se pudo publicar la versión.");
+    } finally {
+      setLifecycleBusy(false);
+    }
+  }
+
+  async function activateCurrentFormula() {
+    const target = persistedFormula ?? selectedTemplate;
+    if (!target || !canActivate || lifecycleBusy) return;
+    setLifecycleBusy(true);
+    try {
+      const updated = await activateFormula(target.id, accessToken);
+      setPersistedFormulaId(updated.id);
+      setPersistedFormula(updated);
+      setWorkflowStatus("ACTIVA");
+      setSaveMessage(`Versión ${updated.codigo} v${updated.version} activada.`);
+      setTemplateMessage(`Activa por ${updated.activadoPor ?? creator}.`);
+      void templatesQuery.refetch();
+    } catch (error) {
+      setSaveMessage(error instanceof Error ? error.message : "No se pudo activar la versión.");
+    } finally {
+      setLifecycleBusy(false);
     }
   }
 
@@ -476,13 +705,13 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
     event.target.value = "";
     if (!selectedFile || !workspace || !Blockly) return;
     if (selectedFile.size > 1024 * 1024) {
-      setSaveMessage("El archivo supera el limite de 1 MB.");
+      setSaveMessage("El archivo supera el límite de 1 MB.");
       return;
     }
     try {
       const parsed = JSON.parse(await selectedFile.text()) as Partial<FormulaDocument>;
       if (parsed.format !== "aviatorscript-formula" || parsed.version !== 1 || !parsed.workspace || !parsed.expression || typeof parsed.name !== "string") {
-        throw new Error("El archivo no tiene el formato de formula esperado.");
+        throw new Error("El archivo no tiene el formato de fórmula esperado.");
       }
       const openedFields = schemaForTemplate(parsed.expression, baseFields);
       fieldsRef.current = openedFields;
@@ -505,9 +734,20 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
         setPayrollLayout("compact");
       }
       setFormulaName(parsed.name);
+      setFormulaCode("FORMULA-LOCAL-001");
+      setFormulaDescription("");
+      setWorkflowStatus("BORRADOR");
+      setPersistedFormulaId(null);
+      setPersistedFormula(null);
       setSelectedTemplateId("");
+      sourceOnlyTemplateRef.current = null;
+      setSourceOnlyTemplateId(null);
+      setRepresentationMode("visual");
       setTemplateMessage("");
-      setSaveMessage("Formula abierta correctamente.");
+      setTemplateInfoOpen(false);
+      setTemplateInfoMaximized(false);
+      setTemplateVariableFields([]);
+      setSaveMessage("Fórmula abierta correctamente.");
       setPanelTab("script");
       setTestPayload(createFormulaTestPayload(openedExpression, openedFields, undefined, false));
       refreshFormula();
@@ -516,25 +756,112 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
     }
   }
 
-  function validateCurrentFormula() {
+  async function validateCurrentFormula() {
     const workspace = workspaceRef.current;
     if (!workspace) return;
     const built = buildFormulaFromWorkspace(workspace, fieldsRef.current);
-    const currentIssues = combineIssues(built.issues, built.expression, fieldsRef.current);
+    const localIssues = combineIssues(built.issues, built.expression, fieldsRef.current);
+    const currentIssues = localIssues.map((issue) => built.issues.includes(issue)
+      ? issue
+      : { ...issue, severity: "warning" as const });
     setExpression(built.expression ?? null);
     const nextScript = built.expression ? compileFormula(built.expression) : "";
     setScript(nextScript);
     setCodeDraft(nextScript);
     setCodeIssue("");
     setIssues(currentIssues);
-    setHasValidated(true);
-    setSaveMessage(currentIssues.length ? "Revisa las observaciones antes de usar la formula." : "Estructura visual y tipos de datos validos.");
+    if (currentIssues.some((issue) => issue.severity === "error") || !nextScript) {
+      setHasValidated(false);
+      setWorkflowStatus("BORRADOR");
+      setSaveMessage("Revisa las observaciones antes de usar la fórmula.");
+      return;
+    }
+
+    setValidationBusy(true);
+    try {
+      const response = await validateAviatorSource(nextScript, accessToken);
+      const engineIssues: FormulaIssue[] = (response.diagnostics ?? []).map((diagnostic) => ({
+        message: diagnostic.line
+          ? diagnostic.message + " (línea " + diagnostic.line + (diagnostic.column ? ", columna " + diagnostic.column : "") + ")"
+          : diagnostic.message,
+        path: diagnostic.line ? "source.line." + diagnostic.line : "source",
+        severity: diagnostic.severity
+      }));
+      const allIssues = [...currentIssues, ...engineIssues];
+      setIssues(allIssues);
+      const valid = response.valid && allIssues.every((issue) => issue.severity !== "error");
+      setHasValidated(valid);
+      setWorkflowStatus(valid ? persistedFormulaId ? "VERSION_GUARDADA" : "VALIDADA" : "BORRADOR");
+      setSaveMessage(valid ? "La fórmula compila con el motor AviatorScript y está lista para probarse." : "El motor AviatorScript encontró observaciones en la fórmula.");
+    } catch (error) {
+      setHasValidated(false);
+      setWorkflowStatus("BORRADOR");
+      setIssues([{ message: error instanceof Error ? error.message : "No se pudo validar con el motor AviatorScript.", path: "source", severity: "error" }]);
+      setSaveMessage("No se pudo validar la fórmula con el motor AviatorScript.");
+    } finally {
+      setValidationBusy(false);
+    }
+  }
+
+  function showCopiedFeedback(copyId: string) {
+    setCopiedCopyId(copyId);
+    if (copiedFeedbackTimerRef.current !== null) {
+      window.clearTimeout(copiedFeedbackTimerRef.current);
+    }
+    copiedFeedbackTimerRef.current = window.setTimeout(() => {
+      copiedFeedbackTimerRef.current = null;
+      setCopiedCopyId(null);
+    }, 1400);
   }
 
   async function copyScript() {
     if (!codeDraft) return;
     await navigator.clipboard.writeText(codeDraft);
-    setSaveMessage("Formula copiada al portapapeles.");
+    showCopiedFeedback("generated-script");
+    setSaveMessage("Fórmula copiada al portapapeles.");
+  }
+
+  async function copyCurl() {
+    if (!curlCommand) return;
+    await navigator.clipboard.writeText(curlCommand);
+    showCopiedFeedback("curl-command");
+    setSaveMessage("Comando cURL copiado al portapapeles.");
+  }
+
+  async function copyTestPayload() {
+    if (!testPayload) return;
+    await navigator.clipboard.writeText(testPayload);
+    showCopiedFeedback("test-payload");
+    setSaveMessage("JSON de prueba copiado al portapapeles.");
+  }
+
+  async function copyTestResult() {
+    if (!testResult) return;
+    await navigator.clipboard.writeText(JSON.stringify(testResult.value, null, 2));
+    showCopiedFeedback("test-result-json");
+    setSaveMessage("Resultado JSON copiado al portapapeles.");
+  }
+
+  async function copyTemplateExpression() {
+    if (!selectedTemplate?.expresion) return;
+    try {
+      await navigator.clipboard.writeText(selectedTemplate.expresion);
+      showCopiedFeedback("template-expression");
+      setTemplateMessage("Expresión copiada al portapapeles.");
+    } catch {
+      setTemplateMessage("No se pudo copiar la expresión al portapapeles.");
+    }
+  }
+
+  async function copyTemplateValue(value: string, label: string, copyId: string) {
+    if (!value || value === "No disponible") return;
+    try {
+      await navigator.clipboard.writeText(value);
+      showCopiedFeedback(copyId);
+      setTemplateMessage(`${label} copiado al portapapeles.`);
+    } catch {
+      setTemplateMessage(`No se pudo copiar ${label.toLowerCase()} al portapapeles.`);
+    }
   }
 
   function applyCodeDraft() {
@@ -551,26 +878,36 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
       setUserFields([]);
       workspace.clear();
       loadFormulaExpression(Blockly, workspace, parsed);
+      refreshFormula();
       setPayrollLayout("compact");
       setSelectedTemplateId("");
+      sourceOnlyTemplateRef.current = null;
+      setSourceOnlyTemplateId(null);
+      setRepresentationMode("visual");
       setTemplateMessage("");
       setCodeIssue("");
       setIssues(parsedIssues);
       setHasValidated(false);
       setTestResult(null);
       setTestError("");
-      setSaveMessage(parsedIssues.length ? "Codigo cargado, pero debes corregir las observaciones visuales." : "Codigo aplicado al lienzo visual.");
+      setSaveMessage(parsedIssues.length ? "Código cargado, pero debes corregir las observaciones visuales." : "Código aplicado al lienzo visual.");
       setMobileTab("blocks");
     } catch (error) {
       setCodeIssue(error instanceof Error ? error.message : "No se pudo interpretar el codigo AviatorScript.");
-      setSaveMessage("Corrige el codigo y vuelve a aplicarlo al lienzo.");
+      if (sourceOnlyTemplateId !== null) {
+        setScript(codeDraft);
+        setVisualSource(codeDraft);
+    setSaveMessage("La fórmula sigue en modo solo código; se actualizó su visualización sin modificar el lienzo.");
+      } else {
+        setSaveMessage("Corrige el código y vuelve a aplicarlo al lienzo.");
+      }
     }
   }
 
   function discardCodeDraft() {
     setCodeDraft(script);
     setCodeIssue("");
-    setSaveMessage("Cambios de codigo descartados.");
+      setSaveMessage("Cambios de código descartados.");
   }
 
   function decomposeCurrentFormula() {
@@ -579,7 +916,7 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
     if (!Blockly || !workspace || expression?.kind !== "payroll") return;
     if (decomposePayrollGraph(Blockly, workspace)) {
       setPayrollLayout("decomposed");
-      setSaveMessage("Formula descompuesta: cada parametro, validacion y sentencia se puede mover y revisar por separado.");
+      setSaveMessage("Fórmula descompuesta: cada parámetro, validación y sentencia se puede mover y revisar por separado.");
       refreshFormula();
     }
   }
@@ -590,22 +927,22 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
     if (!Blockly || !workspace || expression?.kind !== "payroll") return;
     if (compactPayrollGraph(Blockly, workspace)) {
       setPayrollLayout("compact");
-      setSaveMessage("Formula compactada en un solo bloque de nomina avanzada.");
+      setSaveMessage("Fórmula compactada en un solo bloque de nómina avanzada.");
       refreshFormula();
     }
   }
 
   async function executeTest() {
-    if (!expression || issues.length) return;
+    if (!script || !hasValidated || hasBlockingIssues) return;
     setTestBusy(true);
     setTestError("");
     setTestResult(null);
-    const startedAt = performance.now();
     try {
-      const payload = JSON.parse(testPayload) as unknown;
-      if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error("El JSON debe ser un objeto con los datos de contexto.");
-      const value = evaluateFormula(expression, payload);
-      setTestResult({ value, elapsed: Number((performance.now() - startedAt).toFixed(2)) });
+      const payload = readTestPayload(testPayload);
+      if (!payload) throw new Error("El JSON debe ser una solicitud con parametros validos.");
+      const response = await testAviatorSource(script, payload.parametros, accessToken);
+      if (!response.success) throw new Error(response.error || "No se pudo ejecutar la prueba con AviatorScript.");
+      setTestResult({ value: response.result, elapsed: response.executionTimeMs, engine: response.engine || "Motor AviatorScript" });
     } catch (error) {
       setTestError(error instanceof Error ? error.message : "No se pudo ejecutar la prueba.");
     } finally {
@@ -619,17 +956,6 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
     setSaveMessage("");
   }
 
-  function openVisualization() {
-    setViewMode("visualizer");
-    setSelectedFlowNodeId(undefined);
-    setSaveMessage("");
-  }
-
-  function applyVisualCode() {
-    applyCodeDraft();
-    setViewMode("builder");
-  }
-
   function selectFlowNode(node: AviatorFlowNode | undefined) {
     setSelectedFlowNodeId(node?.id);
   }
@@ -638,207 +964,191 @@ export function VisualFormulaBuilder({ schema: providedSchema, onSave }: VisualF
     setSelectedFlowNodeId(nodeId);
   }
 
+  function focusFlowLine(line: number) {
+    const candidates = (visualGraph?.nodes ?? [])
+      .filter((node) => node.data.source.startLine <= line && node.data.source.endLine >= line)
+      .sort((left, right) => {
+        const leftSpan = left.data.source.endLine - left.data.source.startLine;
+        const rightSpan = right.data.source.endLine - right.data.source.startLine;
+        return leftSpan - rightSpan || Math.abs(left.data.source.startLine - line) - Math.abs(right.data.source.startLine - line);
+      });
+    const target = candidates.find((node) => node.data.kind !== "start" && node.data.kind !== "end") ?? candidates[0];
+    if (!target) return;
+    flowFocusRequestId.current += 1;
+    setSelectedFlowNodeId(target.id);
+    setViewMode("visualizer");
+    setMobileTab("blocks");
+    setFlowFocusRequest({ nodeId: target.id, requestId: flowFocusRequestId.current });
+  }
+
   const validationLabel = issues.length
-    ? `${issues.length} observacion${issues.length === 1 ? "" : "es"}`
-    : hasValidated ? "Formula valida" : "Edicion en curso";
-  const validationState = issues.length ? "is-invalid" : hasValidated ? "is-valid" : "is-pending";
+    ? `${issues.length} observación${issues.length === 1 ? "" : "es"}`
+    : sourceOnlyTemplateId ? "Plantilla avanzada en modo solo código"
+    : hasValidated ? "Fórmula válida" : "Edición en curso";
+  const validationState = hasBlockingIssues ? "is-invalid" : hasValidated ? "is-valid" : "is-pending";
+  const workflowStatusLabel = workflowStatus === "VERSION_GUARDADA" ? "Versión guardada" : workflowStatus.charAt(0) + workflowStatus.slice(1).toLowerCase();
 
   return (
     <main className="formula-app">
-      <header className="formula-toolbar">
-        <div className="formula-brand">
-          <div className="formula-brand-mark" aria-hidden="true">ƒx</div>
-          <div>
-            <span className="formula-eyebrow">AVIATORSCRIPT STUDIO</span>
-            <h1>Constructor visual de formulas</h1>
-            <p>Arma la logica conectando bloques; la expresion se genera por ti.</p>
-          </div>
-        </div>
-        <div className="formula-actions">
-          <span className={`formula-connection ${schemaQuery.isError ? "is-warning" : ""}`}><span />{schemaQuery.isError ? "Esquema local" : `${fields.length} variables`}</span>
-          {expression?.kind === "payroll" && payrollLayout === "compact" && <button className="formula-button" onClick={decomposeCurrentFormula} type="button"><Blocks size={16} /> Descomponer</button>}
-          {expression?.kind === "payroll" && payrollLayout === "decomposed" && <button className="formula-button" onClick={compactCurrentFormula} type="button"><Blocks size={16} /> Compactar</button>}
-          <button className={`formula-button ${viewMode === "visualizer" ? "formula-button-primary" : ""}`} onClick={viewMode === "builder" ? openVisualization : () => setViewMode("builder")} type="button"><GitBranch size={16} /> {viewMode === "builder" ? "Visualizar flujo" : "Constructor"}</button>
-          <button className="formula-button" onClick={startNewFormula} type="button"><FilePlus2 size={16} /> Nueva</button>
-          <button className="formula-button" onClick={() => fileInputRef.current?.click()} type="button"><FolderOpen size={16} /> Abrir</button>
-          <input accept="application/json,.json" className="visually-hidden" onChange={openFormula} ref={fileInputRef} type="file" />
-          <button className="formula-button" disabled={!isHydrated || !blocklyReady} onClick={() => void saveFormula()} type="button"><Save size={16} /> Guardar</button>
-          <button className="formula-button formula-button-primary" disabled={!isHydrated || !blocklyReady} onClick={validateCurrentFormula} type="button"><CheckCircle2 size={16} /> Validar</button>
-          <button className="formula-button formula-button-primary" disabled={!isHydrated || !blocklyReady} onClick={openTestTab} type="button"><FlaskConical size={16} /> Probar</button>
-        </div>
-      </header>
-
-      <div className={`formula-status ${validationState}`}>
-        <div className="formula-status-main">
-          {issues.length ? <AlertCircle size={17} /> : hasValidated ? <CheckCircle2 size={17} /> : <span className="status-dot" />}
-          <strong>{validationLabel}</strong>
-        </div>
-        <span>{issues[0]?.message ?? saveMessage ?? (hasValidated ? "La formula esta lista para probarse." : "Arrastra bloques al lienzo para construir la formula.")}</span>
-      </div>
-
-      <div className="formula-heading">
-        <label htmlFor="formula-name">Nombre de la formula</label>
-        <input id="formula-name" maxLength={100} onChange={(event) => { setFormulaName(event.target.value); setSaveMessage(""); }} value={formulaName} />
-        <span className="formula-format">AST v1</span>
-      </div>
-
-      <section aria-label="Plantillas de formulas" className="formula-template-copy">
-        <div className="formula-template-intro">
-          <strong>Empezar desde una formula existente</strong>
-          <span>Elige una formula guardada para cargar una copia editable como nueva.</span>
-        </div>
-        <div className="formula-template-controls">
-          <select
-            aria-label="Seleccionar formula como plantilla"
-            disabled={templatesQuery.isLoading || !templatesQuery.data?.length}
-            onChange={(event) => {
-              const selected = templatesQuery.data?.find((item) => `${item.codigo}::${item.version}` === event.target.value);
-              setSelectedTemplateId(event.target.value);
+      <FormulaToolbar
+        actionButtonsDisabled={actionButtonsDisabled}
+        canActivate={canActivate}
+        canPublish={canPublish}
+        databaseSaveBusy={databaseSaveBusy}
+        databaseSaveDisabled={databaseSaveDisabled}
+        expression={expression}
+        fieldsLength={fields.length}
+        fileInputRef={fileInputRef}
+        formulaCode={formulaCode}
+        formulaName={formulaName}
+        issues={issues}
+        lifecycleBusy={lifecycleBusy}
+        onActivate={() => void activateCurrentFormula()}
+        onCompact={compactCurrentFormula}
+        onDecompose={decomposeCurrentFormula}
+        onFormulaCodeChange={(value) => { setFormulaCode(value); setSaveMessage(""); }}
+        onFormulaNameChange={(value) => { setFormulaName(value); setSaveMessage(""); }}
+        onNew={startNewFormula}
+        onNewVersion={createNewVersionFromTemplate}
+        onOpen={openFormula}
+        onPublish={() => void publishCurrentFormula()}
+        onSave={() => void saveFormula()}
+        onSaveVersion={() => void saveFormulaToDatabase()}
+        onTest={openTestTab}
+        onValidate={() => void validateCurrentFormula()}
+        payrollLayout={payrollLayout}
+        representationActionsDisabledReason={representationActionsDisabledReason}
+        representationInfo={representationInfo}
+        representationMode={representationMode}
+        saveMessage={saveMessage}
+        schemaIsError={Boolean(schemaQuery.isError)}
+        selectedTemplate={selectedTemplate}
+        templateContent={
+          <FormulaTemplateCatalog
+            catalogState={templateCatalogState}
+            copiedCopyId={copiedCopyId}
+            formulaTemplates={formulaTemplates}
+            isFetching={templatesQuery.isFetching}
+            isLoading={templatesQuery.isLoading}
+            onCloseInfo={() => { setTemplateInfoOpen(false); setTemplateInfoMaximized(false); }}
+            onCopyExpression={() => void copyTemplateExpression()}
+            onCopyValue={(value, label, copyId) => void copyTemplateValue(value, label, copyId)}
+            onRefresh={() => void templatesQuery.refetch()}
+            onSelectTemplate={(value) => {
+              const selected = formulaTemplates.find((item) => `${item.codigo}::${item.version}` === value);
+              setSelectedTemplateId(value);
               setTemplateMessage("");
+              setTemplateInfoOpen(Boolean(selected));
+              setTemplateInfoMaximized(false);
               if (selected) useFormulaTemplate(selected);
             }}
-            value={selectedTemplateId}
-          >
-            <option value="">{templatesQuery.isLoading ? "Cargando formulas..." : "Selecciona una formula"}</option>
-            {templatesQuery.data?.map((template) => (
-              <option key={`${template.codigo}::${template.version}`} value={`${template.codigo}::${template.version}`}>
-                {template.nombre} · {template.codigo} · v{template.version}{template.activa ? " · Activa" : " · Inactiva"}
-              </option>
-            ))}
-          </select>
-          <button
-            aria-label="Actualizar catalogo de formulas"
-            className="formula-icon-button"
-            disabled={templatesQuery.isFetching}
-            onClick={() => void templatesQuery.refetch()}
-            title="Actualizar catalogo"
-            type="button"
-          ><RefreshCw size={16} /></button>
+            onToggleInfoMaximized={() => setTemplateInfoMaximized((current) => !current)}
+            selectedTemplate={selectedTemplate}
+            selectedTemplateId={selectedTemplateId}
+            templateInfoMaximized={templateInfoMaximized}
+            templateInfoOpen={templateInfoOpen}
+            templateMessage={templateMessage}
+            templateVariableFields={templateVariableFields}
+          />
+        }
+        validationBusy={validationBusy}
+        validationLabel={validationLabel}
+        validationState={validationState}
+        workflowStatus={workflowStatus}
+        workflowStatusLabel={workflowStatusLabel}
+      />
+
+      {representationMode === "code" && (
+        <div className="formula-representation-banner" role="status">
+          <Code2 size={16} />
+          <div>
+            <strong>La plantilla se cargo en modo solo codigo.</strong>
+            <span>{representationInfo.description} Puedes revisar o editar la fuente y volver a aplicar cuando el codigo sea representable. Mientras tanto, las acciones visuales, Guardar, Validar y Probar permanecen deshabilitadas para no perder la formula.</span>
+          </div>
         </div>
-        <p aria-live="polite" className={`formula-template-message ${templatesQuery.isError || templateMessage.startsWith("No se pudo") ? "is-error" : ""}`}>
-          {templateMessage || (templatesQuery.isError
-            ? "No se pudo conectar al catalogo. Puedes reintentar con el boton de actualizar."
-            : templatesQuery.data?.length
-              ? `${templatesQuery.data.length} formulas disponibles como plantillas de solo lectura.`
-              : templatesQuery.isLoading ? "Consultando el catalogo de formulas..." : "No hay formulas guardadas para usar como plantilla.")}
-        </p>
-        {selectedTemplate && (
-          <p className="formula-template-description">
-            <strong>Qué realiza:</strong> {selectedTemplate.descripcion?.trim() || "No hay una descripción disponible para esta fórmula."}
-          </p>
-        )}
-      </section>
+      )}
 
-      {viewMode === "builder" && <nav aria-label="Panel de trabajo" className="formula-mobile-tabs">
-        <button aria-pressed={mobileTab === "blocks"} className={mobileTab === "blocks" ? "is-active" : ""} onClick={() => setMobileTab("blocks")} type="button">Bloques</button>
-        <button aria-pressed={mobileTab === "script"} className={mobileTab === "script" ? "is-active" : ""} onClick={() => setMobileTab("script")} type="button">{panelTab === "test" ? "Probar regla" : "AviatorScript"}</button>
-      </nav>}
+      <nav aria-label="Panel de trabajo movil" className="formula-mobile-tabs">
+        <button aria-pressed={mobileTab === "blocks"} className={mobileTab === "blocks" ? "is-active" : ""} onClick={() => setMobileTab("blocks")} title="Mostrar el lienzo de bloques y las vistas del flujo" type="button">Bloques</button>
+        <button aria-pressed={mobileTab === "script"} className={mobileTab === "script" ? "is-active" : ""} onClick={() => setMobileTab("script")} title="Mostrar el código, la prueba o el comando cURL" type="button">{panelTab === "test" ? "Probar fórmula" : panelTab === "curl" ? "cURL" : "AviatorScript"}</button>
+      </nav>
 
-      {viewMode === "visualizer" ? <AviatorVisualizationWorkspace
-        error={visualError}
-        graph={visualGraph}
-        loading={visualLoading}
-        onApplyToBuilder={applyVisualCode}
-        onBackToBuilder={() => setViewMode("builder")}
-        onRetry={() => {
-          setViewMode("builder");
-          window.requestAnimationFrame(() => setViewMode("visualizer"));
-        }}
-        onSelectNode={selectFlowNode}
-        onSelectRelated={selectRelatedFlowNode}
-        onSourceChange={(value) => { setCodeDraft(value); setCodeIssue(""); setSaveMessage(""); }}
-        selectedNodeId={selectedFlowNodeId}
-        source={codeDraft}
-      /> : <section className="formula-workbench">
-        {maximizedPanel && <button aria-label="Cerrar panel maximizado" className="panel-maximize-backdrop" onClick={() => setMaximizedPanel(null)} tabIndex={-1} type="button" />}
+      <section
+        className="formula-workbench"
+        ref={workbenchRef}
+        style={scriptPanelWidth === null ? undefined : { "--formula-script-width": `${scriptPanelWidth}px` } as CSSProperties}
+      >
+        {maximizedPanel && <button aria-label="Cerrar panel maximizado" className="panel-maximize-backdrop" onClick={() => setMaximizedPanel(null)} tabIndex={-1} title="Cerrar el panel maximizado" type="button" />}
+        <FormulaWorkspacePanel
+          flowFocusRequest={flowFocusRequest}
+          hostRef={hostRef}
+          maximized={maximizedPanel === "workspace"}
+          mobileVisible={mobileTab === "blocks"}
+          onSelectNode={selectFlowNode}
+          onSelectRelated={selectRelatedFlowNode}
+          onToggleMaximize={() => toggleMaximizedPanel("workspace")}
+          onViewModeChange={(mode) => { setViewMode(mode); setMobileTab("blocks"); }}
+          selectedFlowNodeId={selectedFlowNodeId}
+          viewMode={viewMode}
+          visualError={visualError}
+          visualGraph={visualGraph}
+          visualLoading={visualLoading}
+        />
         <div
-          aria-label={maximizedPanel === "workspace" ? "Lienzo de bloques ampliado" : undefined}
-          aria-modal={maximizedPanel === "workspace" ? true : undefined}
-          className={`workspace-panel ${mobileTab === "blocks" ? "mobile-visible" : "mobile-hidden"} ${maximizedPanel === "workspace" ? "panel-maximized" : ""}`}
-          data-maximized-panel={maximizedPanel === "workspace" ? "workspace" : undefined}
-          role={maximizedPanel === "workspace" ? "dialog" : undefined}
-          tabIndex={maximizedPanel === "workspace" ? -1 : undefined}
-        >
-          <div aria-label="Lienzo de bloques" className="block-workspace" ref={hostRef} />
-          <button
-            aria-label={maximizedPanel === "workspace" ? "Restaurar lienzo" : "Maximizar lienzo"}
-            className="formula-icon-button panel-maximize-button"
-            onClick={() => toggleMaximizedPanel("workspace")}
-            title={maximizedPanel === "workspace" ? "Restaurar lienzo" : "Maximizar lienzo"}
-            type="button"
-          >{maximizedPanel === "workspace" ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
-        </div>
-        <aside
-          aria-label={maximizedPanel === "script" ? (panelTab === "script" ? "AviatorScript ampliado" : "Prueba de regla ampliada") : undefined}
-          aria-modal={maximizedPanel === "script" ? true : undefined}
-          className={`script-panel ${panelTab === "test" ? "is-testing" : ""} ${mobileTab === "script" ? "mobile-visible" : "mobile-hidden"} ${maximizedPanel === "script" ? "panel-maximized" : ""}`}
-          data-maximized-panel={maximizedPanel === "script" ? "script" : undefined}
-          role={maximizedPanel === "script" ? "dialog" : undefined}
-          tabIndex={maximizedPanel === "script" ? -1 : undefined}
-        >
-          <div className="script-panel-header">
-            <div>
-              <span className="formula-eyebrow">{panelTab === "script" ? "EXPRESION GENERADA" : "SANDBOX LOCAL"}</span>
-              <h2 id="script-panel-title">{panelTab === "script" ? "AviatorScript" : "Probar regla"}</h2>
-            </div>
-            <div className="script-panel-header-actions">
-              {panelTab === "script" && <button aria-label="Copiar formula" className="formula-icon-button" disabled={!script} onClick={() => void copyScript()} title="Copiar formula" type="button"><Clipboard size={17} /></button>}
-              <button
-                aria-label={maximizedPanel === "script" ? "Restaurar panel" : "Maximizar panel"}
-                className="formula-icon-button"
-                onClick={() => toggleMaximizedPanel("script")}
-                title={maximizedPanel === "script" ? "Restaurar panel" : "Maximizar panel"}
-                type="button"
-              >{maximizedPanel === "script" ? <Minimize2 size={17} /> : <Maximize2 size={17} />}</button>
-            </div>
-          </div>
-          <div aria-label="Pestañas del panel de fórmula" className="script-panel-tabs" role="tablist">
-            <button aria-controls="formula-panel-content" aria-selected={panelTab === "script"} className={panelTab === "script" ? "is-active" : ""} id="aviatorscript-panel-tab" onClick={() => setPanelTab("script")} role="tab" type="button">AviatorScript</button>
-            <button aria-controls="formula-panel-content" aria-selected={panelTab === "test"} className={panelTab === "test" ? "is-active" : ""} id="test-rule-panel-tab" onClick={() => setPanelTab("test")} role="tab" type="button">Probar regla</button>
-          </div>
-          <div aria-labelledby={panelTab === "script" ? "aviatorscript-panel-tab" : "test-rule-panel-tab"} className="formula-panel-content" id="formula-panel-content" role="tabpanel">
-            {panelTab === "script" ? <>
-              <textarea
-                aria-label="Codigo AviatorScript editable"
-                className={`script-editor ${codeIssue ? "has-error" : ""}`}
-                onChange={(event) => { setCodeDraft(event.target.value); setCodeIssue(""); setSaveMessage(""); }}
-                spellCheck={false}
-                value={codeDraft}
-              />
-              <div className="script-editor-actions">
-                <button className="formula-button" disabled={!codeDraft.trim() || codeDraft === script} onClick={discardCodeDraft} type="button">Descartar cambios</button>
-                <button className="formula-button formula-button-primary" disabled={!codeDraft.trim() || codeDraft === script} onClick={applyCodeDraft} type="button">Aplicar al grafico</button>
-              </div>
-              {codeIssue && <div className="formula-issue script-editor-error"><AlertCircle size={15} /><span>{codeIssue}</span></div>}
-              <div className="script-type-line"><span>Resultado</span><strong>{expression?.valueType ?? "pendiente"}</strong></div>
-              <div className="formula-issues" aria-live="polite">
-                {issues.length ? issues.map((issue) => (
-                  <div className="formula-issue" key={`${issue.path}-${issue.message}`}><AlertCircle size={15} /><span>{issue.message}</span><code>{issue.path}</code></div>
-                )) : <div className="formula-valid-note"><Check size={15} /> Los tipos de datos y las conexiones estan listos.</div>}
-              </div>
-              <p className="script-note">Edita el codigo y pulsa <strong>Aplicar al grafico</strong>. Solo se aceptan instrucciones que el editor visual puede representar.</p>
-              {expression && <FormulaTestValues
-                expression={expression}
-                fields={fields}
-                onOpenJson={() => setPanelTab("test")}
-                onPayloadChange={(value) => { setTestPayload(value); setTestResult(null); setTestError(""); }}
-                payload={testPayload}
-              />}
-            </> : <>
-              <p className="test-drawer-copy">Ingresa los datos de contexto en JSON y ejecuta la fórmula actual.</p>
-              <label className="test-payload-label" htmlFor="formula-test-payload">Datos de prueba (JSON)</label>
-              <textarea className="test-payload" id="formula-test-payload" onChange={(event) => { setTestPayload(event.target.value); setTestResult(null); setTestError(""); }} spellCheck={false} value={testPayload} />
-              <div className="test-drawer-actions">
-                <button className="formula-button" onClick={() => { if (expression) setTestPayload(createFormulaTestPayload(expression, fields, undefined, false)); setTestError(""); setTestResult(null); }} type="button">Restaurar ejemplo</button>
-                <button className="formula-button formula-button-primary" disabled={testBusy || issues.length > 0} onClick={() => void executeTest()} type="button">{testBusy ? "Calculando..." : "Ejecutar prueba"}</button>
-              </div>
-              {testError && <div className="test-result is-error"><AlertCircle size={18} /><span>{testError}</span></div>}
-              {testResult && <div className="test-result is-success"><CheckCircle2 size={18} /><div><strong>Resultado (JSON)</strong><pre className="test-result-json">{JSON.stringify(testResult.value, null, 2) ?? "null"}</pre><small>{testResult.elapsed} ms · evaluador local</small></div></div>}
-              {issues.length > 0 && <div className="test-result is-error"><AlertCircle size={18} /><span>Corrige las observaciones de la formula antes de probarla.</span></div>}
-            </>}
-          </div>
-        </aside>
-      </section>}
+          aria-label="Ajustar ancho de los paneles"
+          aria-orientation="vertical"
+          className="formula-workbench-resizer"
+          onKeyDown={resizeWorkbenchWithKeyboard}
+          onPointerDown={startWorkbenchResize}
+          role="separator"
+          tabIndex={0}
+          title="Arrastra para ajustar el ancho de los paneles"
+        />
+        <FormulaScriptPanel
+          calculationEndpoint={calculationEndpoint}
+          calculationEndpointError={calculationEndpointQuery.isError}
+          calculationEndpointLoading={calculationEndpointQuery.isLoading}
+          codeDraft={codeDraft}
+          codeIssue={codeIssue}
+          copiedCopyId={copiedCopyId}
+          curlCommand={curlCommand}
+          expression={expression}
+          fields={fields}
+          hasBlockingIssues={hasBlockingIssues}
+          hasValidated={hasValidated}
+          issues={issues}
+          maximized={maximizedPanel === "script"}
+          mobileVisible={mobileTab === "script"}
+          onApplyCodeDraft={applyCodeDraft}
+          onCodeDraftChange={(value) => { setCodeDraft(value); setCodeIssue(""); setSaveMessage(""); }}
+          onCopyCurl={() => void copyCurl()}
+          onCopyPayload={() => void copyTestPayload()}
+          onCopyResult={() => void copyTestResult()}
+          onCopyScript={() => void copyScript()}
+          onDiscardCodeDraft={discardCodeDraft}
+          onExecuteTest={() => void executeTest()}
+          onLineClick={focusFlowLine}
+          onOpenJson={() => setPanelTab("test")}
+          onPanelTabChange={setPanelTab}
+          onPayloadChange={(value) => { setTestPayload(value); setTestResult(null); setTestError(""); }}
+          onRestorePayload={() => { if (expression) setTestPayload(createFormulaTestPayload(expression, fields, undefined, false)); setTestError(""); setTestResult(null); }}
+          onTestPanelResizeKeyDown={resizeTestPanelWithKeyboard}
+          onTestPanelResizePointerDown={startTestPanelResize}
+          onToggleMaximize={() => toggleMaximizedPanel("script")}
+          panelTab={panelTab}
+          representationLabel={representationInfo.label}
+          representationMode={representationMode}
+          script={script}
+          scriptPanelRef={scriptPanelRef}
+          selectedFlowNodeId={selectedFlowNodeId}
+          testBusy={testBusy}
+          testError={testError}
+          testPayload={testPayload}
+          testPayloadHeight={testPayloadHeight}
+          testResult={testResult}
+          visualGraph={visualGraph}
+        />
+      </section>
 
       <div className="formula-footer"><span>Contexto JVM</span><span>{fields.map((field) => field.label).join(" · ")}</span></div>
     </main>

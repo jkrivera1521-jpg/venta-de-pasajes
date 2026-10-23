@@ -1,7 +1,7 @@
-import { DEFAULT_SCHEMA } from "../../../../../lib/rules";
+import { CANONICAL_AVIATOR_SCHEMA } from "../../../../../lib/aviator-contract";
 
 export const dynamic = "force-dynamic";
 
 export function GET() {
-  return Response.json(DEFAULT_SCHEMA);
+  return Response.json(CANONICAL_AVIATOR_SCHEMA);
 }

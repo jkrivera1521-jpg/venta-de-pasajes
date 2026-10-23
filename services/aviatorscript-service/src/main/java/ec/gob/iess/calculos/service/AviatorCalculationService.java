@@ -2,7 +2,6 @@ package ec.gob.iess.calculos.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.googlecode.aviator.AviatorEvaluator;
 import com.googlecode.aviator.Expression;
 import com.googlecode.aviator.exception.StandardError;
 import ec.gob.iess.calculos.dto.CalculoRequest;
@@ -57,7 +56,7 @@ public class AviatorCalculationService {
             registro.versionFormula = formula.version;
             String clave = formula.codigo + ":" + formula.version;
             Expression expresion = cache.computeIfAbsent(
-                clave, ignored -> AviatorEvaluator.compile(formula.expresion)
+                clave, ignored -> AviatorScriptEngine.compile(formula.expresion)
             );
 
             Object valor = expresion.execute(registro.parametros);

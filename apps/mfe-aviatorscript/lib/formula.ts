@@ -1,25 +1,21 @@
-import type { SchemaField, SchemaFieldType } from "./types";
+import { roundCurrency, type SchemaField, type SchemaFieldType } from "./types";
 import { DEFAULT_PAYROLL_CONFIG, evaluatePayrollFormula, generatePayrollAviatorScript, normalizePayrollConfig, validatePayrollInputValidations, type PayrollFormulaConfig } from "./payroll-formula";
+import type { AviatorBinaryOperator, AviatorFunctionName } from "./aviator-contract";
 
-export type FormulaValueType = SchemaFieldType | "unknown" | "object" | "array";
-export type FormulaLiteralValue = number | string | boolean;
-export type FormulaBinaryOperator =
-  | "+" | "-" | "*" | "/" | "%" | "**"
-  | "&" | "|" | "^" | "<<" | ">>" | ">>>"
-  | "==" | "!=" | "=~" | ">" | ">=" | "<" | "<=" | "&&" | "||";
-export type FormulaFunctionName =
-  | "math.abs" | "math.sqrt" | "math.round" | "math.pow"
-  | "string.contains" | "string.starts_with" | "string.ends_with"
-  | "seq.list" | "seq.map" | "seq.add";
+export type FormulaValueType = SchemaFieldType | "unknown" | "null" | "object" | "array" | "lambda";
+export type FormulaLiteralValue = number | string | boolean | null;
+export type FormulaBinaryOperator = AviatorBinaryOperator;
+export type FormulaFunctionName = AviatorFunctionName;
 
 export type FormulaExpression =
-  | { kind: "literal"; valueType: Exclude<FormulaValueType, "unknown" | "array" | "object">; value: FormulaLiteralValue }
+  | { kind: "literal"; valueType: Exclude<FormulaValueType, "unknown" | "array" | "object" | "lambda">; value: FormulaLiteralValue }
   | { kind: "variable"; key: string; valueType: FormulaValueType }
   | { kind: "member"; object: FormulaExpression; property: string; valueType: FormulaValueType }
   | { kind: "binary"; operator: FormulaBinaryOperator; left: FormulaExpression; right: FormulaExpression; valueType: FormulaValueType }
   | { kind: "unary"; operator: "!" | "-" | "~"; operand: FormulaExpression; valueType: FormulaValueType }
   | { kind: "conditional"; condition: FormulaExpression; whenTrue: FormulaExpression; whenFalse: FormulaExpression; valueType: FormulaValueType }
   | { kind: "call"; name: FormulaFunctionName; args: FormulaExpression[]; valueType: FormulaValueType }
+  | { kind: "lambda"; parameters: string[]; body: FormulaExpression; valueType: "lambda" }
   | { kind: "array"; items: FormulaExpression[]; valueType: "array" }
   | { kind: "object"; entries: { key: string; value: FormulaExpression }[]; valueType: "object" }
   | { kind: "payroll"; config: PayrollFormulaConfig; valueType: "object" };
@@ -51,13 +47,30 @@ export interface FormulaDocument {
 }
 
 export interface FormulaTemplate {
+  id: number;
   codigo: string;
   nombre: string;
   descripcion?: string | null;
   version: number;
   expresion: string;
+  ejemplo?: Record<string, unknown> | null;
   activa: boolean;
   fechaCreacion?: string | null;
+  estado?: "BORRADOR" | "PUBLICADA" | null;
+  creadoPor?: string | null;
+  publicadoPor?: string | null;
+  fechaPublicacion?: string | null;
+  activadoPor?: string | null;
+  fechaActivacion?: string | null;
+}
+
+export interface FormulaPersistenceRequest {
+  codigo: string;
+  nombre: string;
+  descripcion?: string | null;
+  expresion: string;
+  ejemplo: Record<string, unknown>;
+  creadoPor?: string | null;
 }
 
 export interface FormulaIssue {
@@ -75,6 +88,18 @@ const RELATIONAL_OPERATORS = new Set<FormulaBinaryOperator>([">", ">=", "<", "<=
 const NUMERIC_OPERATORS = new Set<FormulaBinaryOperator>(["+", "-", "*", "/", "%", "**", "&", "|", "^", "<<", ">>", ">>>"]);
 const BOOLEAN_OPERATORS = new Set<FormulaBinaryOperator>(["==", "!=", "=~", ">", ">=", "<", "<=", "&&", "||"]);
 
+function isNumericType(type: FormulaValueType): boolean {
+  return type === "number" || type === "currency" || type === "unknown";
+}
+
+function isTextType(type: FormulaValueType): boolean {
+  return ["string", "enum", "date", "unknown"].includes(type);
+}
+
+function isBooleanCompatible(type: FormulaValueType): boolean {
+  return type === "boolean" || type === "unknown";
+}
+
 export function formulaExpressionType(expression: FormulaRoot): FormulaValueType {
   return expression.valueType;
 }
@@ -84,7 +109,9 @@ function compileExpression(expression: FormulaExpression): string {
     case "payroll":
       return generatePayrollAviatorScript(expression.config);
     case "literal":
-      return typeof expression.value === "string" ? JSON.stringify(expression.value) : String(expression.value);
+      return expression.value === null
+        ? "nil"
+        : typeof expression.value === "string" ? JSON.stringify(expression.value) : String(expression.value);
     case "variable":
       return expression.key;
     case "binary":
@@ -95,6 +122,8 @@ function compileExpression(expression: FormulaExpression): string {
       return `(${compileExpression(expression.condition)} ? ${compileExpression(expression.whenTrue)} : ${compileExpression(expression.whenFalse)})`;
     case "member":
       return `${compileExpression(expression.object)}.${expression.property}`;
+    case "lambda":
+      return `lambda(${expression.parameters.join(", ")}) -> ${compileExpression(expression.body)} end`;
     case "call":
       return `${expression.name}(${expression.args.map(compileExpression).join(", ")})`;
     case "array":
@@ -216,7 +245,7 @@ export function validateFormula(expression: FormulaRoot, fields: SchemaField[]):
     if (node.kind === "unary") {
       const operandType = visit(node.operand, `${path}.operand`, locals);
       const expected = node.operator === "!" ? "boolean" : "number";
-      if (operandType !== expected && operandType !== "unknown") {
+      if (expected === "number" ? !isNumericType(operandType) : operandType !== expected && operandType !== "unknown") {
         issues.push({ path, message: node.operator === "!" ? "NOT necesita una condicion booleana." : "Este operador unario necesita un numero.", severity: "error" });
       }
       return expected;
@@ -225,7 +254,7 @@ export function validateFormula(expression: FormulaRoot, fields: SchemaField[]):
     if (node.kind === "binary") {
       const leftType = visit(node.left, `${path}.left`, locals);
       const rightType = visit(node.right, `${path}.right`, locals);
-      const numeric = [leftType, rightType].every((type) => type === "number" || type === "unknown");
+      const numeric = [leftType, rightType].every(isNumericType);
       const boolean = [leftType, rightType].every((type) => type === "boolean" || type === "unknown");
       if (NUMERIC_OPERATORS.has(node.operator) && !numeric) {
         issues.push({ path, message: "La operacion matematica requiere dos valores numericos.", severity: "error" });
@@ -240,8 +269,7 @@ export function validateFormula(expression: FormulaRoot, fields: SchemaField[]):
         issues.push({ path, message: "La comparacion por patron requiere dos valores de texto.", severity: "error" });
       }
       if (["==", "!="].includes(node.operator) && leftType !== "unknown" && rightType !== "unknown" && leftType !== rightType) {
-        const textTypes = new Set<FormulaValueType>(["string", "enum", "date"]);
-        if (!(textTypes.has(leftType) && textTypes.has(rightType))) {
+        if (!((isTextType(leftType) && isTextType(rightType)) || (isNumericType(leftType) && isNumericType(rightType)))) {
           issues.push({ path, message: "Compara valores del mismo tipo de dato.", severity: "error" });
         }
       }
@@ -261,14 +289,31 @@ export function validateFormula(expression: FormulaRoot, fields: SchemaField[]):
       return trueType === "unknown" ? falseType : trueType;
     }
 
+    if (node.kind === "lambda") {
+      const lambdaLocals = new Map(locals);
+      node.parameters.forEach((parameter) => lambdaLocals.set(parameter, "unknown"));
+      visit(node.body, `${path}.body`, lambdaLocals);
+      return node.valueType;
+    }
+
     if (node.kind !== "call") return node.valueType;
 
     const argTypes = node.args.map((argument, index) => visit(argument, `${path}.args[${index}]`, locals));
-    if (argTypes.some((type) => type !== "number" && type !== "unknown") && node.name.startsWith("math.")) {
+    if (argTypes.some((type) => !isNumericType(type)) && node.name.startsWith("math.")) {
       issues.push({ path, message: "Esta funcion matematica solo admite numeros.", severity: "error" });
     }
     if (argTypes.some((type) => !["string", "enum", "date", "unknown"].includes(type)) && node.name.startsWith("string.")) {
       issues.push({ path, message: "Esta funcion de texto solo admite valores de texto.", severity: "error" });
+    }
+    if (["seq.count", "seq.filter", "seq.reduce", "seq.include"].includes(node.name)) {
+      const collectionType = argTypes[0];
+      if (collectionType !== "array" && collectionType !== "unknown") {
+        issues.push({ path: `${path}.args[0]`, message: "Esta funcion de colecciones necesita una lista.", severity: "error" });
+      }
+      const lambdaIndex = node.name === "seq.reduce" ? 1 : node.name === "seq.filter" ? 1 : -1;
+      if (lambdaIndex >= 0 && node.args[lambdaIndex]?.kind !== "lambda") {
+        issues.push({ path: `${path}.args[${lambdaIndex}]`, message: "Esta funcion necesita una lambda como callback.", severity: "error" });
+      }
     }
     return node.valueType;
   }
@@ -295,10 +340,10 @@ export function validateFormula(expression: FormulaRoot, fields: SchemaField[]):
         case "continue":
         case "break": break;
         case "if":
-          if (visit(statement.condition, `${statementPath}.condition`, locals) !== "boolean") issues.push({ path: `${statementPath}.condition`, message: "La condicion necesita devolver verdadero o falso.", severity: "error" });
+          if (!isBooleanCompatible(visit(statement.condition, `${statementPath}.condition`, locals))) issues.push({ path: `${statementPath}.condition`, message: "La condicion necesita devolver verdadero o falso.", severity: "error" });
           visitStatements(statement.then, `${statementPath}.then`, new Map(locals));
           statement.elseIf.forEach((branch, branchIndex) => {
-            if (visit(branch.condition, `${statementPath}.elseIf[${branchIndex}].condition`, locals) !== "boolean") issues.push({ path: `${statementPath}.elseIf[${branchIndex}].condition`, message: "La condicion necesita devolver verdadero o falso.", severity: "error" });
+            if (!isBooleanCompatible(visit(branch.condition, `${statementPath}.elseIf[${branchIndex}].condition`, locals))) issues.push({ path: `${statementPath}.elseIf[${branchIndex}].condition`, message: "La condicion necesita devolver verdadero o falso.", severity: "error" });
             visitStatements(branch.body, `${statementPath}.elseIf[${branchIndex}].body`, new Map(locals));
           });
           visitStatements(statement.otherwise, `${statementPath}.otherwise`, new Map(locals));
@@ -312,7 +357,7 @@ export function validateFormula(expression: FormulaRoot, fields: SchemaField[]):
           break;
         }
         case "while":
-          if (visit(statement.condition, `${statementPath}.condition`, locals) !== "boolean") issues.push({ path: `${statementPath}.condition`, message: "La condicion necesita devolver verdadero o falso.", severity: "error" });
+          if (!isBooleanCompatible(visit(statement.condition, `${statementPath}.condition`, locals))) issues.push({ path: `${statementPath}.condition`, message: "La condicion necesita devolver verdadero o falso.", severity: "error" });
           visitStatements(statement.body, `${statementPath}.body`, new Map(locals));
           break;
       }
@@ -337,60 +382,98 @@ function resolvePath(data: unknown, path: string): unknown {
 export function evaluateFormula(expression: FormulaRoot, data: unknown): unknown {
   const locals: Record<string, unknown> = {};
   const control = { returned: false, value: undefined as unknown };
-  function evaluate(node: FormulaExpression): unknown {
+  function evaluate(node: FormulaExpression, scope: Record<string, unknown> = locals): unknown {
     if (node.kind === "payroll") return evaluatePayrollFormula(data, node.config ?? DEFAULT_PAYROLL_CONFIG);
     if (node.kind === "literal") return node.value;
     if (node.kind === "variable") {
-      const value = resolvePath({ ...(data && typeof data === "object" ? data as Record<string, unknown> : {}), ...locals }, node.key);
+      const value = resolvePath({ ...(data && typeof data === "object" ? data as Record<string, unknown> : {}), ...scope }, node.key);
       if (value === undefined) throw new Error(`No se encontro la variable ${node.key} en los datos de prueba.`);
+      if (node.valueType === "currency") {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) throw new Error(`La variable ${node.key} debe contener un valor monetario numerico.`);
+        return roundCurrency(numeric);
+      }
       return value;
     }
     if (node.kind === "member") {
-      const object = evaluate(node.object);
+      const object = evaluate(node.object, scope);
       if (!object || typeof object !== "object") throw new Error(`No se puede leer ${node.property} en un valor que no es objeto.`);
       return (object as Record<string, unknown>)[node.property];
     }
     if (node.kind === "unary") {
-      const operand = evaluate(node.operand);
+      const operand = evaluate(node.operand, scope);
       if (node.operator === "!") return !operand;
       if (node.operator === "~") return ~Number(operand);
       return -Number(operand);
     }
     if (node.kind === "conditional") {
-      return evaluate(node.condition) ? evaluate(node.whenTrue) : evaluate(node.whenFalse);
+      return evaluate(node.condition, scope) ? evaluate(node.whenTrue, scope) : evaluate(node.whenFalse, scope);
     }
+    if (node.kind === "lambda") return node;
     if (node.kind === "call") {
-      const args = node.args.map(evaluate);
       switch (node.name) {
-        case "math.abs": return Math.abs(Number(args[0]));
+        case "math.abs": return Math.abs(Number(evaluate(node.args[0], scope)));
         case "math.sqrt": {
-          const value = Number(args[0]);
+          const value = Number(evaluate(node.args[0], scope));
           if (value < 0) throw new Error("La raiz cuadrada requiere un valor mayor o igual que cero.");
           return Math.sqrt(value);
         }
-        case "math.round": return Math.round(Number(args[0]));
-        case "math.pow": return Math.pow(Number(args[0]), Number(args[1]));
-        case "string.contains": return String(args[0]).includes(String(args[1]));
-        case "string.starts_with": return String(args[0]).startsWith(String(args[1]));
-        case "string.ends_with": return String(args[0]).endsWith(String(args[1]));
-        case "seq.list": return args;
+        case "math.round": return Math.round(Number(evaluate(node.args[0], scope)));
+        case "math.pow": return Math.pow(Number(evaluate(node.args[0], scope)), Number(evaluate(node.args[1], scope)));
+        case "math.min": return Math.min(Number(evaluate(node.args[0], scope)), Number(evaluate(node.args[1], scope)));
+        case "math.max": return Math.max(Number(evaluate(node.args[0], scope)), Number(evaluate(node.args[1], scope)));
+        case "string.contains": return String(evaluate(node.args[0], scope)).includes(String(evaluate(node.args[1], scope)));
+        case "string.starts_with": return String(evaluate(node.args[0], scope)).startsWith(String(evaluate(node.args[1], scope)));
+        case "string.ends_with": return String(evaluate(node.args[0], scope)).endsWith(String(evaluate(node.args[1], scope)));
+        case "seq.list": return node.args.map((argument) => evaluate(argument, scope));
         case "seq.map": {
           const result: Record<string, unknown> = {};
-          for (let index = 0; index < args.length; index += 2) result[String(args[index])] = args[index + 1];
+          for (let index = 0; index < node.args.length; index += 2) result[String(evaluate(node.args[index], scope))] = evaluate(node.args[index + 1], scope);
           return result;
         }
         case "seq.add": {
-          if (!Array.isArray(args[0])) throw new Error("seq.add necesita una lista como primer argumento.");
-          args[0].push(args[1]);
-          return args[0];
+          const list = evaluate(node.args[0], scope);
+          if (!Array.isArray(list)) throw new Error("seq.add necesita una lista como primer argumento.");
+          list.push(evaluate(node.args[1], scope));
+          return list;
+        }
+        case "seq.include": {
+          const list = evaluate(node.args[0], scope);
+          const item = evaluate(node.args[1], scope);
+          return Array.isArray(list) && list.some((value) => value === item);
+        }
+        case "seq.count": {
+          const list = evaluate(node.args[0], scope);
+          if (!Array.isArray(list)) throw new Error("seq.count necesita una lista como primer argumento.");
+          return list.length;
+        }
+        case "seq.filter": {
+          const list = evaluate(node.args[0], scope);
+          const lambda = node.args[1];
+          if (!Array.isArray(list) || lambda.kind !== "lambda") throw new Error("seq.filter necesita una lista y una lambda.");
+          return list.filter((item) => Boolean(evaluate(lambda.body, { ...scope, [lambda.parameters[0] ?? "item"]: item })));
+        }
+        case "seq.reduce": {
+          const list = evaluate(node.args[0], scope);
+          const lambda = node.args[1];
+          if (!Array.isArray(list) || lambda.kind !== "lambda") throw new Error("seq.reduce necesita una lista y una lambda.");
+          let accumulator = evaluate(node.args[2], scope);
+          for (const item of list) {
+            accumulator = evaluate(lambda.body, {
+              ...scope,
+              [lambda.parameters[0] ?? "acc"]: accumulator,
+              [lambda.parameters[1] ?? "item"]: item
+            });
+          }
+          return accumulator;
         }
       }
     }
-    if (node.kind === "array") return node.items.map(evaluate);
-    if (node.kind === "object") return Object.fromEntries(node.entries.map(({ key, value }) => [key, evaluate(value)]));
+    if (node.kind === "array") return node.items.map((item) => evaluate(item, scope));
+    if (node.kind === "object") return Object.fromEntries(node.entries.map(({ key, value }) => [key, evaluate(value, scope)]));
 
-    const left = evaluate(node.left);
-    const right = evaluate(node.right);
+    const left = evaluate(node.left, scope);
+    const right = evaluate(node.right, scope);
     switch (node.operator) {
       case "+": return Number(left) + Number(right);
       case "-": return Number(left) - Number(right);

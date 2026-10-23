@@ -3,8 +3,10 @@
 import { Braces } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { FormulaRoot } from "../lib/formula";
+import { roundCurrency } from "../lib/types";
 import { createFormulaTestPayload, getFormulaTestFields, readTestPayload, readTestPayloadField, updateTestPayloadField } from "../lib/test-payload";
 import type { SchemaField } from "../lib/types";
+import { JsonCodeEditor } from "./JsonCodeEditor";
 
 type FormulaTestValuesProps = {
   expression: FormulaRoot;
@@ -17,7 +19,7 @@ type FormulaTestValuesProps = {
 function fieldValue(value: unknown, field: SchemaField) {
   if (value !== undefined) return value;
   if (field.type === "boolean") return false;
-  if (field.type === "number") return "";
+  if (field.type === "number" || field.type === "currency") return "";
   if (field.type === "unknown") return [];
   return "";
 }
@@ -26,7 +28,7 @@ export function FormulaTestValues({ expression, fields, payload, onPayloadChange
   const formulaFields = useMemo(() => getFormulaTestFields(expression, fields), [expression, fields]);
   const fallbackPayload = useMemo(() => createFormulaTestPayload(expression, fields, undefined, false), [expression, fields]);
   const payloadValues = readTestPayload(payload);
-  const fallbackValues = readTestPayload(fallbackPayload) ?? {};
+  const fallbackValues = readTestPayload(fallbackPayload);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -55,7 +57,7 @@ export function FormulaTestValues({ expression, fields, payload, onPayloadChange
 
   function renderField(field: SchemaField) {
     const fromPayload = payloadValues ? readTestPayloadField(payloadValues, field.key) : undefined;
-    const fromFallback = readTestPayloadField(fallbackValues, field.key);
+    const fromFallback = fallbackValues ? readTestPayloadField(fallbackValues, field.key) : undefined;
     const value = fieldValue(fromPayload === undefined ? fromFallback : fromPayload, field);
     const draft = drafts[field.key];
     const error = fieldErrors[field.key];
@@ -65,12 +67,13 @@ export function FormulaTestValues({ expression, fields, payload, onPayloadChange
     let control;
     if (structured) {
       const text = draft ?? JSON.stringify(value, null, 2) ?? "[]";
-      control = <textarea
-        aria-describedby={error ? `${controlId}-error` : undefined}
-        aria-invalid={Boolean(error)}
+      control = <JsonCodeEditor
+        ariaDescribedBy={error ? `${controlId}-error` : undefined}
+        ariaInvalid={Boolean(error)}
+        ariaLabel={field.label}
+        className="formula-test-json-editor"
         id={controlId}
-        onChange={(event) => {
-          const next = event.target.value;
+        onChange={(next) => {
           updateDraft(field, next);
           try {
             const parsed: unknown = JSON.parse(next);
@@ -83,7 +86,6 @@ export function FormulaTestValues({ expression, fields, payload, onPayloadChange
           }
         }}
         rows={3}
-        spellCheck={false}
         value={text}
       />;
     } else if (field.type === "boolean") {
@@ -97,8 +99,10 @@ export function FormulaTestValues({ expression, fields, payload, onPayloadChange
         {field.options.map((option) => <option key={option} value={option}>{option}</option>)}
       </select>;
     } else {
-      const inputType = field.type === "number" ? "number" : field.type === "date" ? "date" : "text";
-      const displayValue = draft ?? (value === null ? "" : String(value ?? ""));
+      const inputType = field.type === "number" || field.type === "currency" ? "number" : field.type === "date" ? "date" : "text";
+      const displayValue = draft ?? (field.type === "currency" && typeof value === "number"
+        ? value.toFixed(2)
+        : value === null ? "" : String(value ?? ""));
       control = <input
         id={controlId}
         onChange={(event) => {
@@ -109,10 +113,11 @@ export function FormulaTestValues({ expression, fields, payload, onPayloadChange
           } else if (next === "") {
             commit(field, null);
           } else if (Number.isFinite(Number(next))) {
-            commit(field, Number(next));
+            const numeric = Number(next);
+            commit(field, field.type === "currency" ? roundCurrency(numeric) : numeric);
           }
         }}
-        step={inputType === "number" ? "any" : undefined}
+        step={field.type === "currency" ? "0.01" : inputType === "number" ? "any" : undefined}
         type={inputType}
         value={displayValue}
       />;
@@ -121,7 +126,7 @@ export function FormulaTestValues({ expression, fields, payload, onPayloadChange
     return <div className={`formula-test-field ${structured ? "is-structured" : ""}`} key={field.key}>
       <div className="formula-test-field-heading">
         <label htmlFor={controlId}>{field.label}</label>
-        <span>{field.type === "unknown" ? "JSON" : field.type}</span>
+        <span>{field.type === "unknown" ? "JSON" : field.type === "currency" ? "moneda" : field.type}</span>
       </div>
       {control}
       {field.description && <small>{field.description}</small>}
@@ -135,9 +140,9 @@ export function FormulaTestValues({ expression, fields, payload, onPayloadChange
         <h3>Variables para probar</h3>
         <p>El JSON de la pestaña de prueba se actualiza con estos valores.</p>
       </div>
-      <button className="formula-button" onClick={onOpenJson} type="button"><Braces size={15} /> Ver JSON</button>
+      <button className="formula-button" onClick={onOpenJson} title="Abrir y editar el JSON completo de prueba" type="button"><Braces size={15} /> Ver JSON</button>
     </div>
-    {payload.trim() && !payloadValues && <p className="formula-test-json-warning">El JSON actual no es válido. Ajusta los valores aquí o corrígelo en “Probar regla”.</p>}
+    {payload.trim() && !payloadValues && <p className="formula-test-json-warning">El JSON actual no es válido. Ajusta los valores aquí o corrígelo en “Probar fórmula”.</p>}
     {formulaFields.length
       ? <div className="formula-test-fields">{formulaFields.map(renderField)}</div>
       : <p className="formula-test-empty">Esta fórmula no utiliza variables de contexto.</p>}

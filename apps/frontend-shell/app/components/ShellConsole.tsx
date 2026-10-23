@@ -481,11 +481,11 @@ export function ShellConsole() {
         },
         {
           key: "aviatorscript" as const,
-          label: "Constructor de reglas",
+          label: "Constructor visual de fórmulas",
           icon: GitBranch,
           enabled: true,
           fallbackName: "mfe-aviatorscript",
-          fallbackTitle: "Constructor de reglas",
+          fallbackTitle: "Constructor visual de fórmulas AviatorScript",
           manifestUrl: manifestUrls?.aviatorscript ?? ""
         }
       ];
@@ -1344,6 +1344,7 @@ export function ShellConsole() {
             manifestUrl={activeModule.manifestUrl ?? ""}
             onAuthRevoked={logout}
             onBreadcrumbSelect={handleBreadcrumbSelect}
+            shellUser={currentUser}
           />
         </section>
       </section>

@@ -5,7 +5,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "Constructor visual de formulas",
+  title: "Constructor visual de fórmulas",
   description: "Construye formulas de negocio con bloques visuales para AviatorScript"
 };
 

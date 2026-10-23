@@ -23,6 +23,11 @@ type BreadcrumbItem = {
 
 type RemoteMfeFrameProps = {
   accessToken?: string | null;
+  shellUser?: {
+    display_name?: string | null;
+    email?: string | null;
+    login?: string | null;
+  } | null;
   breadcrumbs?: BreadcrumbItem[];
   entryUrl?: string;
   fallbackTitle: string;
@@ -52,7 +57,7 @@ function parseGrowlSeverity(value: unknown): GrowlSeverity {
   return "info";
 }
 
-export function RemoteMfeFrame({ accessToken = null, breadcrumbs = [], entryUrl = "", fallbackTitle, manifestUrl, onAuthRevoked, onBreadcrumbSelect, shellName = "frontend-shell" }: Readonly<RemoteMfeFrameProps>) {
+export function RemoteMfeFrame({ accessToken = null, breadcrumbs = [], entryUrl = "", fallbackTitle, manifestUrl, onAuthRevoked, onBreadcrumbSelect, shellName = "frontend-shell", shellUser = null }: Readonly<RemoteMfeFrameProps>) {
   const [frameHeight, setFrameHeight] = useState(720);
   const [reloadToken, setReloadToken] = useState(0);
   const [growls, setGrowls] = useState<ShellGrowl[]>([]);
@@ -120,10 +125,15 @@ export function RemoteMfeFrame({ accessToken = null, breadcrumbs = [], entryUrl 
 
     frameRef.current.contentWindow.postMessage({
       accessToken,
+      user: shellUser ? {
+        displayName: shellUser.display_name ?? null,
+        email: shellUser.email ?? null,
+        login: shellUser.login ?? null
+      } : null,
       shellName,
       type: accessToken ? "venta-pasajes:shell-auth-token" : "venta-pasajes:shell-auth-clear"
     }, manifestOrigin);
-  }, [accessToken, manifestOrigin, shellName]);
+  }, [accessToken, manifestOrigin, shellName, shellUser]);
 
   useEffect(() => {
     setFrameHeight(720);

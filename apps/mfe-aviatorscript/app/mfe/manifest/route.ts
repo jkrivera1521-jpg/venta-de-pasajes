@@ -12,7 +12,7 @@ export function GET() {
   const publicUrl = process.env.NEXT_PUBLIC_MFE_PUBLIC_URL || "http://localhost:3006";
   const manifest: MicrofrontendManifest = {
     name: "mfe-aviatorscript",
-    title: "Constructor de reglas",
+    title: "Constructor visual de fórmulas AviatorScript",
     version: "0.1.0",
     status: "online",
     mount_path: "/rules",
@@ -24,7 +24,14 @@ export function GET() {
       "schema-driven-conditions",
       "nested-and-or-groups",
       "aviatorscript-validation",
-      "sandbox-testing"
+      "sandbox-testing",
+      "aviatorscript-code-editor",
+      "real-engine-testing",
+      "formula-catalog",
+      "formula-versioning",
+      "mermaid-visualization",
+      "diagram-export",
+      "curl-generation"
     ]
   };
 

@@ -72,23 +72,72 @@ Flyway crea el esquema, las tablas y precarga `FORM-NOMINA-001` junto con el eje
 
 ## API
 
+### Autenticacion y permisos
+
+Las rutas de formulas, ejecucion, validacion, prueba y visualizacion requieren un JWT Bearer emitido por `identity-service`. El servicio verifica firma, emisor, audiencia y expiracion, y autoriza con estos permisos independientes:
+
+| Operacion | Permiso |
+| --- | --- |
+| Consultar catalogo | `aviatorscript.formulas.read` |
+| Guardar version borrador | `aviatorscript.formulas.write` |
+| Validar con el motor real | `aviatorscript.formulas.validate` |
+| Probar sin persistir | `aviatorscript.formulas.test` |
+| Ejecutar version activa | `aviatorscript.formulas.execute` |
+| Publicar | `aviatorscript.formulas.publish` |
+| Activar | `aviatorscript.formulas.activate` |
+| Visualizar flujo | `aviatorscript.formulas.visualize` |
+
+La migracion de identidad `V16__aviatorscript_permissions.sql` registra los permisos y los asigna al rol `ADMIN`. Para desarrollo directo, el servicio usa los mismos valores locales de `APP_JWT_SIGNING_SECRET`, `APP_JWT_ISSUER` y `APP_JWT_AUDIENCE` que `identity-service`; en produccion deben configurarse mediante secretos compartidos, nunca con valores de ejemplo.
+
 Ejecutar una formula:
 
 ```powershell
 curl.exe -X POST http://localhost:8087/api/v1/calculos/ejecutar `
+  -H "Authorization: Bearer $AccessToken" `
   -H "Content-Type: application/json" `
   -d '{"idSolicitud":"REQ-0001","codigoFormula":"FORM-NOMINA-001","parametros":{"salario":1200,"bonificacion":150,"descuento":50}}'
 ```
 
 La respuesta contiene el identificador de ejecucion, la version usada, el resultado, el tipo de resultado, el estado y los tiempos de procesamiento. Los estados principales son `EXITOSO`, `SOLICITUD_INVALIDA`, `FORMULA_NO_ENCONTRADA` y `ERROR_CALCULO`.
 
+Validar y probar codigo sin persistir:
+
+```powershell
+curl.exe -X POST http://localhost:8087/api/v1/calculos/validar `
+  -H "Authorization: Bearer $AccessToken" `
+  -H "Content-Type: application/json" `
+  -d '{"source":"return salario + bonificacion;"}'
+
+curl.exe -X POST http://localhost:8087/api/v1/calculos/probar `
+  -H "Authorization: Bearer $AccessToken" `
+  -H "Content-Type: application/json" `
+  -d '{"source":"return salario + bonificacion;","parametros":{"salario":1200,"bonificacion":150}}'
+```
+
+Ambos endpoints usan `AviatorScriptEngine` y devuelven `contractVersion` y `engine`. La validacion informa diagnosticos de compilacion; la prueba devuelve el resultado de AviatorScript sin crear una ejecucion persistida.
+
 Consultar las formulas guardadas para usarlas como plantillas de nuevas formulas:
 
 ```powershell
-curl.exe http://localhost:8087/api/v1/calculos/formulas
+curl.exe http://localhost:8087/api/v1/calculos/formulas -H "Authorization: Bearer $AccessToken"
 ```
 
-Este catalogo devuelve todas las versiones registradas, activas e inactivas, con su codigo, nombre, descripcion, expresion y fecha. Las filas anteriores a la migracion de descripcion pueden devolver `descripcion: null`. El endpoint es de solo lectura: no ofrece operaciones para editar o eliminar formulas existentes. El constructor visual convierte las expresiones compatibles en una copia nueva en el navegador; guardar esa copia desde el MFE no modifica la fila original ni la persiste en PostgreSQL.
+Este catalogo devuelve todas las versiones registradas, activas e inactivas, con su codigo, nombre, descripcion, expresion, ejemplo, estado y auditoria. Las filas anteriores a las migraciones de descripcion o ciclo de vida pueden devolver algunos metadatos nulos. El `GET` es de consulta, pero el recurso tambien ofrece `POST /api/v1/calculos/formulas` para crear una nueva version `BORRADOR`, y `POST /api/v1/calculos/formulas/{id}/publicar` y `/activar` para avanzar su ciclo de vida. No ofrece edicion destructiva ni eliminacion de formulas existentes. El constructor visual convierte las expresiones compatibles en una copia nueva; guardar esa copia desde el MFE crea una fila nueva y no modifica la plantilla original.
+
+La solicitud de persistencia tiene esta forma:
+
+```json
+{
+  "codigo": "FORM-EJEMPLO-001",
+  "nombre": "Formula de ejemplo",
+  "descripcion": "Descripcion funcional",
+  "expresion": "return salario + bonificacion;",
+  "ejemplo": { "salario": 1200, "bonificacion": 150 },
+  "creadoPor": "desconocido"
+}
+```
+
+El servicio valida que el ejemplo sea un objeto JSON, limita expresion y ejemplo a 100.000 caracteres y el ejemplo a 20 niveles de profundidad. Calcula el siguiente numero de version por codigo, asigna `BORRADOR` y deja `activa = false`. `publicar` registra `publicadoPor` y `fechaPublicacion`; `activar` solo acepta una version publicada, desactiva la version activa anterior del mismo codigo y registra `activadoPor` y `fechaActivacion`.
 
 Analizar codigo AviatorScript para visualizar su flujo de control:
 
@@ -102,9 +151,13 @@ La respuesta contiene `nodes`, `edges` y `diagnostics`. Cada nodo incluye tipo (
 
 ## Formula y versionado
 
-Las formulas se almacenan en `calculos.formula`. Una version publicada debe ser inmutable; para publicar una nueva version se inserta otra fila con el mismo codigo y un numero de version mayor. Flyway crea el esquema inicial en `src/main/resources/db/migration/V1__crear_motor_calculos.sql` y agrega la descripcion y la formula demostrativa en `src/main/resources/db/migration/V2__precargar_formula_nomina_avanzada.sql`.
+Las formulas se almacenan en `calculos.formula`. Una version publicada debe ser inmutable; para publicar una nueva version se inserta otra fila con el mismo codigo y un numero de version mayor. La columna `expresion` es el codigo ejecutable y `ejemplo` es el contexto JSON recomendado para probarlo; el workspace Blockly y el AST de edicion pertenecen al archivo local del MFE, no a esta tabla. Flyway crea el esquema inicial en `src/main/resources/db/migration/V1__crear_motor_calculos.sql`, agrega descripcion y formulas demostrativas en las migraciones posteriores y conserva los seeds existentes con `ON CONFLICT DO NOTHING`.
 
-Las expresiones AviatorScript deben validarse y limitarse antes de exponer este servicio fuera de una red confiable. Antes de un despliegue compartido deben agregarse autenticacion/autorizacion, limites de entrada y ejecucion, funciones permitidas y proteccion contra formulas no confiables.
+El MFE separa explicitamente el ciclo de trabajo: `Guardar` es local y descarga `.aviatorscript.json`; `Guardar version` persiste `BORRADOR`; `Publicar` pasa a `PUBLICADA`; `Activar` desactiva la anterior y activa la nueva; `Nueva version` solo crea una copia editable en memoria. La auditoria se toma del JWT en el backend. El valor `desconocido` solo se conserva como respaldo cuando no existe una identidad autenticada en integraciones locales controladas.
+
+Las expresiones AviatorScript deben validarse y limitarse antes de exponer este servicio fuera de una red confiable. `AviatorScriptEngine` centraliza la compilacion, los alias compatibles y los limites comunes para validar, probar y ejecutar. Antes de un despliegue compartido deben agregarse autenticacion/autorizacion, limites de ejecucion, funciones permitidas y proteccion contra formulas no confiables.
+
+La arquitectura y la migracion de los endpoints legacy de `lib/rules` estan documentadas en `docs/aviatorscript-contract.md`.
 
 El visualizador esta separado de `AviatorCalculationService`: `AviatorVisualizationService` construye un grafo de control intermedio con un lexer y parser recursivo, sin reutilizar el motor de ejecucion como analizador. La API de visualizacion no debe convertirse en un endpoint de ejecucion ni aceptar secretos del cliente.
 

@@ -8,17 +8,35 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node --experimental-strip-types --test tests/*.test.mjs"
+    "test": "node --experimental-strip-types --test tests/*.test.mjs",
+    "test:compatibility": "node --experimental-strip-types --test tests/aviator-compatibility.test.mjs",
+    "test:e2e": "node e2e/run-browser-checks.mjs"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.4",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-javascript": "^6.2.5",
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/lint": "^6.9.7",
+    "@codemirror/search": "^6.7.2",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
     "@dagrejs/dagre": "^3.1.1",
     "@tanstack/react-query": "^5.103.1",
     "@venta-pasajes/shared-types": "0.1.0",
     "@xyflow/react": "^12.12.0",
     "blockly": "^13.4.0",
+    "codemirror": "^6.0.2",
+    "dompurify": "^3.4.17",
     "lucide-react": "1.39.0",
+    "mermaid": "^12.2.0",
     "next": "16.3.8",
     "react": "19.2.8",
     "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.51.1",
+    "jsdom": "^29.1.1"
   }
 }

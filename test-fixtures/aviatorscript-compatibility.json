@@ -1,0 +1,292 @@
+{
+  "version": 1,
+  "comparison": {
+    "numeric": "exact",
+    "description": "Los numeros se comparan sin tolerancia. La igualdad numerica debe ser exacta para evitar ocultar diferencias financieras."
+  },
+  "fixtures": [
+    {
+      "id": "arithmetic-basico",
+      "description": "Operaciones aritmeticas con numeros enteros.",
+      "formula": "return salario + bonificacion - descuento;",
+      "inputs": {
+        "salario": 1200,
+        "bonificacion": 150,
+        "descuento": 50
+      },
+      "typescript": {
+        "support": "program"
+      },
+      "expected": {
+        "outcome": "success",
+        "type": "number",
+        "value": 1300
+      }
+    },
+    {
+      "id": "comparaciones-y-logica",
+      "description": "Comparaciones numericas, igualdad booleana y operador logico.",
+      "formula": "return salario >= 1000 && activo == true;",
+      "inputs": {
+        "salario": 1200,
+        "activo": true
+      },
+      "typescript": {
+        "support": "program"
+      },
+      "expected": {
+        "outcome": "success",
+        "type": "boolean",
+        "value": true
+      }
+    },
+    {
+      "id": "condicional-y-texto",
+      "description": "Condicion ternaria con literales de texto.",
+      "formula": "return tipo == \"VIP\" ? \"PRIORITARIO\" : \"ESTANDAR\";",
+      "inputs": {
+        "tipo": "VIP"
+      },
+      "typescript": {
+        "support": "program"
+      },
+      "expected": {
+        "outcome": "success",
+        "type": "string",
+        "value": "PRIORITARIO"
+      }
+    },
+    {
+      "id": "funciones-matematicas",
+      "description": "Funciones matematicas compartidas por el contrato visual.",
+      "formula": "return math.pow(base, exponente) + math.sqrt(radical) + math.round(valor);",
+      "inputs": {
+        "base": 2,
+        "exponente": 3,
+        "radical": 9,
+        "valor": 1.6
+      },
+      "typescript": {
+        "support": "program"
+      },
+      "expected": {
+        "outcome": "success",
+        "type": "number",
+        "value": 13
+      }
+    },
+    {
+      "id": "colecciones-y-seq",
+      "description": "seq.filter, seq.reduce, seq.count, seq.include y seq.map.",
+      "formula": "return seq.map(\"suma\", seq.reduce(valores, lambda(acc, item) -> acc + item end, 0), \"filtrados\", seq.filter(valores, lambda(item) -> item > 2 end), \"contiene\", seq.include(valores, objetivo), \"cantidad\", seq.count(valores));",
+      "inputs": {
+        "valores": [1, 2, 3, 4],
+        "objetivo": 3
+      },
+      "typescript": {
+        "support": "program"
+      },
+      "expected": {
+        "outcome": "success",
+        "type": "map",
+        "value": {
+          "suma": 10,
+          "filtrados": [3, 4],
+          "contiene": true,
+          "cantidad": 4
+        }
+      }
+    },
+    {
+      "id": "valores-nulos-y-listas",
+      "description": "nil, null JSON y lista de salida.",
+      "formula": "return seq.map(\"valor\", valor, \"esNulo\", valor == nil, \"fallback\", valor == nil ? \"SIN_VALOR\" : valor);",
+      "inputs": {
+        "valor": null
+      },
+      "typescript": {
+        "support": "program"
+      },
+      "expected": {
+        "outcome": "success",
+        "type": "map",
+        "value": {
+          "valor": null,
+          "esNulo": true,
+          "fallback": "SIN_VALOR"
+        }
+      }
+    },
+    {
+      "id": "ciclo-for-continue",
+      "description": "Ciclo for, continue, asignacion y acumulacion.",
+      "formula": "let total = 0; for item in valores { if (item == 2) { continue; } total = total + item; } return total;",
+      "inputs": {
+        "valores": [1, 2, 3, 4]
+      },
+      "typescript": {
+        "support": "program"
+      },
+      "expected": {
+        "outcome": "success",
+        "type": "number",
+        "value": 8
+      }
+    },
+    {
+      "id": "ciclo-while",
+      "description": "Ciclo while con condicion y actualizacion controlada.",
+      "formula": "let total = 0; while (total < limite) { total = total + paso; } return total;",
+      "inputs": {
+        "limite": 5,
+        "paso": 2
+      },
+      "typescript": {
+        "support": "program"
+      },
+      "expected": {
+        "outcome": "success",
+        "type": "number",
+        "value": 6
+      }
+    },
+    {
+      "id": "error-de-negocio",
+      "description": "throw explicito con mensaje controlado.",
+      "formula": "if (monto < 0) { throw \"MONTO_INVALIDO\"; } return monto;",
+      "inputs": {
+        "monto": -1
+      },
+      "typescript": {
+        "support": "program"
+      },
+      "expected": {
+        "outcome": "error",
+        "type": "error",
+        "errorMessageContains": "MONTO_INVALIDO"
+      }
+    },
+    {
+      "id": "error-division-por-cero",
+      "description": "Error de ejecucion matematico; no se compara el texto tecnico.",
+      "formula": "return total / divisor;",
+      "inputs": {
+        "total": 10,
+        "divisor": 0
+      },
+      "typescript": {
+        "support": "program"
+      },
+      "expected": {
+        "outcome": "error",
+        "type": "error",
+        "errorCategory": "runtime"
+      }
+    },
+    {
+      "id": "funcion-no-soportada-localmente",
+      "description": "AviatorScript dispone de math.log10, pero el constructor TypeScript aun no la representa.",
+      "formula": "return math.log10(valor);",
+      "inputs": {
+        "valor": 100
+      },
+      "typescript": {
+        "support": "unsupported",
+        "reason": "math.log10 no esta en el contrato de funciones visuales del MFE; ejecutar mediante el backend."
+      },
+      "expected": {
+        "outcome": "success",
+        "type": "number",
+        "value": 2
+      }
+    },
+    {
+      "id": "nomina-completa",
+      "description": "Formula integral con antiguedad, cargo, desempeno, horas extra y descuentos.",
+      "formula": "## Calculo integral de nomina\nif (salarioMensual <= 0) { throw \"SALARIO_INVALIDO\"; }\nif (diasMes <= 0) { throw \"DIAS_INVALIDOS\"; }\nif (diasTrabajados < 0 || diasTrabajados > diasMes) { throw \"DIAS_TRABAJADOS_INVALIDOS\"; }\nlet salarioBase = salarioMensual * diasTrabajados / diasMes;\nlet bonificacionAntiguedad = 0;\nif (aniosAntiguedad >= 10) { bonificacionAntiguedad = salarioBase * 0.12; } elsif (aniosAntiguedad >= 5) { bonificacionAntiguedad = salarioBase * 0.08; } elsif (aniosAntiguedad >= 2) { bonificacionAntiguedad = salarioBase * 0.04; }\nlet bonificacionCargo = 0;\nif (tipoEmpleado == \"TECNICO\") { bonificacionCargo = salarioBase * 0.05; } elsif (tipoEmpleado == \"SUPERVISOR\") { bonificacionCargo = salarioBase * 0.1; } elsif (tipoEmpleado == \"GERENTE\") { bonificacionCargo = salarioBase * 0.15; }\nlet bonificacionDesempeno = 0;\nif (calificacionDesempeno >= 95) { bonificacionDesempeno = salarioBase * 0.15; } elsif (calificacionDesempeno >= 90) { bonificacionDesempeno = salarioBase * 0.1; } elsif (calificacionDesempeno >= 80) { bonificacionDesempeno = salarioBase * 0.05; }\nlet detalleHorasExtras = seq.list();\nlet totalHorasExtras = 0;\nfor hora in horasExtras { let multiplicador = 0; if (hora.tipo == \"DIURNA\") { multiplicador = 1.5; } elsif (hora.tipo == \"NOCTURNA\") { multiplicador = 2; } elsif (hora.tipo == \"FERIADO\") { multiplicador = 2.5; } else { throw \"TIPO_HORA_INVALIDO\"; } if (hora.horas > 0) { let importe = salarioMensual / 240 * hora.horas * multiplicador; totalHorasExtras = totalHorasExtras + importe; seq.add(detalleHorasExtras, seq.map(\"tipo\", hora.tipo, \"horas\", hora.horas, \"multiplicador\", multiplicador, \"importe\", importe)); } }\nlet totalBonificaciones = bonificacionAntiguedad + bonificacionCargo + bonificacionDesempeno;\nlet ingresosBrutos = salarioBase + totalBonificaciones + totalHorasExtras;\nlet descuentoProgresivo = 0;\nif (ingresosBrutos > 2000) { descuentoProgresivo = (2000 - 1500) * 0.05 + (ingresosBrutos - 2000) * 0.08; } elsif (ingresosBrutos > 1500) { descuentoProgresivo = (ingresosBrutos - 1500) * 0.05; }\nlet detalleDescuentos = seq.list();\nlet totalDescuentosAdicionales = 0;\nfor descuento in descuentosAdicionales { if (descuento.valor < 0) { throw \"DESCUENTO_INVALIDO\"; } totalDescuentosAdicionales = totalDescuentosAdicionales + descuento.valor; seq.add(detalleDescuentos, seq.map(\"concepto\", descuento.concepto, \"valor\", descuento.valor)); }\nlet totalDescuentos = descuentoProgresivo + totalDescuentosAdicionales;\nlet salarioNeto = ingresosBrutos - totalDescuentos;\nlet clasificacion = salarioNeto < 0 ? \"ERROR_SALDO_NEGATIVO\" : salarioNeto < 1000 ? \"NOMINA_BAJA\" : salarioNeto <= 2000 ? \"NOMINA_MEDIA\" : \"NOMINA_ALTA\";\nreturn seq.map(\"salarioBase\", salarioBase, \"bonificacionAntiguedad\", bonificacionAntiguedad, \"bonificacionCargo\", bonificacionCargo, \"bonificacionDesempeno\", bonificacionDesempeno, \"totalBonificaciones\", totalBonificaciones, \"totalHorasExtras\", totalHorasExtras, \"detalleHorasExtras\", detalleHorasExtras, \"ingresosBrutos\", ingresosBrutos, \"descuentoProgresivo\", descuentoProgresivo, \"detalleDescuentos\", detalleDescuentos, \"totalDescuentosAdicionales\", totalDescuentosAdicionales, \"totalDescuentos\", totalDescuentos, \"salarioNeto\", salarioNeto, \"clasificacion\", clasificacion);",
+      "inputs": {
+        "salarioMensual": 2400,
+        "diasMes": 100,
+        "diasTrabajados": 100,
+        "aniosAntiguedad": 3,
+        "tipoEmpleado": "TECNICO",
+        "calificacionDesempeno": 82,
+        "horasExtras": [
+          {
+            "horas": 5,
+            "tipo": "DIURNA"
+          },
+          {
+            "horas": 3,
+            "tipo": "NOCTURNA"
+          },
+          {
+            "horas": 2,
+            "tipo": "FERIADO"
+          }
+        ],
+        "descuentosAdicionales": [
+          {
+            "concepto": "PRESTAMO",
+            "valor": 75
+          },
+          {
+            "concepto": "ANTICIPO",
+            "valor": 40
+          }
+        ]
+      },
+      "typescript": {
+        "support": "program"
+      },
+      "expected": {
+        "outcome": "success",
+        "type": "map",
+        "value": {
+          "salarioBase": 2400,
+          "bonificacionAntiguedad": 96,
+          "bonificacionCargo": 120,
+          "bonificacionDesempeno": 120,
+          "totalBonificaciones": 336,
+          "totalHorasExtras": 185,
+          "detalleHorasExtras": [
+            {
+              "tipo": "DIURNA",
+              "horas": 5,
+              "multiplicador": 1.5,
+              "importe": 75
+            },
+            {
+              "tipo": "NOCTURNA",
+              "horas": 3,
+              "multiplicador": 2,
+              "importe": 60
+            },
+            {
+              "tipo": "FERIADO",
+              "horas": 2,
+              "multiplicador": 2.5,
+              "importe": 50
+            }
+          ],
+          "ingresosBrutos": 2921,
+          "descuentoProgresivo": 98.68,
+          "detalleDescuentos": [
+            {
+              "concepto": "PRESTAMO",
+              "valor": 75
+            },
+            {
+              "concepto": "ANTICIPO",
+              "valor": 40
+            }
+          ],
+          "totalDescuentosAdicionales": 115,
+          "totalDescuentos": 213.68,
+          "salarioNeto": 2707.32,
+          "clasificacion": "NOMINA_ALTA"
+        }
+      }
+    }
+  ]
+}

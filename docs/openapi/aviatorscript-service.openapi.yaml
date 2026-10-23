@@ -2,14 +2,16 @@ openapi: 3.0.3
 info:
   title: AviatorScript Service API
   version: 0.1.0
-  description: Ejecuta formulas versionadas almacenadas en PostgreSQL mediante AviatorScript y ofrece un catalogo de solo lectura para usar como plantilla.
+  description: Ejecuta formulas versionadas almacenadas en PostgreSQL mediante AviatorScript y administra su ciclo de vida.
+security:
+  - bearerAuth: []
 servers:
   - url: http://localhost:8087
 paths:
   /api/v1/calculos/formulas:
     get:
       summary: Lista formulas guardadas disponibles como plantillas
-      description: Devuelve todas las versiones almacenadas, incluidas las inactivas. Es una operacion de solo lectura y no permite modificar ni eliminar formulas.
+      description: Devuelve todas las versiones almacenadas, incluidas las inactivas, para usarlas como plantillas y consultar su ciclo de vida.
       operationId: listarFormulas
       responses:
         '200':
@@ -22,6 +24,87 @@ paths:
                   $ref: '#/components/schemas/FormulaTemplate'
         '500':
           description: No se pudo consultar el catalogo de formulas.
+    post:
+      summary: Guarda una nueva version en borrador
+      description: Crea una version inmutable en estado BORRADOR para el codigo indicado y conserva el ejemplo JSON de prueba.
+      operationId: guardarFormula
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FormulaSaveRequest'
+      responses:
+        '201':
+          description: Nueva version guardada correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormulaTemplate'
+        '400':
+          description: Los datos de la formula no cumplen las validaciones.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: No se pudo guardar la formula.
+  /api/v1/calculos/formulas/{id}/publicar:
+    post:
+      summary: Publica una version guardada
+      operationId: publicarFormula
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FormulaLifecycleRequest'
+      responses:
+        '200':
+          description: Version publicada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormulaTemplate'
+        '404':
+          description: No existe la version solicitada.
+        '400':
+          description: La transicion no es valida.
+  /api/v1/calculos/formulas/{id}/activar:
+    post:
+      summary: Activa una version publicada
+      operationId: activarFormula
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FormulaLifecycleRequest'
+      responses:
+        '200':
+          description: Version activa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormulaTemplate'
+        '404':
+          description: No existe la version solicitada.
+        '400':
+          description: Solo se pueden activar versiones publicadas.
   /api/v1/calculos/ejecutar:
     post:
       summary: Ejecuta una formula activa
@@ -51,6 +134,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CalculoResponse'
+  /api/v1/calculos/validar:
+    post:
+      summary: Valida codigo AviatorScript con el motor real
+      description: Compila la fuente sin persistirla ni ejecutarla y devuelve diagnosticos del engine.
+      operationId: validarAviatorScript
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AviatorSourceRequest'
+      responses:
+        '200':
+          description: Resultado de compilacion y diagnosticos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AviatorValidationResponse'
+        '400':
+          description: La solicitud no contiene source.
+  /api/v1/calculos/probar:
+    post:
+      summary: Prueba codigo AviatorScript sin persistirlo
+      description: Ejecuta la fuente y devuelve el resultado usando el mismo motor que /ejecutar.
+      operationId: probarAviatorScript
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AviatorSourceTestRequest'
+      responses:
+        '200':
+          description: Resultado de la ejecucion o error controlado del motor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AviatorSourceTestResponse'
+        '400':
+          description: La solicitud no contiene source o parametros validos.
   /api/v1/aviator/visualize:
     post:
       summary: Analiza codigo AviatorScript y devuelve un grafo de flujo
@@ -77,15 +200,22 @@ paths:
     get:
       summary: Estado de salud del servicio
       operationId: health
+      security: []
       responses:
         '200':
           description: Estado de salud de Quarkus.
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     FormulaTemplate:
       type: object
-      description: Vista de solo lectura de una formula almacenada, para copiar su expresion como nueva plantilla en el editor. Las formulas historicas pueden no tener descripcion.
+      description: Vista de solo lectura de una formula almacenada, para copiar su expresion y su ejemplo de prueba como nueva plantilla en el editor. Las formulas historicas pueden no tener descripcion ni ejemplo.
       required:
+        - id
         - codigo
         - nombre
         - version
@@ -93,6 +223,9 @@ components:
         - activa
         - fechaCreacion
       properties:
+        id:
+          type: integer
+          format: int64
         codigo:
           type: string
         nombre:
@@ -104,11 +237,74 @@ components:
           type: integer
         expresion:
           type: string
+        ejemplo:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: JSON de contexto recomendado para probar la formula.
         activa:
           type: boolean
         fechaCreacion:
           type: string
           format: date-time
+        estado:
+          type: string
+          enum: [BORRADOR, PUBLICADA]
+        creadoPor:
+          type: string
+        publicadoPor:
+          type: string
+          nullable: true
+        fechaPublicacion:
+          type: string
+          format: date-time
+          nullable: true
+        activadoPor:
+          type: string
+          nullable: true
+        fechaActivacion:
+          type: string
+          format: date-time
+          nullable: true
+    FormulaSaveRequest:
+      type: object
+      required:
+        - codigo
+        - nombre
+        - expresion
+        - ejemplo
+      properties:
+        codigo:
+          type: string
+          maxLength: 100
+          pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+        nombre:
+          type: string
+          maxLength: 200
+        descripcion:
+          type: string
+          nullable: true
+          maxLength: 2000
+        expresion:
+          type: string
+          maxLength: 100000
+        ejemplo:
+          type: object
+          additionalProperties: true
+        creadoPor:
+          type: string
+          maxLength: 200
+    FormulaLifecycleRequest:
+      type: object
+      properties:
+        actor:
+          type: string
+          maxLength: 200
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
     CalculoRequest:
       type: object
       required:
@@ -161,6 +357,82 @@ components:
           type: string
           format: date-time
         duracionMs:
+          type: integer
+          format: int64
+        error:
+          type: string
+          nullable: true
+    AviatorSourceRequest:
+      type: object
+      required:
+        - source
+      properties:
+        source:
+          type: string
+          maxLength: 100000
+    AviatorSourceTestRequest:
+      type: object
+      required:
+        - source
+        - parametros
+      properties:
+        source:
+          type: string
+          maxLength: 100000
+        parametros:
+          type: object
+          additionalProperties: true
+    AviatorDiagnostic:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        line:
+          type: integer
+          nullable: true
+        column:
+          type: integer
+          nullable: true
+        severity:
+          type: string
+          enum: [error, warning]
+    AviatorValidationResponse:
+      type: object
+      required:
+        - contractVersion
+        - engine
+        - valid
+        - diagnostics
+      properties:
+        contractVersion:
+          type: integer
+        engine:
+          type: string
+        valid:
+          type: boolean
+        diagnostics:
+          type: array
+          items:
+            $ref: '#/components/schemas/AviatorDiagnostic'
+    AviatorSourceTestResponse:
+      type: object
+      required:
+        - contractVersion
+        - engine
+        - success
+        - executionTimeMs
+      properties:
+        contractVersion:
+          type: integer
+        engine:
+          type: string
+        success:
+          type: boolean
+        result:
+          nullable: true
+        executionTimeMs:
           type: integer
           format: int64
         error:

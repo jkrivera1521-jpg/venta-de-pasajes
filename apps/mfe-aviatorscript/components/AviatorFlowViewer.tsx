@@ -3,12 +3,13 @@
 import { Background, Controls, Handle, MarkerType, MiniMap, Panel, Position, ReactFlow, ReactFlowProvider, useReactFlow, type NodeProps } from "@xyflow/react";
 import { graphlib, layout } from "@dagrejs/dagre";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AviatorFlowEdge, AviatorFlowGraph, AviatorFlowNode, AviatorFlowNodeData } from "../lib/visualization";
+import { collapseAviatorFlowGraph, type AviatorFlowEdge, type AviatorFlowGraph, type AviatorFlowNode, type AviatorFlowNodeData } from "../lib/visualization";
 
 type AviatorFlowViewerProps = {
   centerRequest?: { nodeId: string; requestId: number; behavior?: "center" | "preserve" };
   graph: AviatorFlowGraph;
   hoveredRoute?: { sourceId: string; targetId: string; nodeId: string };
+  onFocusNode: (nodeId: string) => void;
   selectedNodeId?: string;
   onSelectNode: (node: AviatorFlowNode) => void;
 };
@@ -38,55 +39,11 @@ function layoutGraph(graph: AviatorFlowGraph, direction: "TB" | "LR" = "TB") {
       position: { x: position.x - size.width / 2, y: position.y - size.height / 2 },
       sourcePosition: direction === "TB" ? Position.Bottom : Position.Right,
       targetPosition: direction === "TB" ? Position.Top : Position.Left,
-      style: { width: size.width }
+      width: size.width,
+      height: size.height,
+      style: { width: size.width, height: size.height }
     };
   });
-}
-
-function collapsedGraph(graph: AviatorFlowGraph, collapsedIds: Set<string>): AviatorFlowGraph {
-  if (!collapsedIds.size) return graph;
-  const outgoing = new Map<string, string[]>();
-  graph.edges.forEach((edge) => outgoing.set(edge.source, [...(outgoing.get(edge.source) ?? []), edge.target]));
-  const hidden = new Set<string>();
-  const boundaries = new Map<string, Set<string>>();
-
-  collapsedIds.forEach((rootId) => {
-    const root = graph.nodes.find((node) => node.id === rootId);
-    if (!root) return;
-    const seen = new Set<string>([rootId]);
-    const queue = [...(outgoing.get(rootId) ?? [])];
-    const rootBoundaries = new Set<string>();
-    while (queue.length) {
-      const currentId = queue.shift()!;
-      if (seen.has(currentId)) continue;
-      seen.add(currentId);
-      const current = graph.nodes.find((node) => node.id === currentId);
-      if (!current || current.data.synthetic || current.data.kind === "end") {
-        if (current) rootBoundaries.add(currentId);
-        continue;
-      }
-      hidden.add(currentId);
-      queue.push(...(outgoing.get(currentId) ?? []));
-    }
-    hidden.delete(rootId);
-    boundaries.set(rootId, rootBoundaries);
-  });
-
-  const visibleNodes = graph.nodes.filter((node) => !hidden.has(node.id));
-  const visibleNodeIds = new Set(visibleNodes.map((node) => node.id));
-  const visibleEdges = graph.edges.filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target));
-  boundaries.forEach((targets, rootId) => targets.forEach((targetId) => {
-    if (!visibleNodeIds.has(rootId) || !visibleNodeIds.has(targetId)) return;
-    if (visibleEdges.some((edge) => edge.source === rootId && edge.target === targetId)) return;
-    visibleEdges.push({
-      id: `collapsed-${rootId}-${targetId}`,
-      source: rootId,
-      target: targetId,
-      type: "aviator-flow-edge",
-      label: "contenido oculto"
-    });
-  }));
-  return { ...graph, nodes: visibleNodes, edges: visibleEdges };
 }
 
 function nodeClass(kind: AviatorFlowNodeData["kind"]) {
@@ -96,7 +53,7 @@ function nodeClass(kind: AviatorFlowNodeData["kind"]) {
 function AviatorFlowNodeView({ data, id, selected }: NodeProps<AviatorFlowNode>) {
   const handlePosition = data.kind === "start" ? Position.Bottom : data.kind === "end" ? Position.Top : Position.Bottom;
   return (
-    <div className={`${nodeClass(data.kind)} ${selected ? "is-selected" : ""} ${data.synthetic ? "is-synthetic" : ""}`} data-aviator-flow-node-id={id}>
+    <div className={`${nodeClass(data.kind)} ${selected ? "is-selected" : ""} ${data.marked ? "is-start-marked" : ""} ${data.synthetic ? "is-synthetic" : ""}`} data-aviator-flow-node-id={id}>
       {data.kind !== "start" && <Handle className="aviator-flow-handle" position={Position.Top} type="target" />}
       <div className="aviator-flow-node-heading">
         <span className="aviator-flow-node-kind">{data.instruction}</span>
@@ -166,13 +123,16 @@ function exportNodeColor(kind: AviatorFlowNodeData["kind"]) {
   return { fill: "#287f69", stroke: "#17604e" };
 }
 
-type ExportSvgResult = { markup: string; width: number; height: number };
+type ExportViewport = { x: number; y: number; width: number; height: number };
+type ExportSvgOptions = { outputWidth?: number; scale?: number; viewport?: ExportViewport };
+type ExportSvgResult = { markup: string; width: number; height: number; fullWidth: number; fullHeight: number; viewport: ExportViewport };
 
 function buildExportSvg(
   graph: AviatorFlowGraph,
   nodes: AviatorFlowNode[],
   direction: "TB" | "LR",
-  selectedNodeId?: string
+  selectedNodeId?: string,
+  options: ExportSvgOptions = {}
 ): ExportSvgResult {
   const padding = 56;
   const sizes = new Map(nodes.map((node) => [node.id, dimensions(node.data.kind)]));
@@ -185,8 +145,8 @@ function buildExportSvg(
       maxY: Math.max(current.maxY, node.position.y + size.height)
     };
   }, { minX: 0, minY: 0, maxX: 800, maxY: 600 });
-  const width = Math.ceil(bounds.maxX - bounds.minX + padding * 2);
-  const height = Math.ceil(bounds.maxY - bounds.minY + padding * 2);
+   const fullWidth = Math.ceil(bounds.maxX - bounds.minX + padding * 2);
+   const fullHeight = Math.ceil(bounds.maxY - bounds.minY + padding * 2);
   const offsetX = padding - bounds.minX;
   const offsetY = padding - bounds.minY;
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
@@ -227,38 +187,111 @@ function buildExportSvg(
     const sourceMarkup = sourceLines.map((line, index) => `<text x="${x + 16}" y="${y + size.height - 12 + index * 14}" class="node-source">${escapeXml(line)}</text>`).join("");
     return `<g><rect x="${x}" y="${y}" width="${size.width}" height="${size.height}" rx="10" fill="${colors.fill}" stroke="${selected ? "#f0bd3c" : colors.stroke}" stroke-width="${selected ? 4 : 2}"${node.data.synthetic ? " stroke-dasharray=\"6 4\"" : ""}/><text x="${x + 16}" y="${y + 20}" class="node-kind">${escapeXml(node.data.instruction)}</text><text x="${x + size.width - 14}" y="${y + 20}" text-anchor="end" class="node-range">L${node.data.source.startLine}</text>${labelMarkup}${sourceMarkup}</g>`;
   }).join("");
-  const markup = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><defs><marker id="arrow-default" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#52718f"/></marker><marker id="arrow-false" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#b44a4a"/></marker><style>.node-kind{font:600 11px Arial,sans-serif;fill:#dbeaf8}.node-range{font:600 11px Arial,sans-serif;fill:#dbeaf8}.node-label{font:700 14px Arial,sans-serif;fill:#fff}.node-source{font:12px Consolas,monospace;fill:#e7f2fb}.edge-label{font:600 11px Arial,sans-serif;fill:#38556d}</style></defs><rect width="100%" height="100%" fill="#f8fbfe"/>${edgeMarkup}${nodeMarkup}</svg>`;
-  return { markup, width, height };
+  const viewport = options.viewport ?? { x: 0, y: 0, width: fullWidth, height: fullHeight };
+  const baseWidth = Math.max(1, options.outputWidth ?? fullWidth);
+  const scale = Math.max(1, options.scale ?? 1);
+  const visibleWidth = Math.max(1, Math.ceil(baseWidth * scale));
+  const visibleHeight = Math.max(1, Math.ceil(viewport.height * (baseWidth / viewport.width) * scale));
+  const markup = `<svg xmlns="http://www.w3.org/2000/svg" width="${visibleWidth}" height="${visibleHeight}" viewBox="${viewport.x} ${viewport.y} ${viewport.width} ${viewport.height}" preserveAspectRatio="xMinYMin meet"><defs><marker id="arrow-default" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#52718f"/></marker><marker id="arrow-false" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#b44a4a"/></marker><style>.node-kind{font:600 11px Arial,sans-serif;fill:#dbeaf8}.node-range{font:600 11px Arial,sans-serif;fill:#dbeaf8}.node-label{font:700 14px Arial,sans-serif;fill:#fff}.node-source{font:12px Consolas,monospace;fill:#e7f2fb}.edge-label{font:600 11px Arial,sans-serif;fill:#38556d}</style></defs><rect x="${viewport.x}" y="${viewport.y}" width="${viewport.width}" height="${viewport.height}" fill="#f8fbfe"/>${edgeMarkup}${nodeMarkup}</svg>`;
+  return { markup, width: visibleWidth, height: visibleHeight, fullWidth, fullHeight, viewport };
 }
 
-function graphMermaid(graph: AviatorFlowGraph) {
-  const lines = ["flowchart TD"];
-  graph.nodes.forEach((node) => {
-    const label = node.data.label.replace(/[\[\]{}()]/g, "");
-    const shape = node.data.kind === "decision" ? `{"${label}"}`
-      : node.data.kind === "start" || node.data.kind === "end" ? `(["${label}"])`
-        : node.data.kind === "iteration" ? `{{"${label}"}}` : `["${label}"]`;
-    lines.push(`  ${node.id.replace(/[^A-Za-z0-9_]/g, "_")}${shape}`);
-  });
-  graph.edges.forEach((edge) => {
-    const label = edge.label ? `|${String(edge.label).replace(/[|]/g, " ")}|` : "";
-    lines.push(`  ${edge.source.replace(/[^A-Za-z0-9_]/g, "_")} -->${label} ${edge.target.replace(/[^A-Za-z0-9_]/g, "_")}`);
-  });
-  return lines.join("\n");
+type ExportFormat = "svg" | "png";
+type ExportScope = "complete" | "pages" | "selection";
+type ExportScale = 1 | 2 | 3;
+
+const EXPORT_MAX_WIDTH = 6000;
+const EXPORT_MAX_PAGE_HEIGHT = 4000;
+const EXPORT_MAX_CANVAS_PIXELS = 80_000_000;
+
+function boundedDimension(value: string, fallback: number, maximum: number) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return Math.min(Math.round(parsed), maximum);
 }
 
-function FlowCanvas({ centerRequest, graph, hoveredRoute, selectedNodeId, onSelectNode }: AviatorFlowViewerProps) {
+function exportPageViewports(fullWidth: number, fullHeight: number, outputWidth: number, pageHeight: number) {
+  const pixelsPerViewBoxUnit = outputWidth / fullWidth;
+  const pageHeightInViewBox = Math.max(1, pageHeight / pixelsPerViewBoxUnit);
+  const pages: ExportViewport[] = [];
+  for (let y = 0; y < fullHeight; y += pageHeightInViewBox) {
+    pages.push({ x: 0, y, width: fullWidth, height: Math.min(pageHeightInViewBox, fullHeight - y) });
+  }
+  return pages.length ? pages : [{ x: 0, y: 0, width: fullWidth, height: fullHeight }];
+}
+
+function exportGraphSelection(graph: AviatorFlowGraph, nodes: AviatorFlowNode[], selectedNodeId?: string) {
+  if (!selectedNodeId) return { graph, nodes };
+  const selectedNodes = nodes.filter((node) => node.id === selectedNodeId);
+  if (!selectedNodes.length) return { graph, nodes };
+  const selectedIds = new Set(selectedNodes.map((node) => node.id));
+  return {
+    graph: { ...graph, nodes: graph.nodes.filter((node) => selectedIds.has(node.id)), edges: graph.edges.filter((edge) => selectedIds.has(edge.source) && selectedIds.has(edge.target)) },
+    nodes: selectedNodes
+  };
+}
+
+function downloadPng(svg: ExportSvgResult, filename: string) {
+  return new Promise<void>((resolve, reject) => {
+    if (svg.width * svg.height > EXPORT_MAX_CANVAS_PIXELS) {
+      reject(new Error("La exportacion PNG supera el limite de memoria del navegador. Usa Por paginas o reduce el ancho/resolucion."));
+      return;
+    }
+    const image = new Image();
+    const svgUrl = URL.createObjectURL(new Blob([svg.markup], { type: "image/svg+xml;charset=utf-8" }));
+    image.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = svg.width;
+        canvas.height = svg.height;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("El navegador no pudo preparar el lienzo PNG.");
+        context.fillStyle = "#f8fbfe";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0);
+        canvas.toBlob((blob) => {
+          URL.revokeObjectURL(svgUrl);
+          if (!blob) {
+            reject(new Error("El navegador no pudo generar el archivo PNG."));
+            return;
+          }
+          downloadFile(filename, blob, "image/png");
+          resolve();
+        }, "image/png");
+      } catch (error) {
+        URL.revokeObjectURL(svgUrl);
+        reject(error instanceof Error ? error : new Error("No se pudo generar el archivo PNG."));
+      }
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(svgUrl);
+      reject(new Error("No se pudo rasterizar el SVG para exportarlo como PNG."));
+    };
+    image.src = svgUrl;
+  });
+}
+
+function FlowCanvas({ centerRequest, graph, hoveredRoute, onFocusNode, selectedNodeId, onSelectNode }: AviatorFlowViewerProps) {
   const [direction, setDirection] = useState<"TB" | "LR">("TB");
   const [instanceReady, setInstanceReady] = useState(false);
   const [collapsedNodeIds, setCollapsedNodeIds] = useState<Set<string>>(new Set());
+  const [markedNodeId, setMarkedNodeId] = useState<string>();
+  const [exportPanelOpen, setExportPanelOpen] = useState(false);
+  const [exportScope, setExportScope] = useState<ExportScope>("complete");
+  const [exportWidth, setExportWidth] = useState("1600");
+  const [exportPageHeight, setExportPageHeight] = useState("1600");
+  const [exportScale, setExportScale] = useState<ExportScale>(1);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportMessage, setExportMessage] = useState("");
   const { fitView, getZoom, setCenter } = useReactFlow();
-  const renderGraph = useMemo(() => collapsedGraph(graph, collapsedNodeIds), [collapsedNodeIds, graph]);
+  const renderGraph = useMemo(() => collapseAviatorFlowGraph(graph, collapsedNodeIds), [collapsedNodeIds, graph]);
   const nodes = useMemo(
     () => layoutGraph(renderGraph, direction).map((node) => ({
       ...node,
+      data: { ...node.data, marked: node.id === markedNodeId },
       selected: node.id === selectedNodeId
     })),
-    [direction, renderGraph, selectedNodeId]
+    [direction, markedNodeId, renderGraph, selectedNodeId]
   );
   const edges = useMemo(() => renderGraph.edges.map((edge) => ({
     ...edge,
@@ -300,33 +333,55 @@ function FlowCanvas({ centerRequest, graph, hoveredRoute, selectedNodeId, onSele
     };
   }, [centerRequest, getZoom, instanceReady, nodes, setCenter]);
 
-  const exportSvg = useCallback(() => {
-    const svg = buildExportSvg(renderGraph, nodes, direction, selectedNodeId);
-    downloadFile("aviatorscript-flow.svg", svg.markup, "image/svg+xml;charset=utf-8");
-  }, [direction, nodes, renderGraph, selectedNodeId]);
+  useEffect(() => {
+    if (!exportPanelOpen) return;
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setExportPanelOpen(false);
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [exportPanelOpen]);
 
-  const exportPng = useCallback(() => {
-    const svg = buildExportSvg(renderGraph, nodes, direction, selectedNodeId);
-    const image = new Image();
-    const svgUrl = URL.createObjectURL(new Blob([svg.markup], { type: "image/svg+xml;charset=utf-8" }));
-    image.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = svg.width;
-      canvas.height = svg.height;
-      const context = canvas.getContext("2d");
-      if (!context) {
-        URL.revokeObjectURL(svgUrl);
-        return;
+  const exportDiagram = useCallback(async (format: ExportFormat) => {
+    if (exportBusy || !nodes.length) return;
+    setExportBusy(true);
+    setExportMessage("");
+    try {
+      const source = exportScope === "selection"
+        ? exportGraphSelection(renderGraph, nodes, selectedNodeId)
+        : { graph: renderGraph, nodes };
+      const base = buildExportSvg(source.graph, source.nodes, direction, selectedNodeId, { outputWidth: 1 });
+      const requestedWidth = boundedDimension(exportWidth, 1600, EXPORT_MAX_WIDTH);
+      const outputWidth = requestedWidth || base.fullWidth;
+      const pageHeight = boundedDimension(exportPageHeight, 1600, EXPORT_MAX_PAGE_HEIGHT) || 1600;
+      const viewports = exportScope === "pages"
+        ? exportPageViewports(base.fullWidth, base.fullHeight, outputWidth, pageHeight)
+        : [base.viewport];
+      const exports = viewports.map((viewport) => buildExportSvg(
+        source.graph,
+        source.nodes,
+        direction,
+        exportScope === "selection" ? selectedNodeId : undefined,
+        { outputWidth, scale: exportScale, viewport }
+      ));
+      const suffix = exportScope === "pages" ? `-${exports.length} paginas` : exportScope === "selection" ? "-seleccion" : "-completo";
+      for (const [index, item] of exports.entries()) {
+        const pageSuffix = exportScope === "pages" ? `-pagina-${String(index + 1).padStart(2, "0")}` : "";
+        const filename = `aviatorscript-flow${suffix}${pageSuffix}`;
+        if (format === "svg") {
+          downloadFile(`${filename}.svg`, item.markup, "image/svg+xml;charset=utf-8");
+        } else {
+          await downloadPng(item, `${filename}.png`);
+        }
+        if (exports.length > 1) await new Promise<void>((resolve) => window.setTimeout(resolve, 80));
       }
-      context.fillStyle = "#f8fbfe";
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      context.drawImage(image, 0, 0);
-      canvas.toBlob((blob) => blob && downloadFile("aviatorscript-flow.png", blob, "image/png"));
-      URL.revokeObjectURL(svgUrl);
-    };
-    image.onerror = () => URL.revokeObjectURL(svgUrl);
-    image.src = svgUrl;
-  }, [direction, nodes, renderGraph, selectedNodeId]);
+      setExportMessage(`${format.toUpperCase()} generado${exports.length > 1 ? ` en ${exports.length} archivos` : ""}.`);
+    } catch (error) {
+      setExportMessage(error instanceof Error ? error.message : "No se pudo exportar el diagrama.");
+    } finally {
+      setExportBusy(false);
+    }
+  }, [direction, exportBusy, exportPageHeight, exportScale, exportScope, exportWidth, nodes, renderGraph, selectedNodeId]);
 
   return (
     <div className="aviator-flow-canvas">
@@ -337,7 +392,10 @@ function FlowCanvas({ centerRequest, graph, hoveredRoute, selectedNodeId, onSele
         nodes={nodes}
         nodeTypes={nodeTypes}
         onInit={() => setInstanceReady(true)}
-        onNodeClick={(_, node) => onSelectNode(node as AviatorFlowNode)}
+        onNodeClick={(_, node) => {
+          setMarkedNodeId(undefined);
+          onSelectNode(node as AviatorFlowNode);
+        }}
         nodesConnectable={false}
         proOptions={{ hideAttribution: true }}
       >
@@ -350,13 +408,55 @@ function FlowCanvas({ centerRequest, graph, hoveredRoute, selectedNodeId, onSele
           }}
         />
         <Panel className="aviator-flow-toolbar" position="top-left">
-          <button onClick={() => fitView({ padding: 0.18, duration: 240 })} type="button">Ajustar</button>
-          <button onClick={() => setDirection((current) => current === "TB" ? "LR" : "TB")} type="button">{direction === "TB" ? "Horizontal" : "Vertical"}</button>
-          <button disabled={!selectedNodeId || !graph.nodes.some((node) => node.id === selectedNodeId && (node.data.kind === "decision" || node.data.kind === "iteration"))} onClick={() => selectedNodeId && setCollapsedNodeIds((current) => new Set(current).add(selectedNodeId))} type="button">Contraer</button>
-          <button disabled={!collapsedNodeIds.size} onClick={() => setCollapsedNodeIds(new Set())} type="button">Expandir todo</button>
-          <button onClick={exportSvg} type="button">SVG</button>
-          <button onClick={exportPng} type="button">PNG</button>
-          <button onClick={() => downloadFile("aviatorscript-flow.mmd", graphMermaid(renderGraph), "text/plain") } type="button">Mermaid</button>
+          <button
+            aria-label="Ir al inicio del flujo"
+            disabled={!nodes.some((node) => node.data.kind === "start")}
+            onClick={() => {
+              const startNode = nodes.find((node) => node.data.kind === "start");
+              if (!startNode) return;
+              setMarkedNodeId(startNode.id);
+              onFocusNode(startNode.id);
+            }}
+            title="Ir al primer bloque del flujo"
+            type="button"
+          >Inicio</button>
+          <button onClick={() => fitView({ padding: 0.18, duration: 240 })} title="Ajustar todo el flujo al area visible" type="button">Ajustar</button>
+          <button onClick={() => setDirection((current) => current === "TB" ? "LR" : "TB")} title="Cambiar la orientacion entre horizontal y vertical" type="button">{direction === "TB" ? "Horizontal" : "Vertical"}</button>
+          <button disabled={!selectedNodeId || !graph.nodes.some((node) => node.id === selectedNodeId && (node.data.kind === "decision" || node.data.kind === "iteration"))} onClick={() => selectedNodeId && setCollapsedNodeIds((current) => new Set(current).add(selectedNodeId))} title="Contraer la rama del nodo seleccionado" type="button">Contraer</button>
+          <button disabled={!collapsedNodeIds.size} onClick={() => setCollapsedNodeIds(new Set())} title="Expandir todas las ramas contraidas" type="button">Expandir todo</button>
+          <div className="aviator-flow-export">
+            <button aria-expanded={exportPanelOpen} onClick={() => { setExportPanelOpen((current) => !current); setExportMessage(""); }} title="Configurar la exportacion completa, por paginas, en alta resolucion o solo de la seleccion" type="button">Exportar</button>
+            {exportPanelOpen && <div aria-label="Opciones de exportacion" className="aviator-flow-export-menu" role="dialog">
+              <strong>Exportar diagrama</strong>
+              <label>Contenido
+                <select onChange={(event) => setExportScope(event.target.value as ExportScope)} value={exportScope}>
+                  <option value="complete">Flujo completo</option>
+                  <option disabled={!selectedNodeId} value="selection">Solo nodo seleccionado</option>
+                  <option value="pages">Por paginas</option>
+                </select>
+              </label>
+              <label>Ancho de salida (px)
+                <input aria-label="Ancho de salida en pixeles" max={EXPORT_MAX_WIDTH} min="0" onChange={(event) => setExportWidth(event.target.value)} step="100" type="number" value={exportWidth} />
+                <small>0 usa el ancho natural del flujo.</small>
+              </label>
+              {exportScope === "pages" && <label>Alto de pagina (px)
+                <input aria-label="Alto de pagina en pixeles" max={EXPORT_MAX_PAGE_HEIGHT} min="400" onChange={(event) => setExportPageHeight(event.target.value)} step="100" type="number" value={exportPageHeight} />
+                <small>Genera un archivo por pagina para evitar diagramas interminables.</small>
+              </label>}
+              <label>Resolucion
+                <select onChange={(event) => setExportScale(Number(event.target.value) as ExportScale)} value={exportScale}>
+                  <option value="1">Estandar (1x)</option>
+                  <option value="2">Alta (2x)</option>
+                  <option value="3">Maxima (3x)</option>
+                </select>
+              </label>
+              <div className="aviator-flow-export-actions">
+                <button disabled={exportBusy || (exportScope === "selection" && !selectedNodeId)} onClick={() => void exportDiagram("svg")} title="Descargar el diagrama como SVG vectorial" type="button">{exportBusy ? "Generando..." : "SVG"}</button>
+                <button disabled={exportBusy || (exportScope === "selection" && !selectedNodeId)} onClick={() => void exportDiagram("png")} title="Descargar el diagrama como PNG rasterizado" type="button">{exportBusy ? "Generando..." : "PNG"}</button>
+              </div>
+              {exportMessage && <p className="aviator-flow-export-message" role="status">{exportMessage}</p>}
+            </div>}
+          </div>
         </Panel>
       </ReactFlow>
     </div>

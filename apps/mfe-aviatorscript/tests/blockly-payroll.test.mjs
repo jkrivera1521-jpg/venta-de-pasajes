@@ -16,7 +16,7 @@ registerHooks({
 const { buildFormulaFromWorkspace, compactPayrollGraph, createNewPayrollGraph, createStarterFormula, decomposePayrollGraph, getUserVariableFields, loadFormulaExpression, refreshPayrollFormulaGraph, registerAviatorBlocks } = await import("../lib/blockly-editor.ts");
 const { DEFAULT_PAYROLL_CONFIG, PAYROLL_SCHEMA, evaluatePayrollFormula, normalizePayrollConfig, payrollProgramFromConfig } = await import("../lib/payroll-formula.ts");
 const { compileFormula, evaluateFormula } = await import("../lib/formula.ts");
-const { parseAviatorSource } = await import("../lib/formula-template.ts");
+const { parseAviatorSource, variablesForTemplate } = await import("../lib/formula-template.ts");
 
 function workspace() {
   const result = new Blockly.Workspace();
@@ -148,6 +148,38 @@ test("user JVM variables can be created on demand with an editable type", () => 
   } finally {
     created.dispose();
   }
+});
+
+test("currency JVM variables keep two decimal places", () => {
+  const created = workspace();
+  try {
+    const root = created.newBlock("aviator_formula");
+    const variable = created.newBlock("aviator_user_variable");
+    variable.setFieldValue("precio", "FIELD");
+    variable.setFieldValue("currency", "TYPE");
+    root.getInput("VALUE").connection.connect(variable.outputConnection);
+    const userFields = getUserVariableFields(created);
+    const built = buildFormulaFromWorkspace(created, userFields);
+    assert.deepEqual(userFields, [{
+      key: "precio",
+      label: "precio",
+      type: "currency",
+      description: "Variable JVM creada en esta formula."
+    }]);
+    assert.equal(built.expression.valueType, "currency");
+    assert.equal(evaluateFormula(built.expression, { precio: 12.345 }), 12.35);
+    assert.equal(built.issues.length, 0);
+  } finally {
+    created.dispose();
+  }
+});
+
+test("template information lists context variables and excludes local variables", () => {
+  const expression = parseAviatorSource("let total = salarioMensual + diasMes; return total;", PAYROLL_SCHEMA);
+  assert.deepEqual(variablesForTemplate(expression, PAYROLL_SCHEMA).map((field) => [field.key, field.type]), [
+    ["salarioMensual", "number"],
+    ["diasMes", "number"]
+  ]);
 });
 
 test("legacy Blockly fields keep the salary edit and initialize the remaining guards", () => {

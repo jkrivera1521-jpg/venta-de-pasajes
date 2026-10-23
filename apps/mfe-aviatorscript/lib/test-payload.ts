@@ -1,14 +1,26 @@
 import type { FormulaExpression, FormulaRoot, FormulaStatement, FormulaValueType } from "./formula";
 import { PAYROLL_SCHEMA } from "./payroll-formula";
-import type { SchemaField, SchemaFieldType } from "./types";
+import { roundCurrency, type SchemaField, type SchemaFieldType } from "./types";
 
 const PAYROLL_ARRAY_SAMPLES: Record<string, unknown> = {
   horasExtras: [
-    { tipo: "DIURNA", horas: 8 },
-    { tipo: "NOCTURNA", horas: 3 }
+    { horas: 5, tipo: "DIURNA" },
+    { horas: 3, tipo: "NOCTURNA" },
+    { horas: 2, tipo: "FERIADO" }
   ],
-  descuentosAdicionales: [{ concepto: "Seguro", valor: 115 }]
+  descuentosAdicionales: [
+    { concepto: "PRESTAMO", valor: 75 },
+    { concepto: "ANTICIPO", valor: 40 }
+  ]
 };
+
+export type FormulaTestRequest = {
+  idSolicitud: string;
+  codigoFormula: string;
+  parametros: Record<string, unknown>;
+};
+
+export type FormulaTestPayloadMetadata = Partial<Pick<FormulaTestRequest, "idSolicitud" | "codigoFormula">>;
 
 const BLOCKED_PATH_PARTS = new Set(["__proto__", "prototype", "constructor"]);
 
@@ -33,8 +45,8 @@ function setPathValue(target: Record<string, unknown>, path: string, value: unkn
   current[parts[parts.length - 1]] = value;
 }
 
-function concreteType(type: FormulaValueType | undefined): type is Exclude<FormulaValueType, "unknown" | "object"> {
-  return Boolean(type && type !== "unknown" && type !== "object");
+function concreteType(type: FormulaValueType | undefined): type is Exclude<FormulaValueType, "unknown" | "null" | "object" | "array" | "lambda"> {
+  return Boolean(type && !["unknown", "null", "object", "array", "lambda"].includes(type));
 }
 
 function collectVariableTypes(expression: FormulaRoot, fields: SchemaField[]) {
@@ -54,7 +66,8 @@ function collectVariableTypes(expression: FormulaRoot, fields: SchemaField[]) {
       const type = schemaType && schemaType !== "unknown"
         ? schemaType
         : concreteType(node.valueType) ? node.valueType
-          : concreteType(expected) ? expected : "unknown";
+          : expected === "array" || expected === "object" ? expected
+            : concreteType(expected) ? expected : "unknown";
       const previous = variables.get(node.key);
       if (!previous || previous === "unknown" || type !== "unknown") variables.set(node.key, type);
       return;
@@ -74,8 +87,21 @@ function collectVariableTypes(expression: FormulaRoot, fields: SchemaField[]) {
       return;
     }
     if (node.kind === "call") {
+      if (["seq.count", "seq.filter", "seq.reduce", "seq.include"].includes(node.name)) {
+        visit(node.args[0], "array", locals);
+        if (node.name === "seq.filter" || node.name === "seq.reduce") visit(node.args[1], "lambda", locals);
+        if (node.name === "seq.reduce") visit(node.args[2], "unknown", locals);
+        if (node.name === "seq.include") visit(node.args[1], "unknown", locals);
+        return;
+      }
       const argumentType = node.name.startsWith("string.") ? "string" : "number";
       node.args.forEach((argument) => visit(argument, argumentType, locals));
+      return;
+    }
+    if (node.kind === "lambda") {
+      const lambdaLocals = new Set(locals);
+      node.parameters.forEach((parameter) => lambdaLocals.add(parameter));
+      visit(node.body, "unknown", lambdaLocals);
       return;
     }
     if (node.kind === "array") {
@@ -86,18 +112,20 @@ function collectVariableTypes(expression: FormulaRoot, fields: SchemaField[]) {
       node.entries.forEach(({ value }) => visit(value, "unknown", locals));
       return;
     }
-    if (["+", "-", "*", "/", "%", ">", ">=", "<", "<="].includes(node.operator)) {
+    if (node.kind === "binary" && ["+", "-", "*", "/", "%", ">", ">=", "<", "<="].includes(node.operator)) {
       visit(node.left, "number", locals);
       visit(node.right, "number", locals);
       return;
     }
-    if (node.operator === "&&" || node.operator === "||") {
+    if (node.kind === "binary" && (node.operator === "&&" || node.operator === "||")) {
       visit(node.left, "boolean", locals);
       visit(node.right, "boolean", locals);
       return;
     }
-    visit(node.left, expressionType(node.right), locals);
-    visit(node.right, expressionType(node.left), locals);
+    if (node.kind === "binary") {
+      visit(node.left, expressionType(node.right), locals);
+      visit(node.right, expressionType(node.left), locals);
+    }
   }
 
   function visitStatements(statements: FormulaStatement[], locals = new Set<string>()) {
@@ -146,18 +174,40 @@ function collectVariableTypes(expression: FormulaRoot, fields: SchemaField[]) {
   return variables;
 }
 
+function isAdvancedPayrollExpression(expression: FormulaRoot, fields: SchemaField[]) {
+  if (expression.kind === "payroll") return true;
+  const variableKeys = collectVariableTypes(expression, fields);
+  return [
+    "salarioMensual",
+    "diasMes",
+    "diasTrabajados",
+    "aniosAntiguedad",
+    "tipoEmpleado",
+    "calificacionDesempeno",
+    "horasExtras",
+    "descuentosAdicionales"
+  ].every((key) => variableKeys.has(key));
+}
+
 function inferUnknownType(key: string): SchemaFieldType {
   const normalized = key.toLowerCase();
   if (/^(is|has|can|should)[._]|vip|activo|active|habilitado|enabled/.test(normalized)) return "boolean";
-  if (/email|correo|nombre|name|categoria|category|tipo|type|estado|status|texto|text/.test(normalized)) return "string";
+  if (/email|correo|nombre|name|categoria|category|tipo|type|estado|status|texto|text|id$/.test(normalized)) return "string";
   if (/fecha|date|createdat|updatedat/.test(normalized)) return "date";
   return "number";
 }
 
 function sampleValue(type: FormulaValueType, key: string, field?: SchemaField): unknown {
-  const resolvedType = type === "unknown" || type === "object" ? field?.type ?? inferUnknownType(key) : type;
+  if (type === "array") return [];
+  if (type === "object") return {};
+  const resolvedType = type === "unknown" ? field?.type ?? inferUnknownType(key) : type;
   const normalized = key.toLowerCase();
   switch (resolvedType) {
+    case "currency":
+      if (/salario|salary|sueldo/.test(normalized)) return roundCurrency(2400);
+      if (/bonificacion|bonus/.test(normalized)) return roundCurrency(500);
+      if (/descuento|discount|monto|amount|total|precio|price/.test(normalized)) return roundCurrency(600);
+      return roundCurrency(100);
     case "number":
       if (/salario|salary|sueldo/.test(normalized)) return 2400;
       if (/bonificacion|bonus/.test(normalized)) return 500;
@@ -178,28 +228,38 @@ function sampleValue(type: FormulaValueType, key: string, field?: SchemaField): 
   }
 }
 
-function parsePreviousPayload(payload?: string): Record<string, unknown> | null {
+function parsePreviousPayload(payload?: string): FormulaTestRequest | null {
   if (!payload) return null;
   try {
     const parsed: unknown = JSON.parse(payload);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
-      : null;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const object = parsed as Record<string, unknown>;
+    const hasRequestEnvelope = Object.prototype.hasOwnProperty.call(object, "parametros");
+    const parametros = hasRequestEnvelope ? object.parametros : object;
+    if (!parametros || typeof parametros !== "object" || Array.isArray(parametros)) return null;
+
+    return {
+      idSolicitud: typeof object.idSolicitud === "string" ? object.idSolicitud : "",
+      codigoFormula: typeof object.codigoFormula === "string" ? object.codigoFormula : "",
+      parametros: parametros as Record<string, unknown>
+    };
   } catch {
     return null;
   }
 }
 
 export function getFormulaTestFields(expression: FormulaRoot, fields: SchemaField[]): SchemaField[] {
-  if (expression.kind === "payroll") return PAYROLL_SCHEMA;
+  if (isAdvancedPayrollExpression(expression, fields)) return PAYROLL_SCHEMA;
 
   const fieldByKey = new Map(fields.map((field) => [field.key, field]));
   return [...collectVariableTypes(expression, fields)].map(([key, valueType]) => {
     const schemaField = fieldByKey.get(key);
     const type = schemaField?.type && schemaField.type !== "unknown"
       ? schemaField.type
-      : valueType === "unknown" || valueType === "object" || valueType === "array"
+      : valueType === "unknown" || valueType === "null" || valueType === "lambda"
         ? inferUnknownType(key)
+        : valueType === "object" || valueType === "array"
+          ? "unknown"
         : valueType;
     return {
       key,
@@ -211,17 +271,53 @@ export function getFormulaTestFields(expression: FormulaRoot, fields: SchemaFiel
   });
 }
 
-export function readTestPayload(payload: string): Record<string, unknown> | null {
+export function readTestPayload(payload: string): FormulaTestRequest | null {
   return parsePreviousPayload(payload);
 }
 
-export function readTestPayloadField(payload: Record<string, unknown>, key: string): unknown {
-  return getPathValue(payload, key);
+export function createTemplateTestPayload(
+  example: unknown,
+  fallbackPayload: string,
+  metadata: FormulaTestPayloadMetadata = {}
+) {
+  let parsedExample: unknown = example;
+  if (typeof parsedExample === "string") {
+    try {
+      parsedExample = JSON.parse(parsedExample);
+    } catch {
+      return fallbackPayload;
+    }
+  }
+  if (!parsedExample || typeof parsedExample !== "object" || Array.isArray(parsedExample)) return fallbackPayload;
+
+  const object = parsedExample as Record<string, unknown>;
+  const parametros = object.parametros && typeof object.parametros === "object" && !Array.isArray(object.parametros)
+    ? object.parametros
+    : object;
+  const fallback = parsePreviousPayload(fallbackPayload);
+  const result: FormulaTestRequest = {
+    idSolicitud: typeof object.idSolicitud === "string"
+      ? object.idSolicitud
+      : metadata.idSolicitud ?? fallback?.idSolicitud ?? "PRUEBA-LOCAL-0001",
+    codigoFormula: typeof object.codigoFormula === "string"
+      ? object.codigoFormula
+      : metadata.codigoFormula ?? fallback?.codigoFormula ?? "FORMULA-LOCAL",
+    parametros: parametros as Record<string, unknown>
+  };
+  return JSON.stringify(result, null, 2);
+}
+
+export function readTestPayloadField(payload: FormulaTestRequest, key: string): unknown {
+  return getPathValue(payload.parametros, key);
 }
 
 export function updateTestPayloadField(payload: string, key: string, value: unknown, fallbackPayload: string): string {
-  const current = parsePreviousPayload(payload) ?? parsePreviousPayload(fallbackPayload) ?? {};
-  setPathValue(current, key, value);
+  const current = parsePreviousPayload(payload) ?? parsePreviousPayload(fallbackPayload) ?? {
+    idSolicitud: "PRUEBA-LOCAL-0001",
+    codigoFormula: "FORMULA-LOCAL",
+    parametros: {}
+  };
+  setPathValue(current.parametros, key, value);
   return JSON.stringify(current, null, 2);
 }
 
@@ -229,28 +325,41 @@ export function createFormulaTestPayload(
   expression: FormulaRoot,
   fields: SchemaField[],
   previousPayload?: string,
-  preserveExistingValues = true
+  preserveExistingValues = true,
+  metadata: FormulaTestPayloadMetadata = {}
 ) {
   const previous = parsePreviousPayload(previousPayload);
   if (preserveExistingValues && previousPayload && !previous) return previousPayload;
 
-  const result: Record<string, unknown> = {};
-  if (expression.kind === "payroll") {
+  const isPayroll = isAdvancedPayrollExpression(expression, fields);
+  const defaults = isPayroll
+    ? { idSolicitud: "NOMINA-2026-0001", codigoFormula: "FORM-NOMINA-AVANZADA-001" }
+    : { idSolicitud: "PRUEBA-LOCAL-0001", codigoFormula: "FORMULA-LOCAL" };
+  const result: FormulaTestRequest = {
+    idSolicitud: metadata.idSolicitud ?? (isPayroll && previous?.idSolicitud === "PRUEBA-LOCAL-0001" ? defaults.idSolicitud : previous?.idSolicitud) ?? defaults.idSolicitud,
+    codigoFormula: metadata.codigoFormula ?? previous?.codigoFormula ?? defaults.codigoFormula,
+    parametros: {}
+  };
+  if (isPayroll) {
     for (const field of PAYROLL_SCHEMA) {
       const defaultValue = PAYROLL_ARRAY_SAMPLES[field.key] ?? sampleValue(field.type, field.key, field);
-      const existingValue = preserveExistingValues && previous ? getPathValue(previous, field.key) : undefined;
-      setPathValue(result, field.key, existingValue === undefined ? defaultValue : existingValue);
+      const existingValue = preserveExistingValues && previous ? getPathValue(previous.parametros, field.key) : undefined;
+      const isStructuredPayrollField = field.key === "horasExtras" || field.key === "descuentosAdicionales";
+      const value = isStructuredPayrollField && !Array.isArray(existingValue)
+        ? defaultValue
+        : existingValue === undefined ? defaultValue : existingValue;
+      setPathValue(result.parametros, field.key, value);
     }
     return JSON.stringify(result, null, 2);
   }
 
   const fieldByKey = new Map(fields.map((field) => [field.key, field]));
   for (const [key, type] of collectVariableTypes(expression, fields)) {
-    const existingValue = preserveExistingValues && previous ? getPathValue(previous, key) : undefined;
+    const existingValue = preserveExistingValues && previous ? getPathValue(previous.parametros, key) : undefined;
     const value = existingValue === undefined
       ? sampleValue(type, key, fieldByKey.get(key))
       : existingValue;
-    setPathValue(result, key, value);
+    setPathValue(result.parametros, key, value);
   }
   return JSON.stringify(result, null, 2);
 }

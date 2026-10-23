@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { upstreamJsonHeaders } from "../../../_lib/forward-auth";
 
 const MAX_SOURCE_LENGTH = 10000;
 const DEFAULT_SERVICE_URL = "http://localhost:8087";
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
         source
       }),
       cache: "no-store",
-      headers: { "Content-Type": "application/json" },
+      headers: upstreamJsonHeaders(request),
       method: "POST",
       signal: controller.signal
     });

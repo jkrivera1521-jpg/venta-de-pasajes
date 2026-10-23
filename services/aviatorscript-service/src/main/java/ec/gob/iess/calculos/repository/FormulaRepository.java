@@ -9,12 +9,34 @@ import java.util.Optional;
 public class FormulaRepository {
 
     public List<FormulaEntity> listarPlantillas() {
-        return FormulaEntity.find("order by codigo asc, version desc").list();
+        return FormulaEntity.find("order by id asc").list();
     }
 
     public Optional<FormulaEntity> buscarActiva(String codigo) {
         return FormulaEntity.find(
             "codigo = ?1 and activa = true order by version desc", codigo
         ).firstResultOptional();
+    }
+
+    public List<FormulaEntity> buscarPorCodigo(String codigo) {
+        return FormulaEntity.find("codigo = ?1 order by version desc", codigo).list();
+    }
+
+    public Optional<FormulaEntity> buscarPorId(Long id) {
+        return FormulaEntity.findByIdOptional(id);
+    }
+
+    public void desactivarActivas(String codigo) {
+        FormulaEntity.update("activa = false where codigo = ?1 and activa = true", codigo);
+    }
+
+    public FormulaEntity guardar(FormulaEntity formula) {
+        formula.persistAndFlush();
+        return formula;
+    }
+
+    public FormulaEntity actualizar(FormulaEntity formula) {
+        formula.persistAndFlush();
+        return formula;
     }
 }
