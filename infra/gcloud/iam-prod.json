@@ -84,6 +84,19 @@
       ]
     },
     {
+      "account_id": "report-prod-run",
+      "component": "report-service",
+      "type": "cloud_run_backend_runtime",
+      "display_name": "report-service prod runtime",
+      "description": "Runtime identity for report-service in production.",
+      "project_roles": [
+        "roles/cloudsql.client",
+        "roles/cloudsql.instanceUser",
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ]
+    },
+    {
       "account_id": "frontend-prod-run",
       "component": "frontend-shell",
       "type": "cloud_run_frontend_runtime",
@@ -201,6 +214,12 @@
       "purpose": "Allow the production deployer to attach audit-service runtime identity."
     },
     {
+      "target_account_id": "report-prod-run",
+      "member_account_id": "cloudbuild-prod-deploy",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow the production deployer to attach report-service runtime identity."
+    },
+    {
       "target_account_id": "frontend-prod-run",
       "member_account_id": "cloudbuild-prod-deploy",
       "role": "roles/iam.serviceAccountUser",
@@ -243,6 +262,12 @@
       "member": "serviceAccount:document-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
       "role": "roles/storage.objectAdmin",
       "purpose": "Allow document-service production runtime to store and read generated documents."
+    },
+    {
+      "bucket": "venta-pasajes-prod-reports",
+      "member": "serviceAccount:report-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "role": "roles/storage.objectAdmin",
+      "purpose": "Allow report-service production runtime to store and read generated reports."
     }
   ],
   "cloud_run_invocation_policy": {
@@ -255,13 +280,14 @@
       "mfe-reporting-prod",
       "mfe-admin-prod"
     ],
-    "private_services_when_deployed": [
-      "identity-service-prod",
-      "dispatch-service-prod",
-      "ticketing-service-prod",
-      "document-service-prod",
-      "reporting-service-prod",
-      "audit-service-prod"
+      "private_services_when_deployed": [
+        "identity-service-prod",
+        "dispatch-service-prod",
+        "ticketing-service-prod",
+        "document-service-prod",
+        "reporting-service-prod",
+        "report-service-prod",
+        "audit-service-prod"
     ],
     "planned_invokers": [
       {

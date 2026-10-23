@@ -164,6 +164,31 @@
       ]
     },
     {
+      "account_id": "report-service-run",
+      "component": "report-service",
+      "type": "cloud_run_runtime",
+      "display_name": "report-service runtime",
+      "description": "Runtime identity for report-service in Cloud Run dev.",
+      "project_roles": [
+        "roles/cloudsql.client",
+        "roles/cloudsql.instanceUser",
+        "roles/logging.logWriter",
+        "roles/monitoring.metricWriter"
+      ],
+      "deferred_resource_roles": [
+        {
+          "role": "roles/secretmanager.secretAccessor",
+          "scope": "report-service database secret",
+          "planned_day": 15
+        },
+        {
+          "role": "roles/storage.objectAdmin",
+          "scope": "report templates and generated reports bucket",
+          "planned_day": 56
+        }
+      ]
+    },
+    {
       "account_id": "frontend-shell-run",
       "component": "frontend-shell",
       "type": "cloud_run_frontend_runtime",
@@ -239,6 +264,12 @@
       "member_account_id": "cloudbuild-deployer",
       "role": "roles/iam.serviceAccountUser",
       "purpose": "Allow Cloud Build deployer to attach audit-service runtime identity to Cloud Run."
+    },
+    {
+      "target_account_id": "report-service-run",
+      "member_account_id": "cloudbuild-deployer",
+      "role": "roles/iam.serviceAccountUser",
+      "purpose": "Allow Cloud Build deployer to attach report-service runtime identity to Cloud Run."
     },
     {
       "target_account_id": "frontend-shell-run",

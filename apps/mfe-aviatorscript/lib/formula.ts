@@ -54,6 +54,9 @@ export interface FormulaTemplate {
   version: number;
   expresion: string;
   ejemplo?: Record<string, unknown> | null;
+  contratoEntrada?: Record<string, unknown> | null;
+  contratoSalida?: Record<string, unknown> | null;
+  configuracionInterfaz?: Record<string, unknown> | null;
   activa: boolean;
   fechaCreacion?: string | null;
   estado?: "BORRADOR" | "PUBLICADA" | null;
@@ -70,7 +73,31 @@ export interface FormulaPersistenceRequest {
   descripcion?: string | null;
   expresion: string;
   ejemplo: Record<string, unknown>;
+  contratoEntrada?: Record<string, unknown> | null;
+  contratoSalida?: Record<string, unknown> | null;
+  configuracionInterfaz?: Record<string, unknown> | null;
   creadoPor?: string | null;
+}
+
+/** Builds a portable JSON Schema from the example used by the constructor. */
+export function inferFormulaInputContract(value: unknown, title = "Parámetros"): Record<string, unknown> {
+  if (value === null) return { type: "null", title, nullable: true };
+  if (Array.isArray(value)) {
+    return {
+      type: "array",
+      title,
+      minItems: 0,
+      items: inferFormulaInputContract(value.find((item) => item !== null) ?? "", `${title} item`)
+    };
+  }
+  if (typeof value === "object") {
+    const properties = Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, child]) => [key, inferFormulaInputContract(child, key)]));
+    return { type: "object", title, properties, required: Object.keys(properties) };
+  }
+  if (typeof value === "boolean") return { type: "boolean", title, default: value };
+  if (typeof value === "number") return { type: Number.isInteger(value) ? "integer" : "number", title, default: value };
+  if (typeof value === "string") return { type: "string", title, default: value };
+  return { type: "unknown", title };
 }
 
 export interface FormulaIssue {

@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { WorkspaceSvg } from "blockly";
 import { activateFormula, getCalculationEndpoint, getFormulaTemplates, getRuleSchema, publishFormula, saveFormulaToDatabase as persistFormulaTemplate, testAviatorSource, validateAviatorSource, visualizeAviatorSource } from "../lib/api";
 import { buildFormulaFromWorkspace, compactPayrollGraph, createFormulaToolbox, createStarterFormula, decomposePayrollGraph, fitNestedBlockContainers, getUserVariableFields, isDecomposedPayrollWorkspaceState, loadFormulaExpression, refreshPayrollFormulaGraph, registerAviatorBlocks } from "../lib/blockly-editor";
-import { compileFormula, type FormulaDocument, type FormulaIssue, type FormulaRoot, type FormulaTemplate, validateFormula } from "../lib/formula";
+import { compileFormula, inferFormulaInputContract, type FormulaDocument, type FormulaIssue, type FormulaRoot, type FormulaTemplate, validateFormula } from "../lib/formula";
 import { parseAviatorSource, schemaForTemplate, variablesForTemplate } from "../lib/formula-template";
 import { parseAdvancedPayrollConfig, payrollProgramFromConfig } from "../lib/payroll-formula";
 import { createFormulaTestPayload, createTemplateTestPayload, readTestPayload } from "../lib/test-payload";
@@ -626,6 +626,9 @@ export function VisualFormulaBuilder({ accessToken = null, creator = "desconocid
     }
 
     const example = { ...parsedPayload, codigoFormula: codigo } as Record<string, unknown>;
+    const parameters = parsedPayload.parametros && typeof parsedPayload.parametros === "object" && !Array.isArray(parsedPayload.parametros)
+      ? parsedPayload.parametros
+      : parsedPayload;
     setDatabaseSaveBusy(true);
     try {
       const saved = await persistFormulaTemplate({
@@ -633,7 +636,14 @@ export function VisualFormulaBuilder({ accessToken = null, creator = "desconocid
         descripcion: formulaDescription.trim() || null,
         ejemplo: example,
         expresion: compileFormula(built.expression),
-        nombre: formulaName.trim() || "Fórmula sin título"
+        nombre: formulaName.trim() || "Fórmula sin título",
+        contratoEntrada: inferFormulaInputContract(parameters),
+        configuracionInterfaz: {
+          title: formulaName.trim() || "Aplicación de cálculo",
+          description: formulaDescription.trim() || "Completa los datos para ejecutar el cálculo.",
+          submitLabel: "Ejecutar cálculo",
+          resultTitle: "Resultado"
+        }
       }, accessToken);
       setFormulaCode(saved.codigo);
       setPersistedFormulaId(saved.id);

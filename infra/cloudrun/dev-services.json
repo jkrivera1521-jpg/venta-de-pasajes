@@ -160,6 +160,39 @@
       }
     },
     {
+      "id": "report-service",
+      "group": "backend",
+      "service_name": "report-service",
+      "image_name": "report-service",
+      "source_path": "services/report-service",
+      "port": 8088,
+      "allow_unauthenticated": false,
+      "service_account": "report-service-run@${PROJECT_ID}.iam.gserviceaccount.com",
+      "cloud_sql": true,
+      "cpu": "1",
+      "memory": "1Gi",
+      "min_instances": 0,
+      "max_instances": 2,
+      "health_path": "/api/v1/report/health",
+      "env": {
+        "APP_ENV": "dev",
+        "APP_RUNTIME_TARGET": "gcp",
+        "APP_SECRETS_PROVIDER": "google-secret-manager",
+        "GOOGLE_CLOUD_PROJECT": "${PROJECT_ID}",
+        "QUARKUS_PROFILE": "gcp",
+        "QUARKUS_HTTP_PORT": "8088",
+        "CLOUD_SQL_CONNECTION_NAME": "${CLOUD_SQL_CONNECTION_NAME}",
+        "APP_DB_JDBC_URL": "jdbc:postgresql:///report_db?cloudSqlInstance=${CLOUD_SQL_CONNECTION_NAME}&socketFactory=com.google.cloud.sql.postgres.SocketFactory&enableIamAuth=true&sslmode=disable",
+        "APP_DATABASE_SECRET_NAME": "report-service__db-connection",
+        "APP_DB_USERNAME": "report-service-run@${PROJECT_ID}.iam",
+        "APP_REPORT_STORAGE_PROVIDER": "gcs",
+        "APP_REPORT_STORAGE_BUCKET": "venta-pasajes-dev-reports",
+        "APP_REPORT_PDF_ENABLED": "true",
+        "QUARKUS_FLYWAY_MIGRATE_AT_START": "true",
+        "QUARKUS_FLYWAY_BASELINE_ON_MIGRATE": "true"
+      }
+    },
+    {
       "id": "audit-service",
       "group": "backend",
       "service_name": "audit-service",
@@ -369,6 +402,50 @@
       }
     },
     {
+      "id": "mfe-formula-runtime",
+      "group": "frontend",
+      "service_name": "mfe-formula-runtime",
+      "image_name": "mfe-formula-runtime",
+      "source_path": "apps/mfe-formula-runtime",
+      "port": 3007,
+      "allow_unauthenticated": true,
+      "service_account": "frontend-shell-run@${PROJECT_ID}.iam.gserviceaccount.com",
+      "cloud_sql": false,
+      "cpu": "1",
+      "memory": "512Mi",
+      "min_instances": 0,
+      "max_instances": 2,
+      "health_path": "/api/health",
+      "env": {
+        "PORT": "3007",
+        "NEXT_PUBLIC_APP_ENV": "dev",
+        "NEXT_PUBLIC_MFE_PUBLIC_URL": "${SERVICE_URL:mfe-formula-runtime}",
+        "AVIATORSCRIPT_SERVICE_URL": "${SERVICE_URL:aviatorscript-service}"
+      }
+    },
+    {
+      "id": "mfe-report-runtime",
+      "group": "frontend",
+      "service_name": "mfe-report-runtime",
+      "image_name": "mfe-report-runtime",
+      "source_path": "apps/mfe-report-runtime",
+      "port": 3008,
+      "allow_unauthenticated": true,
+      "service_account": "frontend-shell-run@${PROJECT_ID}.iam.gserviceaccount.com",
+      "cloud_sql": false,
+      "cpu": "1",
+      "memory": "512Mi",
+      "min_instances": 0,
+      "max_instances": 2,
+      "health_path": "/api/health",
+      "env": {
+        "PORT": "3008",
+        "NEXT_PUBLIC_APP_ENV": "dev",
+        "NEXT_PUBLIC_MFE_PUBLIC_URL": "${SERVICE_URL:mfe-report-runtime}",
+        "REPORT_SERVICE_URL": "${SERVICE_URL:report-service}"
+      }
+    },
+    {
       "id": "frontend-shell",
       "group": "frontend",
       "service_name": "frontend-shell",
@@ -393,7 +470,9 @@
         "NEXT_PUBLIC_MFE_TICKETING_MANIFEST_URL": "${SERVICE_URL:mfe-ticketing}/mfe/manifest",
         "NEXT_PUBLIC_MFE_REPORTING_MANIFEST_URL": "${SERVICE_URL:mfe-reporting}/mfe/manifest",
         "NEXT_PUBLIC_MFE_ADMIN_MANIFEST_URL": "${SERVICE_URL:mfe-admin}/mfe/manifest",
-        "NEXT_PUBLIC_MFE_AVIATORSCRIPT_MANIFEST_URL": "${SERVICE_URL:mfe-aviatorscript}/mfe/manifest"
+        "NEXT_PUBLIC_MFE_AVIATORSCRIPT_MANIFEST_URL": "${SERVICE_URL:mfe-aviatorscript}/mfe/manifest",
+        "NEXT_PUBLIC_MFE_FORMULA_RUNTIME_MANIFEST_URL": "${SERVICE_URL:mfe-formula-runtime}/mfe/manifest",
+        "NEXT_PUBLIC_MFE_REPORT_RUNTIME_MANIFEST_URL": "${SERVICE_URL:mfe-report-runtime}/mfe/manifest"
       }
     }
   ]

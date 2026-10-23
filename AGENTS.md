@@ -34,6 +34,7 @@ El monorepo usa npm workspaces y contiene:
 - `apps/mfe-reporting`: reportes.
 - `apps/mfe-admin`: administración.
 - `apps/mfe-aviatorscript`: constructor visual de reglas de negocio.
+- `apps/mfe-report-runtime`: consola embebible para probar los endpoints de `report-service`.
 - `packages/shared-types`: tipos compartidos entre frontend y contratos comunes.
 
 Puertos de desarrollo frontend previstos:
@@ -47,6 +48,7 @@ Puertos de desarrollo frontend previstos:
 | mfe-reporting | 3004 |
 | mfe-admin | 3005 |
 | mfe-aviatorscript | 3006 |
+| mfe-report-runtime | 3008 |
 
 ### Backend
 

@@ -242,6 +242,21 @@ components:
           nullable: true
           additionalProperties: true
           description: JSON de contexto recomendado para probar la formula.
+        contratoEntrada:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: JSON Schema acotado usado por el MFE runtime para construir los campos de entrada.
+        contratoSalida:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: JSON Schema opcional para describir la salida esperada.
+        configuracionInterfaz:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Configuracion declarativa de titulos, secciones y textos de la interfaz runtime.
         activa:
           type: boolean
         fechaCreacion:
@@ -290,6 +305,18 @@ components:
           maxLength: 100000
         ejemplo:
           type: object
+          additionalProperties: true
+        contratoEntrada:
+          type: object
+          nullable: true
+          additionalProperties: true
+        contratoSalida:
+          type: object
+          nullable: true
+          additionalProperties: true
+        configuracionInterfaz:
+          type: object
+          nullable: true
           additionalProperties: true
         creadoPor:
           type: string

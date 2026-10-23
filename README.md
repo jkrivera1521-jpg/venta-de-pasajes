@@ -25,6 +25,7 @@ Avance documentado:
 - `reporting-service` desplegado en Cloud Run dev con health autenticado validado.
 - Ruta de compilacion nativa de `audit-service` agregada en `scripts/build-audit-service-native.ps1`.
 - Imagen local nativa de `audit-service` validada con health de contenedor.
+- `report-service` agregado para versionar plantillas XLSX/DOCX, extraer parametros y generar documentos individuales o masivos.
 - `audit-service` desplegado en Cloud Run dev con health autenticado validado.
 - Ruta de imagenes Docker frontend agregada en `scripts/build-frontend-images.ps1`.
 - Seis imagenes frontend Next.js publicadas en Artifact Registry con tag `0.1.0-frontend`.
@@ -73,6 +74,8 @@ apps/
   mfe-ticketing/
   mfe-reporting/
   mfe-admin/
+  mfe-formula-runtime/
+  mfe-report-runtime/
 services/
   identity-service/
   dispatch-service/
@@ -81,6 +84,7 @@ services/
   reporting-service/
   audit-service/
   aviatorscript-service/
+  report-service/
 packages/
   ui/
   auth-client/
@@ -106,6 +110,9 @@ backups/
 - `mfe-ticketing`: busqueda de salidas, mapa de asientos, venta, anulacion y reimpresion.
 - `mfe-reporting`: reportes operativos y exportaciones.
 - `mfe-admin`: parametros, auditoria, salud y administracion complementaria.
+- `mfe-aviatorscript`: constructor visual y editor para crear, validar y versionar formulas AviatorScript.
+- `mfe-formula-runtime`: pantalla dinamica para que usuarios finales ejecuten formulas publicadas con contratos JSON, sin programar una pantalla por formula.
+- `mfe-report-runtime`: consola embebible para probar el catalogo, versionado, generacion y lotes de `report-service`.
 
 ## Servicios backend
 
@@ -116,12 +123,51 @@ backups/
 - `reporting-service`: modelos de lectura y reportes.
 - `audit-service`: auditoria funcional inmutable.
 - `aviatorscript-service`: ejecucion de formulas versionadas con AviatorScript y registro de resultados.
+- `report-service`: catalogo de plantillas binarias versionadas, generacion XLSX/DOCX/PDF y lotes ZIP.
+
+## PostgreSQL local para report-service
+
+`report-service` usa una base PostgreSQL independiente llamada `report_db`. El puerto `55438` evita conflictos con la base de identidad (`55432`) y la base de AviatorScript (`55437`). El siguiente bloque crea una red, un volumen persistente y el contenedor local:
+
+```powershell
+$LocalDbPassword = "ReportLocal_ChangeMe_12345"
+$NetworkName = "venta-pasajes-report-local"
+$ContainerName = "venta-pasajes-report-db"
+$VolumeName = "venta-pasajes-report-pgdata"
+
+docker network inspect $NetworkName *> $null
+if ($LASTEXITCODE -ne 0) {
+  docker network create $NetworkName | Out-Null
+}
+
+docker container inspect $ContainerName *> $null
+if ($LASTEXITCODE -eq 0) {
+  docker start $ContainerName
+} else {
+  docker run -d `
+    --name $ContainerName `
+    --network $NetworkName `
+    --restart unless-stopped `
+    -e POSTGRES_DB=report_db `
+    -e POSTGRES_USER=report_user `
+    -e "POSTGRES_PASSWORD=$LocalDbPassword" `
+    -p 55438:5432 `
+    -v "${VolumeName}:/var/lib/postgresql/data" `
+    postgres:16-alpine
+}
+
+docker exec venta-pasajes-report-db pg_isready -U report_user -d report_db
+```
+
+La configuracion para Quarkus esta en [`services/report-service/.env.example`](services/report-service/.env.example). Copiala como `services/report-service/.env` solo para desarrollo local; no uses sus valores de ejemplo en ambientes compartidos ni productivos. La guia completa del servicio, incluyendo migraciones Flyway y arranque de Quarkus, esta en [`services/report-service/README.md`](services/report-service/README.md).
 
 ## Documentacion principal
 
 - `vitacora.md`: registro de trabajo ejecutado.
 - `services/aviatorscript-service/README.md`: desarrollo local y contrato inicial del motor de calculos.
+- `services/report-service/README.md`: contrato, limites, seguridad, desarrollo local y ejemplos cURL de todos los endpoints del servicio de reportes.
 - `docs/openapi/aviatorscript-service.openapi.yaml`: contrato OpenAPI inicial del servicio AviatorScript.
+- `docs/openapi/report-service.openapi.yaml`: contrato OpenAPI del catalogo y generacion de reportes.
 - `docs/dia-05-definicion-dominios-microservicios.md`: limites de dominio.
 - `docs/dia-06-diseno-contratos-api.md`: contratos API.
 - `docs/dia-07-diseno-eventos-mensajeria.md`: eventos y Pub/Sub.

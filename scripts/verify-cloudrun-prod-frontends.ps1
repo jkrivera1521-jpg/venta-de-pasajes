@@ -252,6 +252,8 @@ $MfePaths = @{
   "mfe-reporting" = "/reporting/embedded"
   "mfe-admin" = "/admin/embedded"
   "mfe-aviatorscript" = "/rules/embedded"
+  "mfe-formula-runtime" = "/formula-runtime/embedded"
+  "mfe-report-runtime" = "/report-runtime/embedded"
 }
 
 foreach ($Service in $FrontendServices | Where-Object { $_.id -ne "frontend-shell" }) {

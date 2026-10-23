@@ -1,0 +1,193 @@
+openapi: 3.0.3
+info:
+  title: report-service API
+  version: 0.1.0
+  description: Servicio para plantillas de reportes versionadas y generacion XLSX, DOCX, PDF y ZIP.
+servers:
+  - url: http://localhost:8088
+tags:
+  - name: templates
+  - name: reports
+  - name: report-jobs
+paths:
+  /api/v1/templates:
+    get:
+      tags: [templates]
+      summary: Lista plantillas visibles
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Catalogo de plantillas }
+    post:
+      tags: [templates]
+      summary: Crea una plantilla o una nueva version
+      description: multipart/form-data con file, code, name, description, version, activate y parameterSchema.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, code, name]
+              properties:
+                file: { type: string, format: binary }
+                code: { type: string }
+                name: { type: string }
+                description: { type: string }
+                version: { type: integer, minimum: 1 }
+                activate: { type: boolean, default: false }
+                parameterSchema: { type: string, description: Arreglo JSON de parametros declarados }
+      responses:
+        '201': { description: Version creada }
+        '422': { $ref: '#/components/responses/Problem' }
+  /api/v1/templates/{code}:
+    get:
+      tags: [templates]
+      summary: Obtiene la version activa o una version indicada
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/code' }
+        - { name: version, in: query, schema: { type: integer, minimum: 1 } }
+      responses:
+        '200': { description: Plantilla y parametros }
+        '404': { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [templates]
+      summary: Elimina logicamente una plantilla
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/code' }]
+      responses: { '204': { description: Eliminada logicamente } }
+  /api/v1/templates/{code}/versions:
+    get:
+      tags: [templates]
+      summary: Lista versiones de una plantilla
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/code' }]
+      responses: { '200': { description: Versiones } }
+  /api/v1/templates/{code}/parameters:
+    get:
+      tags: [templates]
+      summary: Obtiene los parametros de la version activa
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/code' }]
+      responses: { '200': { description: Parametros activos } }
+  /api/v1/templates/{code}/versions/{version}:
+    get:
+      tags: [templates]
+      summary: Obtiene una version concreta
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/code' }
+        - { $ref: '#/components/parameters/version' }
+      responses: { '200': { description: Version } }
+  /api/v1/templates/{code}/versions/{version}/parameters:
+    get:
+      tags: [templates]
+      summary: Obtiene el contrato de parametros de una version
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/code' }
+        - { $ref: '#/components/parameters/version' }
+      responses: { '200': { description: Parametros } }
+  /api/v1/templates/{code}/versions/{version}/activate:
+    post:
+      tags: [templates]
+      summary: Activa una version y retira la anterior
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/code' }
+        - { $ref: '#/components/parameters/version' }
+      responses: { '204': { description: Activada } }
+  /api/v1/reports/generate:
+    post:
+      tags: [reports]
+      summary: Genera un documento desde una plantilla activa
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GenerateReportRequest' }
+      responses:
+        '200': { description: Documento generado, content: { application/octet-stream: { schema: { type: string, format: binary } } } }
+        '422': { $ref: '#/components/responses/Problem' }
+  /api/v1/report-jobs:
+    post:
+      tags: [report-jobs]
+      summary: Crea un lote asincrono y devuelve 202
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateReportJobRequest' }
+      responses: { '202': { description: Trabajo creado } }
+  /api/v1/report-jobs/{id}:
+    get:
+      tags: [report-jobs]
+      summary: Consulta el estado de un lote
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses: { '200': { description: Estado del lote } }
+  /api/v1/report-jobs/{id}/download:
+    get:
+      tags: [report-jobs]
+      summary: Descarga el ZIP de un lote completado
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses: { '200': { description: ZIP, content: { application/zip: { schema: { type: string, format: binary } } } } }
+  /api/v1/report-jobs/{id}/cancel:
+    post:
+      tags: [report-jobs]
+      summary: Cancela un lote pendiente o en ejecucion
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/id' }]
+      responses: { '204': { description: Cancelado } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    code: { name: code, in: path, required: true, schema: { type: string } }
+    version: { name: version, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+  schemas:
+    GenerateReportRequest:
+      type: object
+      required: [templateCode, outputFormat, data]
+      properties:
+        templateCode: { type: string }
+        templateVersion: { type: integer, minimum: 1 }
+        outputFormat: { type: string, enum: [XLSX, DOCX, PDF] }
+        fileName: { type: string }
+        data: { type: object, additionalProperties: true }
+    CreateReportJobRequest:
+      type: object
+      required: [templateCode, outputFormat, documents]
+      properties:
+        templateCode: { type: string }
+        templateVersion: { type: integer, minimum: 1 }
+        outputFormat: { type: string, enum: [XLSX, DOCX, PDF] }
+        zipFileName: { type: string }
+        documents:
+          type: array
+          items:
+            type: object
+            required: [data]
+            properties:
+              fileName: { type: string }
+              data: { type: object, additionalProperties: true }
+    Problem:
+      type: object
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string }
+        detail: { type: string }
+        traceId: { type: string, format: uuid }
+  responses:
+    Problem:
+      description: Error de negocio o validacion
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }

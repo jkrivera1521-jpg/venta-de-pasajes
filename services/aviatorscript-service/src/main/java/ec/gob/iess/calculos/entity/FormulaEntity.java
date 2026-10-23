@@ -39,6 +39,18 @@ public class FormulaEntity extends PanacheEntityBase {
     @Column(columnDefinition = "jsonb")
     public JsonNode ejemplo;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "contrato_entrada", columnDefinition = "jsonb")
+    public JsonNode contratoEntrada;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "contrato_salida", columnDefinition = "jsonb")
+    public JsonNode contratoSalida;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "configuracion_interfaz", columnDefinition = "jsonb")
+    public JsonNode configuracionInterfaz;
+
     @Column(nullable = false)
     public Boolean activa;
 

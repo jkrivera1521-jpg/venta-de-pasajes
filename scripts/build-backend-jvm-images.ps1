@@ -9,6 +9,7 @@ param(
     "ticketing-service",
     "document-service",
     "reporting-service",
+    "report-service",
     "audit-service",
     "aviatorscript-service"
   ),

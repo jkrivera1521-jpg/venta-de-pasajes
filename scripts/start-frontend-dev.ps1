@@ -6,13 +6,16 @@ param(
     [int]$MfeReportingPort = 3004,
     [int]$MfeAdminPort = 3005,
     [int]$MfeAviatorscriptPort = 3006,
+    [int]$MfeFormulaRuntimePort = 3007,
+    [int]$MfeReportRuntimePort = 3008,
     [string]$IdentityApiUrl = "http://localhost:8081/api/v1/identity",
     [string]$DispatchApiUrl = "http://localhost:8082/api/v1/dispatch",
     [string]$TicketingApiUrl = "http://localhost:8083/api/v1/ticketing",
     [string]$DocumentApiUrl = "http://localhost:8084/api/v1/document",
     [string]$ReportingApiUrl = "http://localhost:8085/api/v1/reporting",
     [string]$AuditApiUrl = "http://localhost:8086/api/v1/audit",
-    [string]$AviatorScriptApiUrl = "http://localhost:8087"
+    [string]$AviatorScriptApiUrl = "http://localhost:8087",
+    [string]$ReportServiceApiUrl = "http://localhost:8088"
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,10 +24,29 @@ $Root = Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")
 $LogsDir = Join-Path $Root "logs"
 New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
 
+function Get-ListeningPortProcesses {
+    param([int[]]$Ports)
+
+    netstat -ano -p tcp | Select-String "LISTENING" | ForEach-Object {
+        if ($_.Line -match '^\s*TCP\s+\S+:(\d+)\s+\S+\s+LISTENING\s+(\d+)\s*$') {
+            $PortNumber = [int]$Matches[1]
+            if ($Ports -contains $PortNumber) {
+                [pscustomobject]@{
+                    LocalPort = $PortNumber
+                    OwningProcess = [int]$Matches[2]
+                }
+            }
+        }
+    }
+}
+
 function Assert-PortAvailable {
     param([int]$Port)
 
-    $Connection = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
+    $Connection = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
+    if (-not $Connection) {
+        $Connection = @(Get-ListeningPortProcesses -Ports @($Port))
+    }
     if ($Connection) {
         throw "Port $Port is already in use."
     }
@@ -100,6 +122,8 @@ Assert-PortAvailable -Port $MfeTicketingPort
 Assert-PortAvailable -Port $MfeReportingPort
 Assert-PortAvailable -Port $MfeAdminPort
 Assert-PortAvailable -Port $MfeAviatorscriptPort
+Assert-PortAvailable -Port $MfeFormulaRuntimePort
+Assert-PortAvailable -Port $MfeReportRuntimePort
 
 $MfeIdentityUrl = "http://localhost:$MfeIdentityPort"
 $MfeDispatchUrl = "http://localhost:$MfeDispatchPort"
@@ -107,6 +131,8 @@ $MfeTicketingUrl = "http://localhost:$MfeTicketingPort"
 $MfeReportingUrl = "http://localhost:$MfeReportingPort"
 $MfeAdminUrl = "http://localhost:$MfeAdminPort"
 $MfeAviatorscriptUrl = "http://localhost:$MfeAviatorscriptPort"
+$MfeFormulaRuntimeUrl = "http://localhost:$MfeFormulaRuntimePort"
+$MfeReportRuntimeUrl = "http://localhost:$MfeReportRuntimePort"
 $ShellUrl = "http://localhost:$ShellPort"
 
 $MfeIdentityProcess = Start-NextApp `
@@ -183,6 +209,24 @@ $MfeAviatorscriptProcess = Start-NextApp `
         NEXT_PUBLIC_RULES_API_BASE_URL = ""
     }
 
+$MfeFormulaRuntimeProcess = Start-NextApp `
+    -Name "mfe-formula-runtime" `
+    -WorkingDirectory (Join-Path $Root "apps/mfe-formula-runtime") `
+    -Port $MfeFormulaRuntimePort `
+    -Environment @{
+        AVIATORSCRIPT_SERVICE_URL = $AviatorScriptApiUrl
+        NEXT_PUBLIC_MFE_PUBLIC_URL = $MfeFormulaRuntimeUrl
+    }
+
+$MfeReportRuntimeProcess = Start-NextApp `
+    -Name "mfe-report-runtime" `
+    -WorkingDirectory (Join-Path $Root "apps/mfe-report-runtime") `
+    -Port $MfeReportRuntimePort `
+    -Environment @{
+        NEXT_PUBLIC_MFE_PUBLIC_URL = $MfeReportRuntimeUrl
+        REPORT_SERVICE_URL = $ReportServiceApiUrl
+    }
+
 $ShellProcess = Start-NextApp `
     -Name "frontend-shell" `
     -WorkingDirectory (Join-Path $Root "apps/frontend-shell") `
@@ -196,6 +240,8 @@ $ShellProcess = Start-NextApp `
         NEXT_PUBLIC_MFE_REPORTING_MANIFEST_URL = "$MfeReportingUrl/mfe/manifest"
         NEXT_PUBLIC_MFE_ADMIN_MANIFEST_URL = "$MfeAdminUrl/mfe/manifest"
         NEXT_PUBLIC_MFE_AVIATORSCRIPT_MANIFEST_URL = "$MfeAviatorscriptUrl/mfe/manifest"
+        NEXT_PUBLIC_MFE_FORMULA_RUNTIME_MANIFEST_URL = "$MfeFormulaRuntimeUrl/mfe/manifest"
+        NEXT_PUBLIC_MFE_REPORT_RUNTIME_MANIFEST_URL = "$MfeReportRuntimeUrl/mfe/manifest"
     }
 
 [pscustomobject]@{
@@ -213,4 +259,8 @@ $ShellProcess = Start-NextApp `
     mfe_admin_pid = $MfeAdminProcess.Id
     mfe_aviatorscript_url = $MfeAviatorscriptUrl
     mfe_aviatorscript_pid = $MfeAviatorscriptProcess.Id
+    mfe_formula_runtime_url = $MfeFormulaRuntimeUrl
+    mfe_formula_runtime_pid = $MfeFormulaRuntimeProcess.Id
+    mfe_report_runtime_url = $MfeReportRuntimeUrl
+    mfe_report_runtime_pid = $MfeReportRuntimeProcess.Id
 } | ConvertTo-Json -Compress

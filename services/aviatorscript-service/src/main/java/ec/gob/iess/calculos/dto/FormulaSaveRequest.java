@@ -8,6 +8,9 @@ public record FormulaSaveRequest(
     String descripcion,
     String expresion,
     JsonNode ejemplo,
+    JsonNode contratoEntrada,
+    JsonNode contratoSalida,
+    JsonNode configuracionInterfaz,
     String creadoPor
 ) {
 }

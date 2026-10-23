@@ -54,6 +54,9 @@ public class FormulaCatalogService {
         }
 
         validarEjemplo(request.ejemplo());
+        validarContrato(request.contratoEntrada(), "El contrato de entrada");
+        validarContrato(request.contratoSalida(), "El contrato de salida");
+        validarContrato(request.configuracionInterfaz(), "La configuracion de interfaz");
 
         List<FormulaEntity> versiones = formulaRepository.buscarPorCodigo(codigo);
         int siguienteVersion = versiones.stream()
@@ -68,6 +71,9 @@ public class FormulaCatalogService {
         formula.version = siguienteVersion;
         formula.expresion = expresion;
         formula.ejemplo = request.ejemplo();
+        formula.contratoEntrada = request.contratoEntrada();
+        formula.contratoSalida = request.contratoSalida();
+        formula.configuracionInterfaz = request.configuracionInterfaz();
         formula.activa = false;
         formula.estado = "BORRADOR";
         formula.creadoPor = normalizeActor(authenticatedActor);
@@ -108,6 +114,9 @@ public class FormulaCatalogService {
             formula.version,
             formula.expresion,
             formula.ejemplo,
+            formula.contratoEntrada,
+            formula.contratoSalida,
+            formula.configuracionInterfaz,
             formula.activa,
             formula.fechaCreacion,
             formula.estado,
@@ -145,6 +154,17 @@ public class FormulaCatalogService {
             throw new IllegalArgumentException("El ejemplo de prueba supera el limite permitido.");
         }
         validarProfundidad(ejemplo, 0);
+    }
+
+    private static void validarContrato(JsonNode contrato, String nombre) {
+        if (contrato == null) return;
+        if (!contrato.isObject()) {
+            throw new IllegalArgumentException(nombre + " debe ser un objeto JSON.");
+        }
+        if (contrato.toString().length() > 100_000) {
+            throw new IllegalArgumentException(nombre + " supera el limite permitido.");
+        }
+        validarProfundidad(contrato, 0);
     }
 
     private static void validarProfundidad(JsonNode node, int depth) {

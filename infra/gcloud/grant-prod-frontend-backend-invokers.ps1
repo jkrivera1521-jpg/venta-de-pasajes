@@ -7,6 +7,7 @@ param(
     "ticketing-service-prod",
     "document-service-prod",
     "reporting-service-prod",
+    "report-service-prod",
     "audit-service-prod"
   ),
   [string[]]$CallerServiceAccounts = @(

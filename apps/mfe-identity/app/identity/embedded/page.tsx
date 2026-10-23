@@ -1711,8 +1711,8 @@ export default function EmbeddedIdentity() {
                 <span>Solo informativo (no navega)</span>
               </label>
             ) : null}
-            <label>URL de pantalla<input disabled={menuForm.informational_only} required={!menuForm.informational_only && Boolean(menuForm.parent_id)} onChange={(event) => setMenuForm((current) => ({ ...current, target_url: event.target.value }))} value={menuForm.target_url} /></label>
-            <label>URL del manifest MFE<input disabled={menuForm.informational_only} required={!menuForm.informational_only && Boolean(menuForm.parent_id)} onChange={(event) => setMenuForm((current) => ({ ...current, manifest_url: event.target.value }))} value={menuForm.manifest_url} /></label>
+            <label>URL de pantalla<input disabled={menuForm.informational_only} placeholder="http://localhost:3007/formula-runtime/embedded" required={!menuForm.informational_only && Boolean(menuForm.parent_id)} onChange={(event) => setMenuForm((current) => ({ ...current, target_url: event.target.value }))} value={menuForm.target_url} /></label>
+            <label>URL del manifest MFE<input disabled={menuForm.informational_only} placeholder="http://localhost:3007/mfe/manifest" required={!menuForm.informational_only && Boolean(menuForm.parent_id)} onChange={(event) => setMenuForm((current) => ({ ...current, manifest_url: event.target.value }))} value={menuForm.manifest_url} /></label>
             {menuForm.parent_id ? (
               <div className="menu-parent-context">
                 <span>Padre</span>

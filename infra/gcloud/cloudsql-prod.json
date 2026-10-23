@@ -48,6 +48,11 @@
       "name": "audit_db",
       "owner_service": "audit-service",
       "iam_database_user": "audit-prod-run@project-fbb34cd7-0b82-43e1-867.iam"
+    },
+    {
+      "name": "report_db",
+      "owner_service": "report-service",
+      "iam_database_user": "report-prod-run@project-fbb34cd7-0b82-43e1-867.iam"
     }
   ],
   "iam_database_users": [
@@ -86,6 +91,12 @@
       "service_account": "audit-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
       "cloud_sql_username": "audit-prod-run@project-fbb34cd7-0b82-43e1-867.iam",
       "database": "audit_db"
+    },
+    {
+      "service": "report-service",
+      "service_account": "report-prod-run@project-fbb34cd7-0b82-43e1-867.iam.gserviceaccount.com",
+      "cloud_sql_username": "report-prod-run@project-fbb34cd7-0b82-43e1-867.iam",
+      "database": "report_db"
     }
   ],
   "privilege_strategy": {

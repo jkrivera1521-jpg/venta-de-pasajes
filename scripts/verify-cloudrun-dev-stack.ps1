@@ -311,7 +311,7 @@ foreach ($Service in $Config.services) {
   Add-Check -Name "$($Service.id) health" -ServiceId $Service.id -Group $Service.group -Path $Service.health_path -Auth $Auth
 }
 
-$ManifestServiceIds = @("mfe-identity", "mfe-dispatch", "mfe-ticketing", "mfe-reporting", "mfe-admin", "mfe-aviatorscript")
+$ManifestServiceIds = @("mfe-identity", "mfe-dispatch", "mfe-ticketing", "mfe-reporting", "mfe-admin", "mfe-aviatorscript", "mfe-formula-runtime", "mfe-report-runtime")
 foreach ($ServiceId in $ManifestServiceIds) {
   Add-Check -Name "$ServiceId manifest" -ServiceId $ServiceId -Group "frontend" -Path "/mfe/manifest"
 }
@@ -324,6 +324,8 @@ $EmbeddedPaths = @{
   "mfe-reporting" = "/reporting/embedded"
   "mfe-admin" = "/admin/embedded"
   "mfe-aviatorscript" = "/rules/embedded"
+  "mfe-formula-runtime" = "/formula-runtime/embedded"
+  "mfe-report-runtime" = "/report-runtime/embedded"
 }
 
 foreach ($ServiceId in $EmbeddedPaths.Keys) {

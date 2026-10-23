@@ -46,7 +46,33 @@ async function fetchManifest(manifestUrl: string) {
     throw new Error(`HTTP ${response.status}`);
   }
 
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType && !contentType.toLowerCase().includes("application/json")) {
+    throw new Error("La URL configurada no es un manifest MFE. Usa la ruta /mfe/manifest.");
+  }
+
   return response.json() as Promise<MicrofrontendManifest>;
+}
+
+function resolveManifestUrl(value: string) {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return "";
+  }
+
+  try {
+    const url = new URL(trimmedValue);
+    if (/\/embedded\/?$/.test(url.pathname)) {
+      url.pathname = "/mfe/manifest";
+      url.search = "";
+      url.hash = "";
+      return url.toString();
+    }
+  } catch {
+    // The URL is validated by fetch and the original value is kept for useful diagnostics.
+  }
+
+  return trimmedValue;
 }
 
 function parseGrowlSeverity(value: unknown): GrowlSeverity {
@@ -64,14 +90,15 @@ export function RemoteMfeFrame({ accessToken = null, breadcrumbs = [], entryUrl 
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const growlId = useRef(0);
   const growlTimers = useRef<Map<number, number>>(new Map());
+  const resolvedManifestUrl = useMemo(() => resolveManifestUrl(manifestUrl), [manifestUrl]);
   const manifestQuery = useQuery({
-    enabled: Boolean(manifestUrl),
-    queryKey: ["frontend-shell", "mfe-manifest", manifestUrl, reloadToken],
-    queryFn: () => fetchManifest(manifestUrl)
+    enabled: Boolean(resolvedManifestUrl),
+    queryKey: ["frontend-shell", "mfe-manifest", resolvedManifestUrl, reloadToken],
+    queryFn: () => fetchManifest(resolvedManifestUrl)
   });
   const manifest = manifestQuery.data ?? null;
   const breadcrumbItems = breadcrumbs.length > 0 ? breadcrumbs : [{ code: "current", label: fallbackTitle, navigable: false }];
-  const status: LoadStatus = !manifestUrl && !entryUrl ? "unconfigured" : manifestUrl && manifestQuery.isPending ? "loading" : manifestUrl && manifestQuery.isError ? "error" : "ready";
+  const status: LoadStatus = !resolvedManifestUrl && !entryUrl ? "unconfigured" : resolvedManifestUrl && manifestQuery.isPending ? "loading" : resolvedManifestUrl && manifestQuery.isError ? "error" : "ready";
   const error = manifestQuery.error instanceof Error ? manifestQuery.error.message : "No se pudo cargar el MFE";
 
   const frameSrc = useMemo(() => {
@@ -253,7 +280,7 @@ export function RemoteMfeFrame({ accessToken = null, breadcrumbs = [], entryUrl 
             <WifiOff aria-hidden="true" size={28} />
             <strong>MFE no disponible</strong>
             <span>{error}</span>
-            <span>{manifestUrl}</span>
+            <span>{resolvedManifestUrl || manifestUrl}</span>
           </div>
         ) : null}
 
@@ -262,7 +289,7 @@ export function RemoteMfeFrame({ accessToken = null, breadcrumbs = [], entryUrl 
             <CircleAlert aria-hidden="true" size={28} />
             <strong>MFE pendiente de creacion</strong>
             <span>El modulo {fallbackTitle} todavia no tiene una URL de manifest configurada.</span>
-            <span>Cuando exista, configura NEXT_PUBLIC_MFE_ONLINE_SALES_MANIFEST_URL en el shell.</span>
+            <span>Configura la URL del manifest MFE, por ejemplo: http://localhost:3007/mfe/manifest.</span>
           </div>
         ) : null}
 

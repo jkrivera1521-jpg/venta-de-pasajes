@@ -10,6 +10,7 @@ import {
   Building2,
   CalendarClock,
   CalendarDays,
+  Calculator,
   Check,
   CheckCircle2,
   ClipboardList,
@@ -124,9 +125,11 @@ type ShellRuntimeConfig = {
     admin: string;
     aviatorscript: string;
     dispatch: string;
+    formulaRuntime: string;
     identity: string;
     onlineSales: string;
     reporting: string;
+    reportRuntime: string;
     ticketing: string;
   };
 };
@@ -471,6 +474,15 @@ export function ShellConsole() {
           manifestUrl: manifestUrls?.reporting ?? ""
         },
         {
+          key: "report-runtime" as const,
+          label: "Pruebas de report-service",
+          icon: FileText,
+          enabled: true,
+          fallbackName: "mfe-report-runtime",
+          fallbackTitle: "Pruebas de report-service",
+          manifestUrl: manifestUrls?.reportRuntime ?? ""
+        },
+        {
           key: "admin" as const,
           label: "Admin",
           icon: Settings,
@@ -487,6 +499,15 @@ export function ShellConsole() {
           fallbackName: "mfe-aviatorscript",
           fallbackTitle: "Constructor visual de fórmulas AviatorScript",
           manifestUrl: manifestUrls?.aviatorscript ?? ""
+        },
+        {
+          key: "formula-runtime" as const,
+          label: "Aplicaciones de cálculo",
+          icon: Calculator,
+          enabled: true,
+          fallbackName: "mfe-formula-runtime",
+          fallbackTitle: "Aplicaciones de cálculo",
+          manifestUrl: manifestUrls?.formulaRuntime ?? ""
         }
       ];
     },

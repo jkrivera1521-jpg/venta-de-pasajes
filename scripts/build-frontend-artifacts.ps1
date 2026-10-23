@@ -6,7 +6,9 @@ param(
     "mfe-ticketing",
     "mfe-reporting",
     "mfe-admin",
-    "mfe-aviatorscript"
+    "mfe-aviatorscript",
+    "mfe-formula-runtime",
+    "mfe-report-runtime"
   ),
   [string]$Version = "",
   [string]$OutputRoot = "artifacts\frontend",
@@ -36,6 +38,8 @@ $WorkspaceByApp = @{
   "mfe-reporting" = "@venta-pasajes/mfe-reporting"
   "mfe-ticketing" = "@venta-pasajes/mfe-ticketing"
   "mfe-aviatorscript" = "@venta-pasajes/mfe-aviatorscript"
+  "mfe-formula-runtime" = "@venta-pasajes/mfe-formula-runtime"
+  "mfe-report-runtime" = "@venta-pasajes/mfe-report-runtime"
 }
 
 function Assert-Path {
