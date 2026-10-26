@@ -137,17 +137,12 @@ public final class LegacyJxlsTemplateAdapter {
         return maxRow < 0 ? null : new UsedRange(minRow, minColumn, maxRow, maxColumn);
     }
 
-    /** JXLS starts an area at the cell carrying the comment, so use the true left edge of the sheet. */
+    /** JXLS starts an area at the cell carrying the comment, so include rows above the first column-A value. */
     private static Cell areaAnchor(Sheet sheet, UsedRange range) {
         if (range == null) return null;
-        Cell anchor = null;
-        for (Row row : sheet) {
-            for (Cell cell : row) {
-                if (cell.getCellType() == CellType.BLANK || cell.getColumnIndex() != range.minColumn()) continue;
-                if (anchor == null || cell.getRowIndex() < anchor.getRowIndex()) anchor = cell;
-            }
-        }
-        return anchor;
+        Row firstRow = sheet.getRow(range.minRow());
+        if (firstRow == null) firstRow = sheet.createRow(range.minRow());
+        return firstRow.getCell(range.minColumn(), Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
     }
 
     private static void appendComment(Workbook workbook, Drawing<?> drawing, Cell cell, String value) {

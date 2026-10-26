@@ -47,6 +47,10 @@ function proxyUrl(path: string) {
   return `/api/report/${path.replace(/^\/+/, "")}`;
 }
 
+function outputFormatFor(documentType?: string | null): ReportFormat {
+  return documentType?.toUpperCase() === "DOCX" ? "DOCX" : "XLSX";
+}
+
 async function requestJson<T>(path: string, token: string | null, init: RequestInit = {}) {
   const headers = new Headers(init.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -152,6 +156,22 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
     return query ? catalog.filter((item) => [item.code, item.name, item.documentType, item.status].some((value) => value?.toLowerCase().includes(query))) : catalog;
   }, [catalog, filter]);
 
+  const selectedGenerateTemplate = useMemo(
+    () => catalog.find((item) => item.code === generateCode),
+    [catalog, generateCode],
+  );
+  const availableGenerateFormats = useMemo<ReportFormat[]>(
+    () => selectedGenerateTemplate?.documentType?.toUpperCase() === "DOCX" ? ["DOCX", "PDF"] : ["XLSX"],
+    [selectedGenerateTemplate?.documentType],
+  );
+
+  useEffect(() => {
+    if (!generateCode || !selectedGenerateTemplate) return;
+    const nextFormat = outputFormatFor(selectedGenerateTemplate.documentType);
+    setGenerateFormat((current) => availableGenerateFormats.includes(current) ? current : nextFormat);
+    setGenerateFileName((current) => current || `reporte.${nextFormat.toLowerCase()}`);
+  }, [availableGenerateFormats, generateCode, selectedGenerateTemplate]);
+
   async function loadCatalog() {
     setCatalogLoading(true);
     setCatalogError("");
@@ -200,6 +220,9 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
       setParameters(selectedParameters);
       setGenerateCode(selectedCode);
       setGenerateVersion(String(selectedVersion.version));
+      const nextFormat = outputFormatFor(selectedVersion.documentType);
+      setGenerateFormat(nextFormat);
+      setGenerateFileName(`reporte.${nextFormat.toLowerCase()}`);
     }).catch((error) => {
       if (!cancelled) setDetailsError(error instanceof Error ? error.message : "No se pudo cargar el detalle.");
     }).finally(() => { if (!cancelled) setDetailsLoading(false); });
@@ -222,6 +245,9 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
       setDetails(selectedVersion);
       setParameters(selectedParameters);
       setGenerateVersion(version);
+      const nextFormat = outputFormatFor(selectedVersion.documentType);
+      setGenerateFormat(nextFormat);
+      setGenerateFileName(`reporte.${nextFormat.toLowerCase()}`);
     } catch (error) {
       setDetailsError(error instanceof Error ? error.message : "No se pudo cargar la version.");
     } finally {
@@ -294,9 +320,14 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
     setActionError("");
     try {
       const data = parseObjectJson(generateData);
+      if (!availableGenerateFormats.includes(generateFormat)) {
+        throw new Error(`El formato ${generateFormat} no es compatible con la plantilla seleccionada.`);
+      }
       const payload = { templateCode: generateCode.trim(), templateVersion: generateVersion ? Number(generateVersion) : undefined, outputFormat: generateFormat, fileName: generateFileName || undefined, data };
       const result = await requestBinary("reports/generate", accessToken, JSON.stringify(payload));
-      setGeneratedFile({ blob: result.blob, fileName: result.fileName || generateFileName || `reporte.${generateFormat.toLowerCase()}` });
+      const fileName = result.fileName || generateFileName || `reporte.${generateFormat.toLowerCase()}`;
+      setGeneratedFile({ blob: result.blob, fileName });
+      downloadBlob(result.blob, fileName);
       setActionMessage("Documento generado por report-service.");
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "El JSON de entrada no es valido.");
@@ -404,7 +435,7 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
     </section> : null}
 
     {tab === "generate" ? <section className="report-panel"><PanelHeading eyebrow="GENERACION INDIVIDUAL" title="Generar documento" description="Ejecuta POST /api/v1/reports/generate y descarga la respuesta binaria." />
-      <form className="report-form" onSubmit={generateReport}><div className="report-form-grid"><label>Codigo de plantilla *<select value={generateCode} onChange={(event) => { const code = event.target.value; setGenerateCode(code); setSelectedCode(code); }} required><option value="">Selecciona una plantilla</option>{catalog.map((item) => <option key={item.code} value={item.code}>{item.code} · {item.name}</option>)}</select></label><label>Version<input type="number" min="1" value={generateVersion} onChange={(event) => setGenerateVersion(event.target.value)} onBlur={(event) => { if (event.target.value) void selectVersion(event.target.value); }} placeholder="Activa" /></label><label>Formato<select value={generateFormat} onChange={(event) => { const next = event.target.value as ReportFormat; setGenerateFormat(next); setGenerateFileName(`reporte.${next.toLowerCase()}`); }}><option value="XLSX">XLSX</option><option value="DOCX">DOCX</option><option value="PDF">PDF</option></select></label><label>Nombre de archivo<input value={generateFileName} onChange={(event) => setGenerateFileName(event.target.value)} /></label></div><label>data / parameters <span className="report-help">Ejemplo generado desde {parameters.length} parametro{parameters.length === 1 ? "" : "s"} de la version seleccionada. Puedes editarlo antes de probar. El backend acepta `data`; `parameters` se mantiene como alias de compatibilidad.</span><textarea className="report-code-area" rows={16} value={generateData} onChange={(event) => setGenerateData(event.target.value)} /></label><div className="report-form-actions"><button className="report-button report-button-primary" type="submit" disabled={generateLoading || detailsLoading}>{generateLoading ? <LoaderCircle className="report-spin" size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}{generateLoading ? "Generando..." : detailsLoading ? "Cargando parametros..." : "Generar documento"}</button></div></form>{generatedFile ? <div className="report-download-result"><CheckCircle2 size={18} aria-hidden="true" /><div><strong>Documento listo</strong><p>{generatedFile.fileName}</p></div><button className="report-button report-button-secondary" type="button" onClick={() => downloadBlob(generatedFile.blob, generatedFile.fileName)}><Download size={15} aria-hidden="true" /> Descargar</button></div> : null}
+      <form className="report-form" onSubmit={generateReport}><div className="report-form-grid"><label>Codigo de plantilla *<select value={generateCode} onChange={(event) => { const code = event.target.value; setGenerateCode(code); setSelectedCode(code); }} required><option value="">Selecciona una plantilla</option>{catalog.map((item) => <option key={item.code} value={item.code}>{item.code} · {item.name}</option>)}</select></label><label>Version<input type="number" min="1" value={generateVersion} onChange={(event) => setGenerateVersion(event.target.value)} onBlur={(event) => { if (event.target.value) void selectVersion(event.target.value); }} placeholder="Activa" /></label><label>Formato<select value={generateFormat} onChange={(event) => { const next = event.target.value as ReportFormat; setGenerateFormat(next); setGenerateFileName(`reporte.${next.toLowerCase()}`); }}>{availableGenerateFormats.map((format) => <option key={format} value={format}>{format}</option>)}</select></label><label>Nombre de archivo<input value={generateFileName} onChange={(event) => setGenerateFileName(event.target.value)} /></label></div><label>data / parameters <span className="report-help">Ejemplo generado desde {parameters.length} parametro{parameters.length === 1 ? "" : "s"} de la version seleccionada. Puedes editarlo antes de probar. El backend acepta `data`; `parameters` se mantiene como alias de compatibilidad.</span><textarea className="report-code-area" rows={16} value={generateData} onChange={(event) => setGenerateData(event.target.value)} /></label><div className="report-form-actions"><button className="report-button report-button-primary" type="submit" disabled={generateLoading || detailsLoading}>{generateLoading ? <LoaderCircle className="report-spin" size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}{generateLoading ? "Generando..." : detailsLoading ? "Cargando parametros..." : "Generar documento"}</button></div></form>{generatedFile ? <div className="report-download-result"><CheckCircle2 size={18} aria-hidden="true" /><div><strong>Documento listo</strong><p>{generatedFile.fileName}</p></div><button className="report-button report-button-secondary" type="button" onClick={() => downloadBlob(generatedFile.blob, generatedFile.fileName)}><Download size={15} aria-hidden="true" /> Descargar</button></div> : null}
     </section> : null}
 
     {tab === "jobs" ? <section className="report-panel"><PanelHeading eyebrow="PROCESAMIENTO ASINCRONO" title="Lotes de reportes" description="Crea un lote, consulta su estado, cancelalo o descarga el ZIP completado." />

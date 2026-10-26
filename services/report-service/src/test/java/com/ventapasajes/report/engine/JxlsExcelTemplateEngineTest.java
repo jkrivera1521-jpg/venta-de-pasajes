@@ -57,6 +57,9 @@ class JxlsExcelTemplateEngineTest {
             assertEquals("Afiliacion", sheet.getRow(1).getCell(2).getStringCellValue());
             assertEquals("Guayas", sheet.getRow(2).getCell(1).getStringCellValue());
             assertEquals("Prestacion", sheet.getRow(2).getCell(2).getStringCellValue());
+            assertTrue(sheet.getMergedRegions().stream().anyMatch(region ->
+                    region.getFirstRow() == 0 && region.getLastRow() == 0
+                            && region.getFirstColumn() == 3 && region.getLastColumn() == 5));
             assertEquals("80%", workbook.getSheet("Indicadores").getRow(1).getCell(1).getStringCellValue());
         }
     }
@@ -65,6 +68,8 @@ class JxlsExcelTemplateEngineTest {
         try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             var sheet = workbook.createSheet("Datos");
             sheet.createRow(0).createCell(0).setCellValue("Fecha: ${fechaInicio}");
+            sheet.getRow(0).createCell(3).setCellValue("Titulo");
+            sheet.addMergedRegion(new org.apache.poi.ss.util.CellRangeAddress(0, 0, 3, 5));
             Row row = sheet.createRow(1);
             row.createCell(0).setCellValue("<jt:forEach items=\"${atenciones}\" var=\"atencion\">");
             row.createCell(1).setCellValue("${atencion.provincia}");

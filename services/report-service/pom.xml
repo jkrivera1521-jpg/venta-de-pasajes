@@ -22,6 +22,8 @@
         <jxls.version>3.0.0</jxls.version>
         <poi.version>5.4.1</poi.version>
         <docx4j.version>17.0.0</docx4j.version>
+        <woodstox.version>7.1.1</woodstox.version>
+        <stax2.version>4.2.2</stax2.version>
         <xerces.version>2.12.2</xerces.version>
         <google-cloud-storage.version>2.42.0</google-cloud-storage.version>
         <skipITs>true</skipITs>
@@ -120,11 +122,36 @@
             <groupId>org.docx4j</groupId>
             <artifactId>docx4j-export-fo</artifactId>
             <version>${docx4j.version}</version>
+            <exclusions>
+                <!-- xml-apis bundles legacy javax.xml.stream classes and shadows Java 21's StAX API. -->
+                <exclusion>
+                    <groupId>xml-apis</groupId>
+                    <artifactId>xml-apis</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- docx4j discovers Woodstox through the StAX provider at runtime. -->
+        <dependency>
+            <groupId>com.fasterxml.woodstox</groupId>
+            <artifactId>woodstox-core</artifactId>
+            <version>${woodstox.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.codehaus.woodstox</groupId>
+            <artifactId>stax2-api</artifactId>
+            <version>${stax2.version}</version>
         </dependency>
         <dependency>
             <groupId>xerces</groupId>
             <artifactId>xercesImpl</artifactId>
             <version>${xerces.version}</version>
+            <exclusions>
+                <!-- Keep Java 21's XML APIs instead of the legacy javax.xml classes bundled by Xerces. -->
+                <exclusion>
+                    <groupId>xml-apis</groupId>
+                    <artifactId>xml-apis</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.google.cloud</groupId>

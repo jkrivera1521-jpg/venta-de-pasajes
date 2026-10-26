@@ -292,7 +292,7 @@ Las plantillas no admiten macros (`xlsm/docm`), referencias XML externas ni ruta
 ## Limitaciones conocidas
 
 - La primera version procesa los lotes elemento por elemento, pero mantiene el ZIP final en memoria antes de almacenarlo; para lotes muy grandes debe migrarse el almacenamiento a un stream temporal o multipart.
-- DOCX usa variables preparadas por docx4j y soporta valores anidados; los bloques repetibles con content controls/OpenDoPE requieren una plantilla y contrato declarados para una siguiente iteracion.
+- DOCX usa variables preparadas por docx4j, soporta marcadores divididos entre ejecuciones de Word y valores anidados. Tambien expande filas de tabla con la sintaxis legacy `jt:forEach` (por ejemplo, `cambios`); los content controls/OpenDoPE requieren una plantilla y contrato declarados para una siguiente iteracion.
 - La auditoria es durable en `report_audit_event` dentro de la base del servicio. `APP_REPORT_AUDIT_URL` queda reservado para publicar eventos al `audit-service` mediante un adaptador autenticado.
 - La prueba PostgreSQL con Testcontainers está etiquetada como integración y deshabilitada por defecto; CI debe ejecutarla con Docker.
 - Los fixtures de XLSX se construyen en las pruebas para no versionar archivos binarios; las plantillas reales se cargan por `POST /api/v1/templates`.

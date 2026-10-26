@@ -26,7 +26,10 @@ export type TemplateParameter = {
 
 function exampleValue(parameter: TemplateParameter) {
   if (parameter.defaultValue !== undefined && parameter.defaultValue !== null) return parameter.defaultValue;
-  if (parameter.collection || parameter.repeated || parameter.dataType === "ARRAY") return [];
+  // `repeated` marks a field rendered inside a loop; it does not make the
+  // field itself an array. The array belongs to the loop root or an explicit
+  // ARRAY declaration.
+  if (parameter.dataType === "ARRAY" || (parameter.collection && !parameter.path.includes("."))) return [];
   switch (parameter.dataType) {
     case "NUMBER": return 0;
     case "BOOLEAN": return false;
@@ -45,7 +48,7 @@ function canonicalParameterPath(path: string) {
   return value.startsWith("${") && value.endsWith("}") ? value.slice(2, -1).trim() : value;
 }
 
-function assignExampleValue(target: Record<string, unknown>, path: string, value: unknown) {
+function assignExampleValue(target: Record<string, unknown>, path: string, value: unknown, parameter: TemplateParameter) {
   const segments = canonicalParameterPath(path).split(".").filter(Boolean);
   if (!segments.length) return;
   let current = target;
@@ -55,6 +58,13 @@ function assignExampleValue(target: Record<string, unknown>, path: string, value
       return;
     }
     const existing = current[segment];
+    if (index === 0 && parameter.repeated && segments.length > 1) {
+      const items = Array.isArray(existing) ? existing : [];
+      if (!items.length || !items[0] || typeof items[0] !== "object" || Array.isArray(items[0])) items[0] = {};
+      current[segment] = items;
+      current = items[0] as Record<string, unknown>;
+      return;
+    }
     if (!existing || typeof existing !== "object" || Array.isArray(existing)) current[segment] = {};
     current = current[segment] as Record<string, unknown>;
   });
@@ -81,7 +91,7 @@ export function buildExampleData(parameters: TemplateParameter[]) {
   });
   [...merged.values()]
     .sort((left, right) => left.path.split(".").length - right.path.split(".").length)
-    .forEach((parameter) => assignExampleValue(example, parameter.path, exampleValue(parameter)));
+    .forEach((parameter) => assignExampleValue(example, parameter.path, exampleValue(parameter), parameter));
   return example;
 }
 
