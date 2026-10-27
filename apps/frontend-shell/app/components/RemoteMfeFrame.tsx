@@ -34,6 +34,7 @@ type RemoteMfeFrameProps = {
   manifestUrl: string;
   onAuthRevoked?: () => void;
   onBreadcrumbSelect?: (code: string) => void;
+  onMfeInteraction?: () => void;
   shellName?: string;
 };
 
@@ -83,7 +84,7 @@ function parseGrowlSeverity(value: unknown): GrowlSeverity {
   return "info";
 }
 
-export function RemoteMfeFrame({ accessToken = null, breadcrumbs = [], entryUrl = "", fallbackTitle, manifestUrl, onAuthRevoked, onBreadcrumbSelect, shellName = "frontend-shell", shellUser = null }: Readonly<RemoteMfeFrameProps>) {
+export function RemoteMfeFrame({ accessToken = null, breadcrumbs = [], entryUrl = "", fallbackTitle, manifestUrl, onAuthRevoked, onBreadcrumbSelect, onMfeInteraction, shellName = "frontend-shell", shellUser = null }: Readonly<RemoteMfeFrameProps>) {
   const [frameHeight, setFrameHeight] = useState(720);
   const [reloadToken, setReloadToken] = useState(0);
   const [growls, setGrowls] = useState<ShellGrowl[]>([]);
@@ -177,7 +178,7 @@ export function RemoteMfeFrame({ accessToken = null, breadcrumbs = [], entryUrl 
 
   useEffect(() => {
     function handleMfeMessage(event: MessageEvent) {
-      if (!manifestOrigin || event.origin !== manifestOrigin) {
+      if (!manifestOrigin || event.origin !== manifestOrigin || event.source !== frameRef.current?.contentWindow) {
         return;
       }
 
@@ -193,6 +194,11 @@ export function RemoteMfeFrame({ accessToken = null, breadcrumbs = [], entryUrl 
 
       if (data.type === "venta-pasajes:mfe-auth-revoked") {
         onAuthRevoked?.();
+        return;
+      }
+
+      if (data.type === "venta-pasajes:mfe-interaction") {
+        onMfeInteraction?.();
         return;
       }
 
@@ -217,7 +223,7 @@ export function RemoteMfeFrame({ accessToken = null, breadcrumbs = [], entryUrl 
 
     window.addEventListener("message", handleMfeMessage);
     return () => window.removeEventListener("message", handleMfeMessage);
-  }, [manifestOrigin, onAuthRevoked, postShellAuthToFrame, showGrowl]);
+  }, [manifestOrigin, onAuthRevoked, onMfeInteraction, postShellAuthToFrame, showGrowl]);
 
   return (
     <>

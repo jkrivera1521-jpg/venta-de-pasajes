@@ -19,7 +19,7 @@ Las operaciones protegidas requieren un JWT HS256 emitido por `identity-service`
 
 | Operacion | Metodo | Permiso |
 | --- | --- | --- |
-| Catalogo, versiones y parametros | `GET /api/v1/templates/**` | `REPORT_TEMPLATE_READ` |
+| Catalogo, versiones, parametros y descarga de originales | `GET /api/v1/templates/**` | `REPORT_TEMPLATE_READ` |
 | Crear plantilla/version | `POST /api/v1/templates` | `REPORT_TEMPLATE_CREATE` |
 | Modificar metadatos | Reservado para `PATCH /api/v1/templates/{code}` | `REPORT_TEMPLATE_UPDATE` |
 | Eliminar logicamente | `DELETE /api/v1/templates/{code}` | `REPORT_TEMPLATE_UPDATE` |

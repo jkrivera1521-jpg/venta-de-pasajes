@@ -1155,6 +1155,13 @@ function AuditTable({ data }: Readonly<{ data: AuditEvent[] }>) {
 }
 
 export default function AdminEmbeddedPage() {
+  useEffect(() => {
+    if (window.parent === window) return;
+    const notifyShellInteraction = () => window.parent.postMessage({ type: "venta-pasajes:mfe-interaction" }, "*");
+    document.addEventListener("click", notifyShellInteraction);
+    return () => document.removeEventListener("click", notifyShellInteraction);
+  }, []);
+
   const queryClient = useQueryClient();
   const [activeView, setActiveView] = useState<AdminView>("health");
   const [copiedCommand, setCopiedCommand] = useState("");

@@ -7,6 +7,13 @@ export default function FormulaRuntimeEmbeddedPage() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
 
   useEffect(() => {
+    if (window.parent === window) return;
+    const notifyShellInteraction = () => window.parent.postMessage({ type: "venta-pasajes:mfe-interaction" }, "*");
+    document.addEventListener("click", notifyShellInteraction);
+    return () => document.removeEventListener("click", notifyShellInteraction);
+  }, []);
+
+  useEffect(() => {
     function receiveShellAuth(event: MessageEvent) {
       if (event.source !== window.parent || !event.data || typeof event.data !== "object") return;
       const data = event.data as { accessToken?: unknown; type?: unknown };

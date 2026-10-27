@@ -534,6 +534,13 @@ function nextDemoDeparturePayload() {
 }
 
 export default function EmbeddedTicketing() {
+  useEffect(() => {
+    if (window.parent === window) return;
+    const notifyShellInteraction = () => window.parent.postMessage({ type: "venta-pasajes:mfe-interaction" }, "*");
+    document.addEventListener("click", notifyShellInteraction);
+    return () => document.removeEventListener("click", notifyShellInteraction);
+  }, []);
+
   const [statusMessage, setStatusMessage] = useState("Inicializando");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [shellName, setShellName] = useState("directo");

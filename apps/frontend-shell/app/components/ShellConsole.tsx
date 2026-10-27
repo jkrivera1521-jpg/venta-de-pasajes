@@ -68,7 +68,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import type { ChangeEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RemoteMfeFrame } from "./RemoteMfeFrame";
 
 type MenuItem = {
@@ -629,14 +629,14 @@ export function ShellConsole() {
   }, [activeModuleKey, dynamicMenuFlat, dynamicMenuItems.length, modules]);
 
   useEffect(() => {
-    function handleOutsideMenuClick(event: PointerEvent) {
+    function handleOutsideMenuClick(event: MouseEvent) {
       if (!menuSurfaceRef.current?.contains(event.target as Node)) {
         setOpenMenuPath([]);
       }
     }
 
-    document.addEventListener("pointerdown", handleOutsideMenuClick);
-    return () => document.removeEventListener("pointerdown", handleOutsideMenuClick);
+    document.addEventListener("click", handleOutsideMenuClick);
+    return () => document.removeEventListener("click", handleOutsideMenuClick);
   }, []);
 
   useEffect(() => {
@@ -896,6 +896,10 @@ export function ShellConsole() {
     }
   }
 
+  const handleMfeInteraction = useCallback(() => {
+    setOpenMenuPath([]);
+  }, []);
+
   async function saveAvatar(avatarUrl: string): Promise<boolean> {
     if (!accessToken || !currentUser) {
       return false;
@@ -1137,7 +1141,7 @@ export function ShellConsole() {
               className={isOpen ? "nav-menu-entry nav-menu-entry-open" : "nav-menu-entry"}
               key={item.code}
               onMouseEnter={() => {
-                if (hasChildren && openMenuPath.length > 0) {
+                if (hasChildren) {
                   setOpenMenuPath(itemPath);
                 } else if (!hasChildren && openMenuPath.length > parentPath.length) {
                   setOpenMenuPath(parentPath);
@@ -1365,6 +1369,7 @@ export function ShellConsole() {
             manifestUrl={activeModule.manifestUrl ?? ""}
             onAuthRevoked={logout}
             onBreadcrumbSelect={handleBreadcrumbSelect}
+            onMfeInteraction={handleMfeInteraction}
             shellUser={currentUser}
           />
         </section>

@@ -8,6 +8,13 @@ export default function ReportRuntimeEmbeddedPage() {
   const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
+    if (window.parent === window) return;
+    const notifyShellInteraction = () => window.parent.postMessage({ type: "venta-pasajes:mfe-interaction" }, "*");
+    document.addEventListener("click", notifyShellInteraction);
+    return () => document.removeEventListener("click", notifyShellInteraction);
+  }, []);
+
+  useEffect(() => {
     function receiveShellAuth(event: MessageEvent) {
       if (event.source !== window.parent || !event.data || typeof event.data !== "object") return;
       const data = event.data as { accessToken?: unknown; type?: unknown };

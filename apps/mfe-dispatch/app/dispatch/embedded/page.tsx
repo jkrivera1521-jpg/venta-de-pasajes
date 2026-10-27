@@ -280,6 +280,13 @@ function generateSeats(count: number): SeatDefinition[] {
 }
 
 export default function EmbeddedDispatch() {
+  useEffect(() => {
+    if (window.parent === window) return;
+    const notifyShellInteraction = () => window.parent.postMessage({ type: "venta-pasajes:mfe-interaction" }, "*");
+    document.addEventListener("click", notifyShellInteraction);
+    return () => document.removeEventListener("click", notifyShellInteraction);
+  }, []);
+
   const [activeTab, setActiveTab] = useState<TabKey>("departures");
   const [statusMessage, setStatusMessage] = useState("Inicializando");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);

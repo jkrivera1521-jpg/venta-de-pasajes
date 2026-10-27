@@ -538,6 +538,13 @@ function useShellName() {
 }
 
 export default function EmbeddedIdentity() {
+  useEffect(() => {
+    if (window.parent === window) return;
+    const notifyShellInteraction = () => window.parent.postMessage({ type: "venta-pasajes:mfe-interaction" }, "*");
+    document.addEventListener("click", notifyShellInteraction);
+    return () => document.removeEventListener("click", notifyShellInteraction);
+  }, []);
+
   const shellName = useShellName();
   const [activeTab, setActiveTab] = useState<TabKey>("users");
   const [accessToken, setAccessToken] = useState<string | null>(null);

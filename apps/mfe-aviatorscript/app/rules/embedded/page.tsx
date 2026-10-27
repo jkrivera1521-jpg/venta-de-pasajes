@@ -21,6 +21,13 @@ export default function EmbeddedRuleBuilderPage() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
 
   useEffect(() => {
+    if (window.parent === window) return;
+    const notifyShellInteraction = () => window.parent.postMessage({ type: "venta-pasajes:mfe-interaction" }, "*");
+    document.addEventListener("click", notifyShellInteraction);
+    return () => document.removeEventListener("click", notifyShellInteraction);
+  }, []);
+
+  useEffect(() => {
     let parentOrigin = "";
     try {
       parentOrigin = document.referrer ? new URL(document.referrer).origin : "";

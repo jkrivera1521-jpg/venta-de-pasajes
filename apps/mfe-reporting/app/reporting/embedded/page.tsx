@@ -198,6 +198,13 @@ function DataTable<T>({
 }
 
 export default function ReportingEmbeddedPage() {
+  useEffect(() => {
+    if (window.parent === window) return;
+    const notifyShellInteraction = () => window.parent.postMessage({ type: "venta-pasajes:mfe-interaction" }, "*");
+    document.addEventListener("click", notifyShellInteraction);
+    return () => document.removeEventListener("click", notifyShellInteraction);
+  }, []);
+
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [activeReport, setActiveReport] = useState<ActiveReport>("sales");

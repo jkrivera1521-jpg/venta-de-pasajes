@@ -30,6 +30,7 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
 
 @Path("/api/v1/templates")
@@ -95,10 +96,27 @@ public class TemplateResource {
     @Path("/{code}/versions/{version}/parameters")
     public List<TemplateParameterResponse> parameters(@PathParam("code") String code, @PathParam("version") int version) { return catalog.listParameters(code, version); }
 
+    @GET
+    @Path("/{code}/versions/{version}/download")
+    @Produces(MediaType.APPLICATION_OCTET_STREAM)
+    @Operation(summary = "Descarga el archivo original de una version.")
+    public Response download(@PathParam("code") String code, @PathParam("version") int version) {
+        TemplateCatalogService.TemplateDownload result = catalog.download(code, version);
+        return Response.ok(result.content(), result.contentType())
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + safeFileName(result.fileName()) + "\"")
+                .header(HttpHeaders.CONTENT_LENGTH, result.content().length)
+                .build();
+    }
+
     @POST
     @Path("/{code}/versions/{version}/activate")
     public Response activate(@PathParam("code") String code, @PathParam("version") int version) {
         catalog.activate(code, version, identity.requireUser().actor());
         return Response.noContent().build();
+    }
+
+    private String safeFileName(String value) {
+        if (value == null || value.isBlank()) return "plantilla-original";
+        return value.replace("\\", "_").replace("/", "_").replace("\"", "_").replace("\r", "_").replace("\n", "_");
     }
 }

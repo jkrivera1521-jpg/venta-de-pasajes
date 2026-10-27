@@ -194,6 +194,19 @@ public class TemplateCatalogService {
         return parameters.listByVersion(version);
     }
 
+    @Transactional
+    public TemplateDownload download(String code, int version) {
+        ReportTemplate template = requireTemplate(code);
+        ReportTemplateVersion selected = versions.findByTemplateAndVersion(template, version);
+        if (selected == null) throw notFound("TEMPLATE_VERSION_NOT_FOUND", "No existe la version solicitada.");
+        if (selected.blob == null || selected.blob.content == null) {
+            throw notFound("TEMPLATE_CONTENT_NOT_FOUND", "No existe el archivo original de la version solicitada.");
+        }
+        return new TemplateDownload(selected.fileName, selected.contentType, selected.blob.content);
+    }
+
+    public record TemplateDownload(String fileName, String contentType, byte[] content) { }
+
     private void activateInternal(ReportTemplate template, ReportTemplateVersion selected, String actor, Instant now) {
         ReportTemplateVersion current = versions.findActive(template);
         if (current != null && current != selected) current.status = TemplateVersionStatus.RETIRED;
