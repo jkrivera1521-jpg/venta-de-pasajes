@@ -121,6 +121,7 @@ try {
     $env:APP_RECOVERY_TOKEN_PEPPER = $RecoveryPepper
     $env:APP_AUTH_PASSWORD_PBKDF2_ITERATIONS = "10000"
     $env:APP_AUTH_RECOVERY_RETURN_TOKEN_ENABLED = "true"
+    $env:APP_AUTH_RECOVERY_OFFLINE_MODE = "true"
     $env:APP_BOOTSTRAP_ADMIN_ENABLED = "true"
     $env:APP_BOOTSTRAP_ADMIN_LOGIN = "admin"
     $env:APP_BOOTSTRAP_ADMIN_EMAIL = "admin@onprem.local"
@@ -166,10 +167,14 @@ try {
         throw "Password recovery did not return a test recovery token."
     }
 
-    Invoke-IdentityJson -Path "/password/reset" -Method "Post" -Body @{
+    $Reset = Invoke-IdentityJson -Path "/password/reset" -Method "Post" -Body @{
         token = $Forgot.recovery_token
         new_password = $NewAdminPassword
-    } | Out-Null
+    }
+
+    # El reset emite una nueva sesion. Revoca las sesiones de prueba antes del segundo login.
+    $ResetHeaders = @{ Authorization = "Bearer $($Reset.access_token)" }
+    Invoke-IdentityJson -Path "/auth/logout" -Method "Post" -Headers $ResetHeaders | Out-Null
 
     $SecondLogin = Invoke-IdentityJson -Path "/auth/local/login" -Method "Post" -Body @{
         login = "admin"
@@ -221,6 +226,7 @@ finally {
         "APP_RECOVERY_TOKEN_PEPPER",
         "APP_AUTH_PASSWORD_PBKDF2_ITERATIONS",
         "APP_AUTH_RECOVERY_RETURN_TOKEN_ENABLED",
+        "APP_AUTH_RECOVERY_OFFLINE_MODE",
         "APP_BOOTSTRAP_ADMIN_ENABLED",
         "APP_BOOTSTRAP_ADMIN_LOGIN",
         "APP_BOOTSTRAP_ADMIN_EMAIL",

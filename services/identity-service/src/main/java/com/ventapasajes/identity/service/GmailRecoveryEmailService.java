@@ -56,6 +56,10 @@ public class GmailRecoveryEmailService {
     @ConfigProperty(name = "app.gmail.send-url", defaultValue = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send")
     String sendUrl;
 
+    public boolean isEnabled() {
+        return enabled;
+    }
+
     public void sendPasswordRecoveryEmail(String recipientEmail, String displayName, String recoveryLink, long ttlMinutes) {
         sendRecoveryEmail(
                 recipientEmail,

@@ -30,7 +30,8 @@ function Import-EnvFile {
     param([string]$Path)
 
     if (!(Test-Path -LiteralPath $Path)) {
-        throw "Env file was not found: $Path"
+        $ExamplePath = Join-Path $Root "infra\env\identity-service.onprem.env.example"
+        throw "Env file was not found: $Path. Create it with: New-Item -ItemType Directory -Force -Path 'C:\VENTA-DE-PASAJES-RUNTIME'; Copy-Item -LiteralPath '$ExamplePath' -Destination '$Path'"
     }
 
     foreach ($Line in Get-Content -LiteralPath $Path) {

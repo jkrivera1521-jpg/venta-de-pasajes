@@ -66,6 +66,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-identity-ser
   -UseCleanWorkspace
 ```
 
+El script usa `-Dmaven.test.skip=true` durante el empaquetado nativo para no
+compilar ni ejecutar pruebas en el workspace temporal. Esto es diferente de
+`-DskipTests`, que omite la ejecucion de pruebas pero todavia puede compilar
+`src/test`.
+
+El servicio incluye el conector JDBC de Cloud SQL. Ese conector depende de
+`jnr-ffi`, que puede crear un hilo durante la fase de analisis de Mandrel. La
+propiedad `quarkus.native.additional-build-args` retrasa la inicializacion de
+las clases nativas del conector hasta el arranque del binario y evita el error
+`Detected a started Thread in the image heap`.
+
 `-UseCleanWorkspace` evita errores de archivos bloqueados en Windows cuando hay un `identity-service` JVM corriendo desde `target`.
 
 Verificar la imagen nativa con PostgreSQL temporal:
@@ -102,6 +113,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-identity-se
 ## Verificar autenticacion local
 
 Este comando levanta PostgreSQL temporal, crea un admin bootstrap con secretos generados al vuelo, prueba login local, JWT, permisos y reset de contrasena. No imprime contrasenas ni tokens.
+
+La verificacion activa `APP_AUTH_RECOVERY_RETURN_TOKEN_ENABLED=true` y `APP_AUTH_RECOVERY_OFFLINE_MODE=true` solo durante esta prueba. Esto permite validar el flujo de recuperacion sin configurar Gmail ni enviar correos. El modo offline requiere ambas variables, no debe habilitarse en produccion y no reemplaza la configuracion real de Gmail.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-identity-auth-local.ps1
@@ -309,6 +322,56 @@ JDBC:     jdbc:postgresql://localhost:55432/identity_db
 
 La contrasena es solo para desarrollo local. Cambiala en ambientes compartidos y nunca la uses como secreto de produccion.
 
+### Paso L5 - Levantar PostgreSQL manualmente
+
+Usa este bloque desde PowerShell cuando quieras levantar la base paso a paso.
+La red `venta-pasajes-local` es la misma que utiliza el contenedor
+`identity-service` en la seccion de despliegue dockerizado.
+
+~~~powershell
+$LocalDbPassword = "IdentityLocal_ChangeMe_12345"
+$NetworkName = "venta-pasajes-local"
+$ContainerName = "venta-pasajes-identity-db"
+
+if (-not (docker network ls --format "{{.Name}}" | Select-String -SimpleMatch $NetworkName)) {
+    docker network create $NetworkName
+}
+
+docker volume create venta-pasajes-identity-pgdata
+
+if (docker ps -a --format "{{.Names}}" | Select-String -SimpleMatch $ContainerName) {
+    docker start $ContainerName
+}
+else {
+    docker run -d `
+        --name $ContainerName `
+        --network $NetworkName `
+        -e POSTGRES_DB=identity_db `
+        -e POSTGRES_USER=identity_user `
+        -e "POSTGRES_PASSWORD=$LocalDbPassword" `
+        -p 55432:5432 `
+        -v venta-pasajes-identity-pgdata:/var/lib/postgresql/data `
+        postgres:16-alpine
+}
+~~~
+
+Espera a que PostgreSQL este disponible antes de iniciar el servicio:
+
+~~~powershell
+for ($Attempt = 1; $Attempt -le 45; $Attempt++) {
+    docker exec $ContainerName pg_isready -U identity_user -d identity_db
+    if ($LASTEXITCODE -eq 0) { break }
+    Start-Sleep -Seconds 2
+}
+~~~
+
+Verifica el estado final:
+
+~~~powershell
+docker ps --filter "name=venta-pasajes-identity-db"
+docker exec venta-pasajes-identity-db pg_isready -U identity_user -d identity_db
+~~~
+
 ### Contenedor persistente recomendado
 
 ~~~powershell
@@ -398,8 +461,26 @@ El artefacto ejecutable queda en services/identity-service/target/quarkus-app/qu
 
 Para usar el script on-premise:
 
-1. Copia infra/env/identity-service.onprem.env.example a C:\VENTA-DE-PASAJES-RUNTIME\identity-service.env.
-2. Completa las variables fuera del repositorio.
+1. Crea el directorio de configuracion fuera del repositorio y copia la plantilla:
+
+~~~powershell
+$RuntimeDir = "C:\VENTA-DE-PASAJES-RUNTIME"
+$EnvFile = Join-Path $RuntimeDir "identity-service.env"
+New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
+Copy-Item -LiteralPath .\infra\env\identity-service.onprem.env.example -Destination $EnvFile -Force
+notepad $EnvFile
+~~~
+
+2. Completa las variables fuera del repositorio. Para el PostgreSQL dockerizado de esta guia usa:
+
+~~~text
+APP_DB_JDBC_URL=jdbc:postgresql://localhost:55432/identity_db
+APP_DB_USERNAME=identity_user
+APP_DB_PASSWORD=IdentityLocal_ChangeMe_12345
+~~~
+
+Si PostgreSQL escucha en otro puerto, ajusta `APP_DB_JDBC_URL` antes de continuar.
+
 3. Ejecuta:
 
 ~~~powershell
@@ -408,7 +489,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-identity-ser
 
 El script exige APP_DB_JDBC_URL, APP_DB_USERNAME y APP_DB_PASSWORD, salvo que se use AllowEmptyDbPassword. Establece por defecto el perfil onprem y el puerto 8081.
 
-+
+Si aparece `Env file was not found`, el archivo externo todavia no ha sido creado. Ejecuta desde la raiz del repositorio:
+
+~~~powershell
+$RuntimeDir = "C:\VENTA-DE-PASAJES-RUNTIME"
+$EnvFile = Join-Path $RuntimeDir "identity-service.env"
+New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
+Copy-Item -LiteralPath .\infra\env\identity-service.onprem.env.example -Destination $EnvFile -Force
+notepad $EnvFile
+~~~
+
+Completa `APP_DB_JDBC_URL`, `APP_DB_USERNAME` y `APP_DB_PASSWORD` antes de volver a iniciar el servicio. No guardes el archivo real dentro del repositorio.
+
 ## Levantar identity-service local dockerizado
 
 Esta opcion ejecuta el servicio dentro de Docker y lo conecta al PostgreSQL persistente creado en la seccion anterior.

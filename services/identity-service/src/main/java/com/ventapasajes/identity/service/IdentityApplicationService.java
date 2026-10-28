@@ -103,6 +103,9 @@ public class IdentityApplicationService {
     @ConfigProperty(name = "app.auth.recovery.return-token.enabled", defaultValue = "false")
     boolean returnRecoveryToken;
 
+    @ConfigProperty(name = "app.auth.recovery.offline-mode", defaultValue = "false")
+    boolean recoveryOfflineMode;
+
     @ConfigProperty(name = "app.auth.recovery.reset-url", defaultValue = "http://localhost:3001/identity/recovery")
     String recoveryResetUrl;
 
@@ -639,18 +642,21 @@ public class IdentityApplicationService {
         resetToken.expiresAt = Instant.now().plus(recoveryTokenTtlMinutes, ChronoUnit.MINUTES);
         resetToken.persist();
 
-        if (ACCESS_LOGIN.equals(purpose)) {
-            gmailRecoveryEmailService.sendAccessRecoveryEmail(
-                    recipientEmail,
-                    user.displayName,
-                    recoveryLink(rawToken, true),
-                    recoveryTokenTtlMinutes);
-        } else {
-            gmailRecoveryEmailService.sendPasswordRecoveryEmail(
-                    recipientEmail,
-                    user.displayName,
-                    recoveryLink(rawToken, false),
-                    recoveryTokenTtlMinutes);
+        boolean skipEmail = recoveryOfflineMode && returnRecoveryToken && !gmailRecoveryEmailService.isEnabled();
+        if (!skipEmail) {
+            if (ACCESS_LOGIN.equals(purpose)) {
+                gmailRecoveryEmailService.sendAccessRecoveryEmail(
+                        recipientEmail,
+                        user.displayName,
+                        recoveryLink(rawToken, true),
+                        recoveryTokenTtlMinutes);
+            } else {
+                gmailRecoveryEmailService.sendPasswordRecoveryEmail(
+                        recipientEmail,
+                        user.displayName,
+                        recoveryLink(rawToken, false),
+                        recoveryTokenTtlMinutes);
+            }
         }
         return new PasswordForgotResponse(true, returnRecoveryToken ? rawToken : null);
     }

@@ -102,7 +102,7 @@ if (-not $SkipNativeBuild) {
         $PomPath,
         "package",
         "-Dnative",
-        "-DskipTests",
+        "-Dmaven.test.skip=true",
         "-Dquarkus.native.container-build=true",
         "-Dquarkus.native.builder-image=$BuilderImage"
     )
