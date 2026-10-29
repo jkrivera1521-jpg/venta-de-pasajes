@@ -1,2 +1,4 @@
 target/*
 !target/*-runner
+!target/quarkus-app/
+!target/quarkus-app/**

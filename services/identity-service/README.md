@@ -148,11 +148,39 @@ APP_GMAIL_REFRESH_TOKEN
 APP_GMAIL_SENDER_EMAIL
 ```
 
-En on-premise/offline debe leer variables de entorno o un archivo local seguro fuera del repositorio:
+En on-premise/offline, primero levanta PostgreSQL. Este es el comando que debe
+ejecutarse antes de iniciar `identity-service`:
+
+Usa solo una de las dos opciones siguientes. No escribas `else` despues de que
+PowerShell haya vuelto al prompt `PS>`.
+
+### Primera ejecucion, cuando el contenedor aun no existe
+
+~~~powershell
+docker run -d --name venta-pasajes-identity-db -e POSTGRES_DB=identity_db -e POSTGRES_USER=identity_user -e POSTGRES_PASSWORD=IdentityLocal_ChangeMe_12345 -p 55432:5432 -v venta-pasajes-identity-pgdata:/var/lib/postgresql/data postgres:16-alpine
+~~~
+
+Si el contenedor ya existe y esta detenido, ejecuta solamente:
+
+~~~powershell
+docker start venta-pasajes-identity-db
+~~~
+
+~~~powershell
+for ($Attempt = 1; $Attempt -le 45; $Attempt++) {
+    docker exec venta-pasajes-identity-db pg_isready -U identity_user -d identity_db
+    if ($LASTEXITCODE -eq 0) { break }
+    if ($Attempt -eq 45) { throw "PostgreSQL no estuvo disponible en localhost:55432." }
+    Start-Sleep -Seconds 2
+}
+~~~
+
+Espera el mensaje `accepting connections`. Luego inicia el servicio leyendo el
+archivo local de variables:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-identity-service-onprem.ps1 `
-  -EnvFile C:\VENTA-DE-PASAJES-RUNTIME\identity-service.env `
+  -EnvFile C:\VENTA-DE-PASAJES\identity-service.env `
   -MigrateAtStart
 ```
 
@@ -212,101 +240,6 @@ services/identity-service/
 
 Hibernate no crea ni modifica el esquema. La propiedad quarkus.hibernate-orm.schema-management.strategy=none deja esa responsabilidad en Flyway.
 
-+
-## Diagramas Mermaid
-
-Los siguientes diagramas resumen los flujos principales. El codigo fuente y la configuracion del servicio siguen siendo la fuente de verdad.
-
-### Arquitectura del servicio
-
-~~~mermaid
-flowchart LR
-    Browser["Shell y MFEs"] -->|Bearer JWT| API["identity-service<br/>Quarkus :8081"]
-    API --> ORM["Hibernate ORM Panache"]
-    ORM --> DB[("PostgreSQL<br/>identity_db")]
-    API --> Flyway["Flyway<br/>V1..V17"]
-    API --> JWKS["Google JWKS<br/>solo login Google"]
-    API --> Gmail["Gmail API<br/>solo recuperacion"]
-    API --> Outbox[("outbox_events")]
-    API --> Health["Health / OpenAPI / Swagger"]
-~~~
-
-### Arranque local dockerizado
-
-~~~mermaid
-sequenceDiagram
-    participant P as PowerShell
-    participant D as Docker
-    participant DB as PostgreSQL
-    participant B as identity-service
-
-    P->>D: Iniciar venta-pasajes-identity-db
-    D->>DB: PostgreSQL en red venta-pasajes-local
-    P->>D: Construir identity-service:local
-    P->>D: Ejecutar contenedor en puerto 8081
-    B->>DB: JDBC a venta-pasajes-identity-db:5432/identity_db
-    B->>DB: Ejecutar migraciones Flyway
-    P->>B: GET /q/health/ready
-    B-->>P: status UP
-~~~
-
-### Flujo de autenticacion local
-
-~~~mermaid
-sequenceDiagram
-    participant C as Cliente o MFE
-    participant API as identity-service
-    participant DB as PostgreSQL
-    participant JWT as JwtService
-
-    C->>API: POST /auth/local/login
-    API->>DB: Buscar usuario y credencial
-    API->>API: Verificar password y estado
-    API->>DB: Crear identity_session
-    API->>JWT: Firmar token HS256
-    JWT-->>API: Access token
-    API-->>C: AuthTokenResponse
-
-    C->>API: Request protegido con Bearer
-    API->>JWT: Verificar firma, issuer y expiracion
-    API->>DB: Validar sesion y permisos
-    API-->>C: Respuesta autorizada
-~~~
-
-### Decision de autorizacion
-
-~~~mermaid
-flowchart TD
-    Request["Request HTTP"] --> Public{"Endpoint publico?"}
-    Public -->|Si| Execute["Ejecutar recurso"]
-    Public -->|No| Header{"Bearer presente?"}
-    Header -->|No| Unauthorized["401 UNAUTHORIZED"]
-    Header -->|Si| Verify["Validar JWT HS256"]
-    Verify -->|Invalido o expirado| Invalid["401 INVALID_TOKEN"]
-    Verify -->|Valido| Session{"Sesion activa?"}
-    Session -->|No| Revoked["401 SESSION_REVOKED"]
-    Session -->|Si| Permission{"Tiene permiso requerido?"}
-    Permission -->|No| Forbidden["403 FORBIDDEN"]
-    Permission -->|Si| Execute
-~~~
-
-### Relacion de contenedores
-
-~~~mermaid
-flowchart TB
-    subgraph Docker["Docker Desktop"]
-        DB["venta-pasajes-identity-db<br/>PostgreSQL :5432"]
-        API["venta-pasajes-identity-service<br/>Quarkus :8081"]
-        DB --- Network["venta-pasajes-local"]
-        API --- Network
-    end
-
-    Host["Windows host"] -->|localhost:55432| DB
-    Host -->|localhost:8081| API
-    API -->|JDBC interno<br/>venta-pasajes-identity-db:5432| DB
-~~~
-
-
 ## Levantar PostgreSQL local dockerizado
 
 Configuracion local predeterminada:
@@ -338,21 +271,18 @@ if (-not (docker network ls --format "{{.Name}}" | Select-String -SimpleMatch $N
 }
 
 docker volume create venta-pasajes-identity-pgdata
+~~~
 
-if (docker ps -a --format "{{.Names}}" | Select-String -SimpleMatch $ContainerName) {
-    docker start $ContainerName
-}
-else {
-    docker run -d `
-        --name $ContainerName `
-        --network $NetworkName `
-        -e POSTGRES_DB=identity_db `
-        -e POSTGRES_USER=identity_user `
-        -e "POSTGRES_PASSWORD=$LocalDbPassword" `
-        -p 55432:5432 `
-        -v venta-pasajes-identity-pgdata:/var/lib/postgresql/data `
-        postgres:16-alpine
-}
+Si el contenedor aun no existe, ejecuta:
+
+~~~powershell
+docker run -d --name venta-pasajes-identity-db --network venta-pasajes-local -e POSTGRES_DB=identity_db -e POSTGRES_USER=identity_user -e POSTGRES_PASSWORD=IdentityLocal_ChangeMe_12345 -p 55432:5432 -v venta-pasajes-identity-pgdata:/var/lib/postgresql/data postgres:16-alpine
+~~~
+
+Si ya existe y esta detenido, ejecuta en su lugar:
+
+~~~powershell
+docker start venta-pasajes-identity-db
 ~~~
 
 Espera a que PostgreSQL este disponible antes de iniciar el servicio:
@@ -427,6 +357,51 @@ No uses esta opcion al mismo tiempo que el contenedor persistente en el puerto 5
 
 ## Arrancar identity-service en desarrollo
 
+### Secuencia completa: PostgreSQL y identity-service
+
+El script `start-identity-service-onprem.ps1` no levanta PostgreSQL por si solo.
+Ejecuta primero este bloque desde `C:\VENTA-DE-PASAJES`:
+
+~~~powershell
+$DbNetworkName = "venta-pasajes-local"
+$DbPassword = "IdentityLocal_ChangeMe_12345"
+
+if (-not (docker network ls --format "{{.Name}}" | Select-String -SimpleMatch $DbNetworkName)) {
+    docker network create $DbNetworkName | Out-Null
+}
+
+docker volume create venta-pasajes-identity-pgdata | Out-Null
+~~~
+
+Si el contenedor aun no existe, ejecuta:
+
+~~~powershell
+docker run -d --name venta-pasajes-identity-db --network venta-pasajes-local -e POSTGRES_DB=identity_db -e POSTGRES_USER=identity_user -e POSTGRES_PASSWORD=IdentityLocal_ChangeMe_12345 -p 55432:5432 -v venta-pasajes-identity-pgdata:/var/lib/postgresql/data postgres:16-alpine
+~~~
+
+Si ya existe y esta detenido, ejecuta en su lugar:
+
+~~~powershell
+docker start venta-pasajes-identity-db
+~~~
+
+Continua con la espera de disponibilidad:
+
+~~~powershell
+$DbContainerName = "venta-pasajes-identity-db"
+
+for ($Attempt = 1; $Attempt -le 45; $Attempt++) {
+    docker exec $DbContainerName pg_isready -U identity_user -d identity_db
+    if ($LASTEXITCODE -eq 0) { break }
+    if ($Attempt -eq 45) { throw "PostgreSQL no estuvo disponible en localhost:55432." }
+    Start-Sleep -Seconds 2
+}
+~~~
+
+Cuando aparezca `accepting connections`, PostgreSQL esta listo. Continua con una
+de las dos modalidades siguientes. Si el contenedor ya existe, el bloque solo lo
+inicia y conserva sus datos.
+
 ### Quarkus dev mode
 
 Con PostgreSQL persistente iniciado, ejecuta desde C:\VENTA-DE-PASAJES:
@@ -461,13 +436,13 @@ El artefacto ejecutable queda en services/identity-service/target/quarkus-app/qu
 
 Para usar el script on-premise:
 
-1. Crea el directorio de configuracion fuera del repositorio y copia la plantilla:
+1. Usa el archivo local `C:\VENTA-DE-PASAJES\identity-service.env`. Si todavia no existe, crealo desde la plantilla:
 
 ~~~powershell
-$RuntimeDir = "C:\VENTA-DE-PASAJES-RUNTIME"
-$EnvFile = Join-Path $RuntimeDir "identity-service.env"
-New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
-Copy-Item -LiteralPath .\infra\env\identity-service.onprem.env.example -Destination $EnvFile -Force
+$EnvFile = "C:\VENTA-DE-PASAJES\identity-service.env"
+if (!(Test-Path -LiteralPath $EnvFile)) {
+    Copy-Item -LiteralPath .\infra\env\identity-service.onprem.env.example -Destination $EnvFile -Force
+}
 notepad $EnvFile
 ~~~
 
@@ -484,17 +459,15 @@ Si PostgreSQL escucha en otro puerto, ajusta `APP_DB_JDBC_URL` antes de continua
 3. Ejecuta:
 
 ~~~powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-identity-service-onprem.ps1 -EnvFile C:\VENTA-DE-PASAJES-RUNTIME\identity-service.env -MigrateAtStart
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-identity-service-onprem.ps1 -EnvFile C:\VENTA-DE-PASAJES\identity-service.env -MigrateAtStart
 ~~~
 
 El script exige APP_DB_JDBC_URL, APP_DB_USERNAME y APP_DB_PASSWORD, salvo que se use AllowEmptyDbPassword. Establece por defecto el perfil onprem y el puerto 8081.
 
-Si aparece `Env file was not found`, el archivo externo todavia no ha sido creado. Ejecuta desde la raiz del repositorio:
+Si aparece `Env file was not found`, el archivo local todavia no ha sido creado. Ejecuta desde la raiz del repositorio:
 
 ~~~powershell
-$RuntimeDir = "C:\VENTA-DE-PASAJES-RUNTIME"
-$EnvFile = Join-Path $RuntimeDir "identity-service.env"
-New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null
+$EnvFile = "C:\VENTA-DE-PASAJES\identity-service.env"
 Copy-Item -LiteralPath .\infra\env\identity-service.onprem.env.example -Destination $EnvFile -Force
 notepad $EnvFile
 ~~~
@@ -847,7 +820,7 @@ Perfiles:
 | onprem | PostgreSQL local o red privada; secretos por entorno. |
 | gcp | Cloud SQL, socket factory y Secret Manager en despliegue. |
 
-Usa infra/env/identity-service.onprem.env.example como plantilla local y infra/env/identity-service.gcp.env.example para GCP. Los archivos reales con secretos deben vivir fuera del repositorio, por ejemplo en C:\VENTA-DE-PASAJES-RUNTIME.
+Usa infra/env/identity-service.onprem.env.example como plantilla local y infra/env/identity-service.gcp.env.example para GCP. Para este flujo local el archivo se encuentra en C:\VENTA-DE-PASAJES\identity-service.env; en ambientes compartidos o productivos, los archivos reales con secretos deben vivir fuera del repositorio.
 
 ## Pruebas y empaquetado
 

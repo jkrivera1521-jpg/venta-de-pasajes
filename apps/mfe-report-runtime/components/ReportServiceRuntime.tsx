@@ -17,6 +17,8 @@ import {
   LoaderCircle,
   Play,
   RefreshCw,
+  RotateCcw,
+  Save,
   Search,
   Send,
   Server,
@@ -149,6 +151,31 @@ function buildGenerateRequestJson(code: string, version: number | undefined, doc
   }, null, 2);
 }
 
+function generateRequestStorageKey(code: string, version?: number) {
+  return "venta-pasajes.report-runtime.generate-request.v1:" + encodeURIComponent(code) + ":" + (version ?? "active");
+}
+
+function readSavedGenerateRequest(code: string, version?: number) {
+  if (typeof window === "undefined" || !code) return null;
+  try {
+    const saved = window.localStorage.getItem(generateRequestStorageKey(code, version));
+    if (!saved) return null;
+    parseGenerateRequest(saved);
+    return saved;
+  } catch {
+    return null;
+  }
+}
+
+function saveGenerateRequest(code: string, version: number | undefined, value: string) {
+  if (typeof window === "undefined" || !code) throw new Error("No se pudo identificar la plantilla seleccionada.");
+  const parsed = parseObjectJson(value);
+  parseGenerateRequest(value);
+  const normalized = JSON.stringify(parsed, null, 2);
+  window.localStorage.setItem(generateRequestStorageKey(code, version), normalized);
+  return normalized;
+}
+
 async function copyTextToClipboard(value: string) {
   if (navigator.clipboard?.writeText) {
     try {
@@ -173,7 +200,119 @@ async function copyTextToClipboard(value: string) {
   if (!copied) throw new Error("No se pudo copiar el texto.");
 }
 
-function buildCurlCommand({
+type CurlVariant = "powershell" | "cmd" | "posix" | "postman";
+
+const curlVariantLabels: Record<CurlVariant, string> = {
+  powershell: "Windows PowerShell",
+  cmd: "Windows CMD",
+  posix: "Linux/macOS",
+  postman: "Postman",
+};
+
+function quotePosix(value: string) {
+  return `'${value.replace(/'/g, `'"'"'`)}'`;
+}
+
+function quotePowerShell(value: string) {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+function quoteCmd(value: string) {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+function normalizeCurlEndpoint(value: string) {
+  const endpoint = value.trim();
+  const markdownLink = endpoint.match(/^\[[^\]]+\]\(([^)]+)\)$/);
+  return markdownLink?.[1]?.trim() || endpoint;
+}
+
+function safeOutputFileName(value: string, format: ReportFormat) {
+  const fallback = "reporte." + format.toLowerCase();
+  const fileName = (value || fallback).trim().replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_");
+  return fileName || fallback;
+}
+
+function buildPowerShellCurlCommand({ endpoint, payload, fileName, headers }: { endpoint: string; payload: string; fileName: string; headers: string[] }) {
+  const continuation = String.fromCharCode(96);
+  return [
+    "$reportPayloadFile = Join-Path $PWD '.report-request.json'",
+    "$reportResponseFile = Join-Path $PWD '.report-response.bin'",
+    "$reportOutputFile = " + quotePowerShell(fileName),
+    "$reportPayload = @'",
+    payload,
+    "'@",
+    "$reportUtf8 = New-Object System.Text.UTF8Encoding($false)",
+    "[IO.File]::WriteAllText($reportPayloadFile, $reportPayload, $reportUtf8)",
+    "curl.exe -sS --fail-with-body --request POST",
+    "  " + quotePowerShell(endpoint) + " " + continuation,
+    ...headers.map((header) => "  -H " + quotePowerShell(header) + " " + continuation),
+    "  --data-binary \"@$reportPayloadFile\" " + continuation,
+    "  --output $reportResponseFile " + continuation,
+    "  --write-out \"HTTP_STATUS=%{http_code}" + continuation + "n\"",
+    "$reportExitCode = $LASTEXITCODE",
+    "if ($reportExitCode -ne 0) {",
+    "  Write-Host \"No se pudo generar el reporte. Codigo cURL: $reportExitCode\"",
+    "  if (Test-Path -LiteralPath $reportResponseFile) { Get-Content -LiteralPath $reportResponseFile -Raw }",
+    "  Remove-Item -LiteralPath $reportPayloadFile, $reportResponseFile -Force -ErrorAction SilentlyContinue",
+    "} elseif (!(Test-Path -LiteralPath $reportResponseFile) -or (Get-Item -LiteralPath $reportResponseFile).Length -eq 0) {",
+    "  Write-Host \"La respuesta fue vacia; no se creo el archivo final.\"",
+    "  Remove-Item -LiteralPath $reportPayloadFile, $reportResponseFile -Force -ErrorAction SilentlyContinue",
+    "} else {",
+    "  Move-Item -LiteralPath $reportResponseFile -Destination $reportOutputFile -Force",
+    "  Remove-Item -LiteralPath $reportPayloadFile -Force -ErrorAction SilentlyContinue",
+    "  Write-Host \"Reporte generado: $reportOutputFile\"",
+    "}",
+  ].join("\n");
+}
+
+function buildCmdCurlCommand({ endpoint, payload, fileName, headers }: { endpoint: string; payload: string; fileName: string; headers: string[] }) {
+  const continuation = String.fromCharCode(94);
+  return [
+    'set "REPORT_RESPONSE_FILE=%TEMP%\\venta-pasajes-report-response.bin"',
+    'set "REPORT_OUTPUT_FILE=' + fileName + '"',
+    "curl.exe -sS --fail-with-body --request POST",
+    "  " + quoteCmd(endpoint) + " " + continuation,
+    ...headers.map((header) => "  -H " + quoteCmd(header) + " " + continuation),
+    "  --data-raw " + quoteCmd(payload) + " " + continuation,
+    '  --output "%REPORT_RESPONSE_FILE%"',
+    "if errorlevel 1 (",
+    "  echo No se pudo generar el reporte. cURL devolvio un error:",
+    '  if exist "%REPORT_RESPONSE_FILE%" type "%REPORT_RESPONSE_FILE%"',
+    '  del /q "%REPORT_RESPONSE_FILE%" 2>nul',
+    ") else (",
+    '  move /Y "%REPORT_RESPONSE_FILE%" "%REPORT_OUTPUT_FILE%" >nul',
+    '  echo Reporte generado: %REPORT_OUTPUT_FILE%',
+    ")",
+  ].join("\n");
+}
+
+function buildPosixCurlCommand({ endpoint, payload, fileName, headers }: { endpoint: string; payload: string; fileName: string; headers: string[] }) {
+  const continuation = String.fromCharCode(92);
+  return [
+    'REPORT_RESPONSE_FILE=".report-response.bin"',
+    "REPORT_OUTPUT_FILE=" + quotePosix(fileName),
+    "curl -sS --fail-with-body --request POST",
+    "  " + quotePosix(endpoint) + " " + continuation,
+    ...headers.map((header) => "  -H " + quotePosix(header) + " " + continuation),
+    "  --data-raw " + quotePosix(payload) + " " + continuation,
+    '  --output "$REPORT_RESPONSE_FILE"',
+    "REPORT_EXIT_CODE=$?",
+    "if [ \"$REPORT_EXIT_CODE\" -ne 0 ]; then",
+    "  echo \"No se pudo generar el reporte. cURL devolvio un error:\"",
+    '  [ -f "$REPORT_RESPONSE_FILE" ] && cat "$REPORT_RESPONSE_FILE"',
+    '  rm -f "$REPORT_RESPONSE_FILE"',
+    "elif [ ! -s \"$REPORT_RESPONSE_FILE\" ]; then",
+    "  echo \"La respuesta fue vacia; no se creo el archivo final.\"",
+    '  rm -f "$REPORT_RESPONSE_FILE"',
+    "else",
+    '  mv -f "$REPORT_RESPONSE_FILE" "$REPORT_OUTPUT_FILE"',
+    '  echo "Reporte generado: $REPORT_OUTPUT_FILE"',
+    "fi",
+  ].join("\n");
+}
+
+function buildCurlCommands({
   accessToken,
   data,
   endpoint,
@@ -197,36 +336,22 @@ function buildCurlCommand({
     templateCode: templateCode.trim(),
     templateVersion,
   });
-  const safeFileName = (fileName || `reporte.${format.toLowerCase()}`).replace(/["\r\n]/g, "");
-  const authorization = accessToken ? `-H "Authorization: Bearer ${accessToken}"` : `-H "Authorization: Bearer REEMPLAZA_CON_TU_TOKEN"`;
-  const continuation = " `";
-  const lines = [
-    `$reportPayloadFile = Join-Path $PWD ".report-request.json"`,
-    `$reportResponseFile = Join-Path $PWD ".report-response.bin"`,
-    `$reportOutputFile = "${safeFileName}"`,
-    `$reportPayload = @'`,
-    payload,
-    `'@`,
-    `$reportUtf8 = New-Object System.Text.UTF8Encoding($false)`,
-    `[IO.File]::WriteAllText($reportPayloadFile, $reportPayload, $reportUtf8)`,
-    `curl.exe -sS --fail-with-body -X POST "${endpoint}"${continuation}`,
-    `  ${authorization}${continuation}`,
-    `  -H "Content-Type: application/json"${continuation}`,
-    `  -H "Accept: */*"${continuation}`,
-    `  --data-binary "@$reportPayloadFile"${continuation}`,
-    `  --output "$reportResponseFile"${continuation}`,
-    `  --write-out "\\nHTTP_STATUS=%{http_code}\\n"`,
-    `$reportExitCode = $LASTEXITCODE`,
-    `if ($reportExitCode -ne 0) {`,
-    `  Write-Host "Respuesta de report-service:"`,
-    `  Get-Content -LiteralPath $reportResponseFile -Raw`,
-    `  Remove-Item -LiteralPath $reportPayloadFile, $reportResponseFile -Force -ErrorAction SilentlyContinue`,
-    `} else {`,
-    `  Move-Item -LiteralPath $reportResponseFile -Destination $reportOutputFile -Force`,
-    `  Remove-Item -LiteralPath $reportPayloadFile -Force -ErrorAction SilentlyContinue`,
-    `}`,
+  const safeEndpoint = normalizeCurlEndpoint(endpoint);
+  const safeFileName = safeOutputFileName(fileName, format);
+  const token = accessToken || "REEMPLAZA_CON_TU_TOKEN";
+  const headers = ["Authorization: Bearer " + token, "Content-Type: application/json", "Accept: */*"];
+  const posixArguments = [
+    "curl -X POST",
+    quotePosix(safeEndpoint),
+    ...headers.map((header) => `-H ${quotePosix(header)}`),
+    `--data-raw ${quotePosix(payload)}`,
   ];
-  return lines.join("\n");
+  const posixCommand = buildPosixCurlCommand({ endpoint: safeEndpoint, payload, fileName: safeFileName, headers });
+  const postmanCommand = posixArguments.join(" ");
+  const powershellCommand = buildPowerShellCurlCommand({ endpoint: safeEndpoint, payload, fileName: safeFileName, headers });
+  const cmdCommand = buildCmdCurlCommand({ endpoint: safeEndpoint, payload, fileName: safeFileName, headers });
+
+  return { powershell: powershellCommand, cmd: cmdCommand, posix: posixCommand, postman: postmanCommand } satisfies Record<CurlVariant, string>;
 }
 
 function JsonCodeEditor({ value, onChange, ariaLabel, height = "280px" }: { value: string; onChange: (value: string) => void; ariaLabel: string; height?: string }) {
@@ -331,6 +456,7 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
   const [generateLoading, setGenerateLoading] = useState(false);
   const [generatedFile, setGeneratedFile] = useState<{ blob: Blob; fileName: string } | null>(null);
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
+  const [generateRequestFeedback, setGenerateRequestFeedback] = useState<{ message: string; error: boolean }>({ message: "", error: false });
 
   const [batchData, setBatchData] = useState(defaultBatchData);
   const [batchLoading, setBatchLoading] = useState(false);
@@ -339,6 +465,7 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
   const [jobLoading, setJobLoading] = useState(false);
   const [jobsModalOpen, setJobsModalOpen] = useState(false);
   const [curlModalOpen, setCurlModalOpen] = useState(false);
+  const [curlVariant, setCurlVariant] = useState<CurlVariant>("powershell");
   const [curlCopied, setCurlCopied] = useState(false);
 
   const visibleCatalog = useMemo(() => {
@@ -353,7 +480,7 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
       return null;
     }
   }, [generateData]);
-  const curlCommand = useMemo(() => {
+  const curlCommands = useMemo(() => {
     const request = generateRequest || {
       data: {},
       fileName: "reporte.xlsx",
@@ -364,8 +491,9 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
     const endpoint = typeof window === "undefined"
       ? "http://localhost:3008/api/report/reports/generate"
       : `${window.location.origin}/api/report/reports/generate`;
-    return buildCurlCommand({ accessToken, data: request.data, endpoint, fileName: request.fileName, format: request.outputFormat, templateCode: request.templateCode, templateVersion: request.templateVersion });
+    return buildCurlCommands({ accessToken, data: request.data, endpoint, fileName: request.fileName, format: request.outputFormat, templateCode: request.templateCode, templateVersion: request.templateVersion });
   }, [accessToken, generateRequest]);
+  const curlCommand = curlCommands[curlVariant];
 
   useEffect(() => {
     if (!uploadModalOpen && !detailsModalOpen && !generateModalOpen && !jobsModalOpen && !curlModalOpen) return;
@@ -434,7 +562,8 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
   }, [accessToken, selectedCode]);
 
   useEffect(() => {
-    setGenerateData(buildGenerateRequestJson(selectedCode, details?.version, details?.documentType, parameters));
+    const defaultRequest = buildGenerateRequestJson(selectedCode, details?.version, details?.documentType, parameters);
+    setGenerateData(readSavedGenerateRequest(selectedCode, details?.version) || defaultRequest);
   }, [details?.documentType, details?.version, parameters, selectedCode]);
 
   async function selectVersion(version: string) {
@@ -622,7 +751,28 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
   function openGenerateModal(code: string) {
     setSelectedCode(code);
     setGeneratedFile(null);
+    setGenerateRequestFeedback({ message: "", error: false });
     setGenerateModalOpen(true);
+  }
+
+  function saveGenerateRequestDraft() {
+    try {
+      const normalized = saveGenerateRequest(selectedCode, details?.version, generateData);
+      setGenerateData(normalized);
+      setGenerateRequestFeedback({ message: "Solicitud JSON guardada para esta plantilla y version.", error: false });
+    } catch (error) {
+      setGenerateRequestFeedback({ message: error instanceof Error ? error.message : "La solicitud JSON no es valida.", error: true });
+    }
+  }
+
+  function resetGenerateRequestDraft() {
+    const saved = readSavedGenerateRequest(selectedCode, details?.version);
+    if (!saved) {
+      setGenerateRequestFeedback({ message: "No existe una solicitud guardada para esta plantilla y version.", error: true });
+      return;
+    }
+    setGenerateData(saved);
+    setGenerateRequestFeedback({ message: "Se restauro la solicitud JSON guardada.", error: false });
   }
 
   function openJobsModal(code: string) {
@@ -642,6 +792,7 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
 
   function openCurlModal(code: string) {
     setSelectedCode(code);
+    setCurlVariant("powershell");
     setCurlCopied(false);
     setCurlModalOpen(true);
   }
@@ -688,7 +839,7 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
     {generateModalOpen ? <div className="report-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !generateLoading) setGenerateModalOpen(false); }}>
       <section className="report-modal" role="dialog" aria-modal="true" aria-labelledby="generate-modal-title">
         <div className="report-modal-header"><div><p className="report-eyebrow">GENERACION INDIVIDUAL</p><h2 id="generate-modal-title">Generar documento</h2><p className="report-panel-description">Ejecuta POST /api/v1/reports/generate y descarga la respuesta binaria.</p></div><button className="report-icon-button" type="button" title="Cerrar generacion" aria-label="Cerrar generacion" onClick={() => setGenerateModalOpen(false)} disabled={generateLoading}><XCircle size={17} aria-hidden="true" /></button></div>
-        <form className="report-form report-modal-form" onSubmit={generateReport}><label>Solicitud JSON <span className="report-help">Edita directamente los datos y las opciones de generacion: <code>data</code>, <code>fileName</code>, <code>outputFormat</code>, <code>templateCode</code> y <code>templateVersion</code>.</span><JsonCodeEditor ariaLabel="Solicitud JSON completa para generar el documento" height="430px" onChange={setGenerateData} value={generateData} /></label><div className="report-form-actions"><button className="report-button report-button-secondary" type="button" onClick={() => setGenerateModalOpen(false)} disabled={generateLoading}>Cancelar</button><button className="report-button report-button-primary" type="submit" disabled={generateLoading || detailsLoading}>{generateLoading ? <LoaderCircle className="report-spin" size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}{generateLoading ? "Generando..." : detailsLoading ? "Cargando parametros..." : "Generar documento"}</button></div></form>{generatedFile ? <div className="report-download-result"><CheckCircle2 size={18} aria-hidden="true" /><div><strong>Documento listo</strong><p>{generatedFile.fileName}</p></div><button className="report-button report-button-secondary" type="button" onClick={() => downloadBlob(generatedFile.blob, generatedFile.fileName)}><Download size={15} aria-hidden="true" /> Descargar</button></div> : null}
+        <form className="report-form report-modal-form" onSubmit={generateReport}><label>Solicitud JSON <span className="report-help">Edita directamente los datos y las opciones de generacion: <code>data</code>, <code>fileName</code>, <code>outputFormat</code>, <code>templateCode</code> y <code>templateVersion</code>.</span><JsonCodeEditor ariaLabel="Solicitud JSON completa para generar el documento" height="430px" onChange={setGenerateData} value={generateData} /></label>{generateRequestFeedback.message ? <p className={generateRequestFeedback.error ? "report-help report-form-feedback report-form-feedback-error" : "report-help report-form-feedback"}>{generateRequestFeedback.message}</p> : null}<div className="report-form-actions"><button className="report-button report-button-secondary" type="button" onClick={saveGenerateRequestDraft} disabled={generateLoading || detailsLoading}><Save size={16} aria-hidden="true" /> Guardar</button><button className="report-button report-button-secondary" type="button" onClick={resetGenerateRequestDraft} disabled={generateLoading || detailsLoading}><RotateCcw size={16} aria-hidden="true" /> Reset</button><button className="report-button report-button-secondary" type="button" onClick={() => setGenerateModalOpen(false)} disabled={generateLoading}>Cancelar</button><button className="report-button report-button-primary" type="submit" disabled={generateLoading || detailsLoading}>{generateLoading ? <LoaderCircle className="report-spin" size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}{generateLoading ? "Generando..." : detailsLoading ? "Cargando parametros..." : "Generar documento"}</button></div></form>{generatedFile ? <div className="report-download-result"><CheckCircle2 size={18} aria-hidden="true" /><div><strong>Documento listo</strong><p>{generatedFile.fileName}</p></div><button className="report-button report-button-secondary" type="button" onClick={() => downloadBlob(generatedFile.blob, generatedFile.fileName)}><Download size={15} aria-hidden="true" /> Descargar</button></div> : null}
       </section>
     </div> : null}
 
@@ -701,7 +852,7 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
 
     {curlModalOpen ? <div className="report-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !detailsLoading) setCurlModalOpen(false); }}>
       <section className="report-modal" role="dialog" aria-modal="true" aria-labelledby="curl-modal-title">
-        <div className="report-curl-content"><div className="report-curl-meta"><span><strong>Plantilla:</strong> {generateRequest?.templateCode || "-"}</span><span><strong>Formato:</strong> {generateRequest?.outputFormat || "-"}</span><span><strong>Archivo:</strong> {generateRequest?.fileName || "-"}</span></div><label className="report-curl-label">Comando PowerShell + cURL listo para ejecutar<textarea className="report-curl-output" rows={18} readOnly value={curlCommand} onFocus={(event) => event.currentTarget.select()} aria-label="Comando cURL para generar el reporte" /></label><p className="report-help">El JSON se guarda temporalmente para evitar problemas de comillas en PowerShell. Si la API responde con error, el comando mostrara el detalle y no creara un archivo DOCX invalido. Si la sesion no tiene token disponible, reemplaza <code>REEMPLAZA_CON_TU_TOKEN</code>.</p><div className="report-form-actions"><button className="report-button report-button-secondary" type="button" onClick={() => setCurlModalOpen(false)}>Cerrar</button><button className="report-button report-button-primary" type="button" onClick={() => void copyCurlCommand()}><Clipboard size={16} aria-hidden="true" /> {curlCopied ? "Copiado" : "Copiar cURL"}</button></div></div>
+        <div className="report-curl-content"><div className="report-curl-meta"><span><strong>Plantilla:</strong> {generateRequest?.templateCode || "-"}</span><span><strong>Formato:</strong> {generateRequest?.outputFormat || "-"}</span><span><strong>Archivo:</strong> {generateRequest?.fileName || "-"}</span></div><div className="report-curl-variants" role="tablist" aria-label="Formato del comando cURL">{(Object.keys(curlVariantLabels) as CurlVariant[]).map((variant) => <button className={`report-curl-variant${curlVariant === variant ? " report-curl-variant-active" : ""}`} key={variant} type="button" role="tab" aria-selected={curlVariant === variant} onClick={() => { setCurlVariant(variant); setCurlCopied(false); }}>{curlVariantLabels[variant]}</button>)}</div><label className="report-curl-label">{curlVariantLabels[curlVariant]} listo para copiar<textarea className="report-curl-output" rows={8} readOnly value={curlCommand} onFocus={(event) => event.currentTarget.select()} aria-label={`${curlVariantLabels[curlVariant]} para generar el reporte`} /></label><p className="report-help">En Postman copia la variante <strong>Postman</strong> y usa <strong>Importar &gt; Raw text</strong>. El comando usa el token actual; si no aparece, reemplaza <code>REEMPLAZA_CON_TU_TOKEN</code>.</p><div className="report-form-actions"><button className="report-button report-button-secondary" type="button" onClick={() => setCurlModalOpen(false)}>Cerrar</button><button className="report-button report-button-primary" type="button" onClick={() => void copyCurlCommand()}><Clipboard size={16} aria-hidden="true" /> {curlCopied ? "Copiado" : "Copiar cURL"}</button></div></div>
       </section>
     </div> : null}
 

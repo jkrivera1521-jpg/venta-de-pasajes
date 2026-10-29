@@ -86,11 +86,18 @@ tr:last-child td { border-bottom: 0; }
 .report-form { display: grid; gap: 16px; padding: 20px; }
 .report-form label, .report-job-lookup label { display: grid; gap: 6px; color: var(--report-ink); font-size: 12px; font-weight: 800; }
 .report-form small, .report-help { color: var(--report-muted); font-size: 11px; font-weight: 400; line-height: 1.4; }
+.report-form-feedback { margin: -4px 0 0; color: var(--report-success); font-weight: 700; }
+.report-form-feedback-error { color: var(--report-error); }
 .report-form-grid { display: grid; grid-template-columns: minmax(220px, 1.4fr) minmax(180px, 1fr) minmax(180px, 1fr) minmax(130px, .5fr); gap: 14px; }
 .report-check-row { display: flex !important; grid-template-columns: none !important; align-items: center; gap: 8px !important; font-weight: 700 !important; }
 .report-check-row input { width: 17px; height: 17px; accent-color: var(--report-blue); }
 .report-code-area { min-height: 150px; resize: vertical; color: #d7e6f5; background: #132a41; font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .report-curl-content { display: grid; gap: 16px; padding: 20px; }
+.report-curl-variants { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px; border: 1px solid var(--report-border); border-radius: 6px; background: #f4f8fc; }
+.report-curl-variant { border: 0; border-radius: 4px; padding: 8px 11px; color: var(--report-muted); background: transparent; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
+.report-curl-variant:hover { color: var(--report-ink); background: #e6eff8; }
+.report-curl-variant-active { color: #fff; background: var(--report-blue); }
+.report-curl-variant-active:hover { color: #fff; background: var(--report-blue); }
 .report-curl-label { display: grid; gap: 8px; color: var(--report-ink); font-size: 12px; font-weight: 800; }
 .report-curl-output { min-height: 250px; resize: vertical; color: #d7e6f5; background: #132a41; font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .report-json-editor { overflow: hidden; min-height: 150px; border: 1px solid var(--report-border); border-radius: 5px; background: #132a41; }
