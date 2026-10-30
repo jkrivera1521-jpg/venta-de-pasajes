@@ -3,7 +3,7 @@
 import { basicSetup } from "codemirror";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter } from "@codemirror/lint";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import {
   AlertCircle,
@@ -15,6 +15,9 @@ import {
   FileSpreadsheet,
   FileText,
   LoaderCircle,
+  Maximize2,
+  Minimize2,
+  Moon,
   Play,
   RefreshCw,
   RotateCcw,
@@ -22,6 +25,7 @@ import {
   Search,
   Send,
   Server,
+  Sun,
   Terminal,
   Upload,
   XCircle,
@@ -151,6 +155,22 @@ function buildGenerateRequestJson(code: string, version: number | undefined, doc
   }, null, 2);
 }
 
+function buildBatchRequestJson(code: string, version: number | undefined, documentType: string | null | undefined, parameters: TemplateParameter[]) {
+  const outputFormat = outputFormatFor(documentType);
+  const extension = outputFormat.toLowerCase();
+  const data = buildExampleData(parameters);
+  return JSON.stringify({
+    templateCode: code,
+    templateVersion: version,
+    outputFormat,
+    zipFileName: "reportes.zip",
+    documents: [
+      { fileName: `reporte-1.${extension}`, data },
+      { fileName: `reporte-2.${extension}`, data },
+    ],
+  }, null, 2);
+}
+
 function generateRequestStorageKey(code: string, version?: number) {
   return "venta-pasajes.report-runtime.generate-request.v1:" + encodeURIComponent(code) + ":" + (version ?? "active");
 }
@@ -244,7 +264,7 @@ function buildPowerShellCurlCommand({ endpoint, payload, fileName, headers }: { 
     "'@",
     "$reportUtf8 = New-Object System.Text.UTF8Encoding($false)",
     "[IO.File]::WriteAllText($reportPayloadFile, $reportPayload, $reportUtf8)",
-    "curl.exe -sS --fail-with-body --request POST",
+    "curl.exe -sS --fail-with-body --request POST " + continuation,
     "  " + quotePowerShell(endpoint) + " " + continuation,
     ...headers.map((header) => "  -H " + quotePowerShell(header) + " " + continuation),
     "  --data-binary \"@$reportPayloadFile\" " + continuation,
@@ -271,7 +291,7 @@ function buildCmdCurlCommand({ endpoint, payload, fileName, headers }: { endpoin
   return [
     'set "REPORT_RESPONSE_FILE=%TEMP%\\venta-pasajes-report-response.bin"',
     'set "REPORT_OUTPUT_FILE=' + fileName + '"',
-    "curl.exe -sS --fail-with-body --request POST",
+    "curl.exe -sS --fail-with-body --request POST " + continuation,
     "  " + quoteCmd(endpoint) + " " + continuation,
     ...headers.map((header) => "  -H " + quoteCmd(header) + " " + continuation),
     "  --data-raw " + quoteCmd(payload) + " " + continuation,
@@ -292,7 +312,7 @@ function buildPosixCurlCommand({ endpoint, payload, fileName, headers }: { endpo
   return [
     'REPORT_RESPONSE_FILE=".report-response.bin"',
     "REPORT_OUTPUT_FILE=" + quotePosix(fileName),
-    "curl -sS --fail-with-body --request POST",
+    "curl -sS --fail-with-body --request POST " + continuation,
     "  " + quotePosix(endpoint) + " " + continuation,
     ...headers.map((header) => "  -H " + quotePosix(header) + " " + continuation),
     "  --data-raw " + quotePosix(payload) + " " + continuation,
@@ -354,10 +374,53 @@ function buildCurlCommands({
   return { powershell: powershellCommand, cmd: cmdCommand, posix: posixCommand, postman: postmanCommand } satisfies Record<CurlVariant, string>;
 }
 
+type JsonEditorTheme = "dark" | "light";
+
+function jsonEditorTheme(theme: JsonEditorTheme) {
+  const colors = theme === "dark"
+    ? {
+        background: "#132a41",
+        foreground: "#d7e6f5",
+        gutterBackground: "#10243a",
+        gutterForeground: "#7593af",
+        border: "#25435d",
+        activeLine: "rgba(37, 116, 207, .16)",
+        activeLineGutter: "#1d3b59",
+        selection: "rgba(134, 183, 255, .35)",
+        caret: "#f6fbff",
+      }
+    : {
+        background: "#ffffff",
+        foreground: "#1e293b",
+        gutterBackground: "#f3f7fb",
+        gutterForeground: "#718096",
+        border: "#d7e2ed",
+        activeLine: "rgba(23, 105, 209, .08)",
+        activeLineGutter: "#e2efff",
+        selection: "rgba(23, 105, 209, .2)",
+        caret: "#0f4e97",
+      };
+
+  return EditorView.theme({
+    "&": { backgroundColor: colors.background, color: colors.foreground, height: "100%" },
+    ".cm-content": { caretColor: colors.caret, minHeight: "100%", padding: "12px 12px 36px" },
+    ".cm-gutters": { backgroundColor: colors.gutterBackground, borderRight: `1px solid ${colors.border}`, color: colors.gutterForeground },
+    ".cm-activeLine": { backgroundColor: colors.activeLine },
+    ".cm-activeLineGutter": { backgroundColor: colors.activeLineGutter, color: colors.foreground },
+    ".cm-selectionBackground, ::selection": { backgroundColor: colors.selection },
+    ".cm-scroller": { fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace", overflow: "auto" },
+    ".cm-focused": { outline: "none" },
+  });
+}
+
 function JsonCodeEditor({ value, onChange, ariaLabel, height = "280px" }: { value: string; onChange: (value: string) => void; ariaLabel: string; height?: string }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const themeCompartmentRef = useRef(new Compartment());
   const onChangeRef = useRef(onChange);
+  const [editorTheme, setEditorTheme] = useState<JsonEditorTheme>("dark");
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
+  const [isMaximized, setIsMaximized] = useState(false);
   onChangeRef.current = onChange;
 
   useEffect(() => {
@@ -372,16 +435,7 @@ function JsonCodeEditor({ value, onChange, ariaLabel, height = "280px" }: { valu
           json(),
           linter(jsonParseLinter(), { delay: 240 }),
           EditorView.contentAttributes.of({ "aria-label": ariaLabel }),
-          EditorView.theme({
-            "&": { backgroundColor: "#132a41", color: "#d7e6f5", height: "100%" },
-            ".cm-content": { caretColor: "#f6fbff", minHeight: "100%", padding: "12px" },
-            ".cm-gutters": { backgroundColor: "#10243a", borderRight: "1px solid #25435d", color: "#7593af" },
-            ".cm-activeLine": { backgroundColor: "rgba(37, 116, 207, .16)" },
-            ".cm-activeLineGutter": { backgroundColor: "#1d3b59", color: "#f6fbff" },
-            ".cm-selectionBackground, ::selection": { backgroundColor: "rgba(134, 183, 255, .35)" },
-            ".cm-scroller": { fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace", overflow: "auto" },
-            ".cm-focused": { outline: "none" }
-          }),
+          themeCompartmentRef.current.of(jsonEditorTheme("dark")),
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChangeRef.current(update.state.doc.toString());
           })
@@ -398,11 +452,56 @@ function JsonCodeEditor({ value, onChange, ariaLabel, height = "280px" }: { valu
 
   useEffect(() => {
     const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({ effects: themeCompartmentRef.current.reconfigure(jsonEditorTheme(editorTheme)) });
+  }, [editorTheme]);
+
+  useEffect(() => {
+    const view = viewRef.current;
     if (!view || view.state.doc.toString() === value) return;
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value } });
   }, [value]);
 
-  return <div className="report-json-editor" style={{ height }}><div ref={hostRef} /></div>;
+  useEffect(() => {
+    if (!isMaximized) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      setIsMaximized(false);
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    requestAnimationFrame(() => viewRef.current?.focus());
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMaximized]);
+
+  async function copyEditorJson() {
+    try {
+      await copyTextToClipboard(value);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("error");
+    }
+  }
+
+  return <div className={`report-code-editor report-code-editor-${editorTheme}${isMaximized ? " report-code-editor-maximized" : ""}`}><div className="report-json-editor" style={isMaximized ? undefined : { height }}><div ref={hostRef} /><div className="report-code-editor-actions">
+    <button className="report-code-editor-action" type="button" title={copyStatus === "copied" ? "JSON copiado" : copyStatus === "error" ? "No se pudo copiar el JSON" : "Copiar JSON al portapapeles"} aria-label={copyStatus === "copied" ? "JSON copiado" : copyStatus === "error" ? "No se pudo copiar el JSON" : "Copiar JSON al portapapeles"} onMouseDown={(event) => event.preventDefault()} onClick={() => void copyEditorJson()}>
+      {copyStatus === "copied" ? <CheckCircle2 size={13} aria-hidden="true" /> : copyStatus === "error" ? <AlertCircle size={13} aria-hidden="true" /> : <Clipboard size={13} aria-hidden="true" />}
+    </button>
+    <button className="report-code-editor-action report-code-editor-theme-toggle" type="button" title={editorTheme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"} aria-label={editorTheme === "dark" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"} aria-pressed={editorTheme === "dark"} onMouseDown={(event) => event.preventDefault()} onClick={() => setEditorTheme((current) => current === "dark" ? "light" : "dark")}>
+      {editorTheme === "dark" ? <Sun size={13} aria-hidden="true" /> : <Moon size={13} aria-hidden="true" />}
+    </button>
+    <button className="report-code-editor-action" type="button" title={isMaximized ? "Restaurar editor" : "Maximizar editor"} aria-label={isMaximized ? "Restaurar editor" : "Maximizar editor"} aria-pressed={isMaximized} onMouseDown={(event) => event.preventDefault()} onClick={() => setIsMaximized((current) => !current)}>
+      {isMaximized ? <Minimize2 size={13} aria-hidden="true" /> : <Maximize2 size={13} aria-hidden="true" />}
+    </button>
+  </div></div></div>;
 }
 
 function StatusBadge({ value }: { value?: string | null }) {
@@ -422,7 +521,7 @@ function ErrorBox({ message, onRetry }: { message: string; onRetry?: () => void 
 
 function ParameterTable({ parameters }: { parameters: TemplateParameter[] }) {
   if (!parameters.length) return <div className="report-empty-small">No hay parametros declarados para esta version.</div>;
-  return <div className="report-table-wrap"><table><thead><tr><th scope="col">Nombre</th><th scope="col">Ruta</th><th scope="col">Tipo</th><th scope="col">Reglas</th><th scope="col">Descripcion</th></tr></thead><tbody>{parameters.map((parameter) => <tr key={`${parameter.path}-${parameter.name}`}><td><strong>{parameter.name}</strong></td><td><code>{parameter.path}</code></td><td><span className="report-type-tag">{parameter.dataType}</span></td><td>{parameter.required ? "Obligatorio" : "Opcional"}{parameter.collection ? " · Coleccion" : ""}{parameter.repeated ? " · Repetible" : ""}</td><td>{parameter.description || "-"}</td></tr>)}</tbody></table></div>;
+  return <div className="report-table-wrap report-contract-table"><table><thead><tr><th scope="col">Nombre</th><th scope="col">Ruta</th><th scope="col">Tipo</th><th scope="col">Reglas</th><th scope="col">Descripcion</th></tr></thead><tbody>{parameters.map((parameter) => <tr key={`${parameter.path}-${parameter.name}`}><td><strong>{parameter.name}</strong></td><td><code>{parameter.path}</code></td><td><span className="report-type-tag">{parameter.dataType}</span></td><td>{parameter.required ? "Obligatorio" : "Opcional"}{parameter.collection ? " · Coleccion" : ""}{parameter.repeated ? " · Repetible" : ""}</td><td>{parameter.description || "-"}</td></tr>)}</tbody></table></div>;
 }
 
 export default function ReportServiceRuntime({ accessToken }: { accessToken: string | null }) {
@@ -440,6 +539,7 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
   const [templateDownloadLoading, setTemplateDownloadLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
   const [actionError, setActionError] = useState("");
+  const [uploadError, setUploadError] = useState("");
 
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadCode, setUploadCode] = useState("");
@@ -455,6 +555,7 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
   const [generateData, setGenerateData] = useState("{}");
   const [generateLoading, setGenerateLoading] = useState(false);
   const [generatedFile, setGeneratedFile] = useState<{ blob: Blob; fileName: string } | null>(null);
+  const [generateSaveEnabled, setGenerateSaveEnabled] = useState(false);
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
   const [generateRequestFeedback, setGenerateRequestFeedback] = useState<{ message: string; error: boolean }>({ message: "", error: false });
 
@@ -566,6 +667,11 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
     setGenerateData(readSavedGenerateRequest(selectedCode, details?.version) || defaultRequest);
   }, [details?.documentType, details?.version, parameters, selectedCode]);
 
+  useEffect(() => {
+    if (!jobsModalOpen || !selectedCode || details?.code !== selectedCode || details.version === undefined) return;
+    setBatchData(buildBatchRequestJson(selectedCode, details.version, details.documentType, parameters));
+  }, [details?.code, details?.documentType, details?.version, jobsModalOpen, parameters, selectedCode]);
+
   async function selectVersion(version: string) {
     if (!selectedCode || !version) return;
     setDetailsLoading(true);
@@ -635,26 +741,37 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
       setActionError("Selecciona un archivo e ingresa el codigo y nombre de la plantilla.");
       return;
     }
+    const normalizedVersion = uploadVersion.trim();
+    if (!/^\d+$/.test(normalizedVersion) || Number(normalizedVersion) < 1) {
+      setActionError("La version debe ser un numero entero mayor o igual a 1.");
+      return;
+    }
     setUploadLoading(true);
     setActionError("");
     setActionMessage("");
+    setUploadError("");
     try {
       const form = new FormData();
       form.set("file", uploadFile);
       form.set("code", uploadCode.trim());
       form.set("name", uploadName.trim());
       form.set("description", uploadDescription);
-      form.set("version", uploadVersion || "1");
+      form.set("version", normalizedVersion);
       form.set("activate", String(uploadActivate));
       if (uploadSchema.trim() && uploadSchema.trim() !== "[]") form.set("parameterSchema", uploadSchema);
       await requestJson<TemplateVersion>("templates", accessToken, { body: form, method: "POST" });
       setSelectedCode(uploadCode.trim().toUpperCase());
       setActionMessage(`Plantilla ${uploadCode.trim().toUpperCase()} cargada correctamente.`);
+      setUploadError("");
       await loadCatalog();
       setUploadModalOpen(false);
       setDetailsModalOpen(true);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "No se pudo cargar la plantilla.");
+      const message = error instanceof ReportRequestError && error.status === 409
+        ? error.message
+        : error instanceof Error ? error.message : "No se pudo cargar la plantilla.";
+      setUploadError(message);
+      setActionError(message);
     } finally {
       setUploadLoading(false);
     }
@@ -663,6 +780,8 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
   async function generateReport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setGenerateLoading(true);
+    setGeneratedFile(null);
+    setGenerateSaveEnabled(false);
     setActionError("");
     try {
       const payload = parseGenerateRequest(generateData);
@@ -674,6 +793,7 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
       const result = await requestBinary("reports/generate", accessToken, JSON.stringify(payload));
       const fileName = result.fileName || payload.fileName;
       setGeneratedFile({ blob: result.blob, fileName });
+      setGenerateSaveEnabled(true);
       downloadBlob(result.blob, fileName);
       setActionMessage("Documento generado por report-service.");
     } catch (error) {
@@ -751,6 +871,7 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
   function openGenerateModal(code: string) {
     setSelectedCode(code);
     setGeneratedFile(null);
+    setGenerateSaveEnabled(false);
     setGenerateRequestFeedback({ message: "", error: false });
     setGenerateModalOpen(true);
   }
@@ -759,6 +880,7 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
     try {
       const normalized = saveGenerateRequest(selectedCode, details?.version, generateData);
       setGenerateData(normalized);
+      setGenerateSaveEnabled(false);
       setGenerateRequestFeedback({ message: "Solicitud JSON guardada para esta plantilla y version.", error: false });
     } catch (error) {
       setGenerateRequestFeedback({ message: error instanceof Error ? error.message : "La solicitud JSON no es valida.", error: true });
@@ -777,13 +899,7 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
 
   function openJobsModal(code: string) {
     setSelectedCode(code);
-    setBatchData((current) => {
-      try {
-        return JSON.stringify({ ...parseObjectJson(current), templateCode: code }, null, 2);
-      } catch {
-        return current;
-      }
-    });
+    setBatchData(defaultBatchData);
     setJob(null);
     setJobId("");
     setActionError("");
@@ -807,6 +923,16 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
     }
   }
 
+  async function copyParameters() {
+    try {
+      await copyTextToClipboard(JSON.stringify(parameters, null, 2));
+      setActionError("");
+      setActionMessage("Parametros JSON copiados correctamente.");
+    } catch {
+      setActionError("No se pudieron copiar los parametros JSON. Seleccionalos manualmente e intenta copiar de nuevo.");
+    }
+  }
+
   return <main className="report-shell">
     <header className="report-header">
       <div className="report-brand"><div className="report-brand-mark"><FileText size={23} aria-hidden="true" /></div><div><p className="report-eyebrow">REPORT SERVICE</p><h1>Consola de pruebas de reportes</h1><p className="report-subtitle">Prueba el catalogo, las plantillas versionadas y la generacion de documentos sin salir del navegador.</p></div></div>
@@ -818,35 +944,36 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
     {actionError ? <ErrorBox message={actionError} onRetry={() => setActionError("")} /> : null}
 
     <section className="report-panel"><PanelHeading eyebrow="CATALOGO" title="Plantillas disponibles" description="Consulta las plantillas y selecciona una para inspeccionar sus versiones y parametros." action={<span className="report-count">{visibleCatalog.length} de {catalog.length}</span>} />
-      <div className="report-toolbar"><label className="report-search"><Search size={16} aria-hidden="true" /><span className="sr-only">Buscar plantilla</span><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Buscar por codigo, nombre o estado" /></label><button className="report-button report-button-primary" type="button" onClick={() => setUploadModalOpen(true)}><Upload size={15} aria-hidden="true" /> Cargar plantilla</button></div>
+      <div className="report-toolbar"><label className="report-search"><Search size={16} aria-hidden="true" /><span className="sr-only">Buscar plantilla</span><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Buscar por codigo, nombre o estado" /></label><button className="report-button report-button-primary" type="button" onClick={() => { setUploadError(""); setUploadModalOpen(true); }}><Upload size={15} aria-hidden="true" /> Cargar plantilla</button></div>
       {catalogError ? <ErrorBox message={catalogError} onRetry={() => void loadCatalog()} /> : catalogLoading ? <div className="report-loading"><LoaderCircle className="report-spin" size={24} aria-hidden="true" /> Cargando catalogo...</div> : visibleCatalog.length ? <div className="report-table-wrap report-catalog-table"><table><thead><tr><th scope="col">Codigo</th><th scope="col">Nombre</th><th scope="col">Tipo</th><th scope="col">Estado</th><th scope="col">Version activa</th><th scope="col"><span className="sr-only">Acciones</span></th></tr></thead><tbody>{visibleCatalog.map((item) => <tr key={item.code} className={selectedCode === item.code ? "report-row-selected" : undefined}><td><button className="report-link-button" type="button" onClick={() => { setSelectedCode(item.code); setDetailsModalOpen(true); }}>{item.code}</button></td><td><strong>{item.name}</strong><small>{item.description || "Sin descripcion"}</small></td><td><span className="report-type-tag">{item.documentType || "-"}</span></td><td><StatusBadge value={item.status} /></td><td>{item.activeVersion ? `v${item.activeVersion}` : "-"}</td><td><div className="report-row-actions"><button className="report-button report-button-compact" type="button" onClick={() => openGenerateModal(item.code)}><FileSpreadsheet size={14} aria-hidden="true" /> Generar documento</button><button className="report-button report-button-compact" type="button" onClick={() => openJobsModal(item.code)}><FileArchive size={14} aria-hidden="true" /> Lotes ZIP</button><button className="report-button report-button-compact" type="button" onClick={() => openCurlModal(item.code)}><Terminal size={14} aria-hidden="true" /> cURL</button></div></td></tr>)}</tbody></table></div> : <div className="report-empty"><Search size={30} aria-hidden="true" /><strong>{catalog.length ? "No hay coincidencias" : "El catalogo esta vacio"}</strong><p>{catalog.length ? "Prueba otro texto de busqueda." : "Carga la primera plantilla para comenzar."}</p></div>}
     </section>
 
     {uploadModalOpen ? <div className="report-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !uploadLoading) setUploadModalOpen(false); }}>
       <section className="report-modal" role="dialog" aria-modal="true" aria-labelledby="upload-template-title">
         <div className="report-modal-header"><div><p className="report-eyebrow">MULTIPART</p><h2 id="upload-template-title">Cargar plantilla</h2><p className="report-panel-description">Crea una plantilla o agrega una nueva version conservando el historial.</p></div><button className="report-icon-button" type="button" title="Cerrar carga de plantilla" aria-label="Cerrar carga de plantilla" onClick={() => setUploadModalOpen(false)} disabled={uploadLoading}><XCircle size={17} aria-hidden="true" /></button></div>
-        <form className="report-form report-modal-form" onSubmit={uploadTemplate}><div className="report-form-grid"><label>Archivo de plantilla *<input type="file" accept=".xlsx,.docx" onChange={(event) => setUploadFile(event.target.files?.[0] || null)} required /><small>{uploadFile ? `${uploadFile.name} · ${formatBytes(uploadFile.size)}` : "Formatos permitidos: XLSX y DOCX."}</small></label><label>Codigo *<input value={uploadCode} onChange={(event) => setUploadCode(event.target.value)} placeholder="VENTAS_MENSUALES" required /></label><label>Nombre *<input value={uploadName} onChange={(event) => setUploadName(event.target.value)} placeholder="Ventas mensuales" required /></label><label>Version<input type="number" min="1" value={uploadVersion} onChange={(event) => setUploadVersion(event.target.value)} /></label></div><label>Descripcion<textarea rows={2} value={uploadDescription} onChange={(event) => setUploadDescription(event.target.value)} placeholder="Descripcion visible en el catalogo" /></label><label className="report-check-row"><input type="checkbox" checked={uploadActivate} onChange={(event) => setUploadActivate(event.target.checked)} /> Activar esta version despues de cargarla</label><label>parameterSchema <span className="report-help">Arreglo JSON opcional para declarar parametros que el extractor no encuentre.</span><JsonCodeEditor ariaLabel="parameterSchema JSON" height="190px" onChange={setUploadSchema} value={uploadSchema} /></label><div className="report-form-actions"><button className="report-button report-button-secondary" type="button" onClick={() => setUploadModalOpen(false)} disabled={uploadLoading}>Cancelar</button><button className="report-button report-button-primary" type="submit" disabled={uploadLoading}>{uploadLoading ? <LoaderCircle className="report-spin" size={16} aria-hidden="true" /> : <Upload size={16} aria-hidden="true" />}{uploadLoading ? "Cargando..." : "Cargar plantilla"}</button></div></form>
+        {uploadError ? <ErrorBox message={uploadError} onRetry={() => { setUploadError(""); setActionError(""); }} /> : null}
+        <form className="report-form report-modal-form" onSubmit={uploadTemplate}><div className="report-form-grid report-upload-grid"><label className="report-upload-field"><span>Archivo de plantilla <span className="report-required">*</span></span><input type="file" accept=".xlsx,.docx" onChange={(event) => setUploadFile(event.target.files?.[0] || null)} required /><small>{uploadFile ? `${uploadFile.name} · ${formatBytes(uploadFile.size)}` : "Formatos permitidos: XLSX y DOCX."}</small></label><label className="report-upload-field"><span>Codigo <span className="report-required">*</span></span><input value={uploadCode} onChange={(event) => setUploadCode(event.target.value)} placeholder="VENTAS_MENSUALES" required /><small>Cada codigo es unico; los codigos eliminados no se pueden reutilizar.</small></label><label className="report-upload-field"><span>Nombre <span className="report-required">*</span></span><input value={uploadName} onChange={(event) => setUploadName(event.target.value)} placeholder="Ventas mensuales" required /><small className="report-form-spacer" aria-hidden="true">&nbsp;</small></label><label className="report-upload-field"><span>Version</span><input inputMode="numeric" pattern="[0-9]*" value={uploadVersion} onChange={(event) => setUploadVersion(event.target.value.replace(/\D/g, ""))} onKeyDown={(event) => { if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.length === 1 && !/\d/.test(event.key)) event.preventDefault(); }} aria-label="Version numerica" /><small>Para una plantilla existente usa una version nueva.</small></label></div><label>Descripcion<textarea rows={2} value={uploadDescription} onChange={(event) => setUploadDescription(event.target.value)} placeholder="Descripcion visible en el catalogo" /></label><label className="report-check-row"><input type="checkbox" checked={uploadActivate} onChange={(event) => setUploadActivate(event.target.checked)} /> Activar esta version despues de cargarla</label><div className="report-form-field"><span className="report-form-field-label">parameterSchema <span className="report-help">Arreglo JSON opcional para declarar parametros que el extractor no encuentre.</span></span><JsonCodeEditor ariaLabel="parameterSchema JSON" height="190px" onChange={setUploadSchema} value={uploadSchema} /></div><div className="report-form-actions"><button className="report-button report-button-secondary" type="button" onClick={() => setUploadModalOpen(false)} disabled={uploadLoading}>Cancelar</button><button className="report-button report-button-primary" type="submit" disabled={uploadLoading}>{uploadLoading ? <LoaderCircle className="report-spin" size={16} aria-hidden="true" /> : <Upload size={16} aria-hidden="true" />}{uploadLoading ? "Cargando..." : "Cargar plantilla"}</button></div></form>
       </section>
     </div> : null}
 
     {detailsModalOpen ? <div className="report-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailsModalOpen(false); }}>
       <section className="report-modal" role="dialog" aria-modal="true" aria-labelledby="details-modal-title">
         <div className="report-modal-header"><div><p className="report-eyebrow">INSPECCION</p><h2 id="details-modal-title">Versiones y parametros</h2><p className="report-panel-description">Consulta el contrato que report-service detecto o recibio para cada version.</p></div><div className="report-modal-header-actions">{selectedCode ? <span className="report-selected-code">{selectedCode}</span> : null}<button className="report-icon-button" type="button" title="Cerrar detalle" aria-label="Cerrar detalle" onClick={() => setDetailsModalOpen(false)}><XCircle size={17} aria-hidden="true" /></button></div></div>
-        {!selectedCode ? <div className="report-empty"><strong>Selecciona una plantilla</strong><p>Vuelve al catalogo y elige una plantilla para consultar sus versiones.</p></div> : detailsLoading ? <div className="report-loading"><LoaderCircle className="report-spin" size={24} aria-hidden="true" /> Cargando detalle...</div> : detailsError ? <ErrorBox message={detailsError} onRetry={() => void selectVersion(String(details?.version || 1))} /> : details ? <div className="report-details report-modal-details"><div className="report-detail-grid"><div><span>Archivo</span><strong>{details.fileName || "-"}</strong></div><div><span>Tipo</span><strong>{details.documentType || "-"}</strong></div><div><span>Estado</span><StatusBadge value={details.status} /></div><div><span>Tamano</span><strong>{formatBytes(details.fileSize)}</strong></div><div><span>Creado por</span><strong>{details.createdBy || "-"}</strong></div><div><span>Checksum</span><code>{details.checksumSha256 ? `${details.checksumSha256.slice(0, 18)}...` : "-"}</code></div></div><div className="report-version-toolbar"><label>Version consultada<select value={String(details.version)} onChange={(event) => void selectVersion(event.target.value)}>{versions.map((version) => <option key={version.version} value={version.version}>v{version.version} · {version.status}</option>)}</select></label><div className="report-inline-actions"><button className="report-button report-button-secondary" type="button" onClick={() => void downloadOriginalTemplate()} disabled={templateDownloadLoading}><Download size={15} aria-hidden="true" /> {templateDownloadLoading ? "Descargando..." : "Descargar plantilla original"}</button><button className="report-button report-button-secondary" type="button" onClick={activateVersion} disabled={details.status === "ACTIVE"}><CheckCircle2 size={15} aria-hidden="true" /> Activar version</button><button className="report-button report-button-danger" type="button" onClick={() => void deleteTemplate()}><XCircle size={15} aria-hidden="true" /> Eliminar plantilla</button></div></div><div className="report-subpanel"><div className="report-subpanel-heading"><div><p className="report-eyebrow">CONTRATO</p><h3>Parametros de la version</h3></div><button className="report-icon-button" type="button" title="Copiar parametros JSON" aria-label="Copiar parametros JSON" onClick={() => void navigator.clipboard?.writeText(JSON.stringify(parameters, null, 2))}><Clipboard size={16} aria-hidden="true" /></button></div><ParameterTable parameters={parameters} /></div><div className="report-details-actions"><button className="report-button report-button-primary" type="button" onClick={() => { setDetailsModalOpen(false); openGenerateModal(selectedCode); }}><Play size={15} aria-hidden="true" /> Probar generacion</button><span>Creada: {formatDate(details.createdAt)} · Activada: {formatDate(details.activatedAt)}</span></div></div> : null}
+        {!selectedCode ? <div className="report-empty"><strong>Selecciona una plantilla</strong><p>Vuelve al catalogo y elige una plantilla para consultar sus versiones.</p></div> : detailsLoading ? <div className="report-loading"><LoaderCircle className="report-spin" size={24} aria-hidden="true" /> Cargando detalle...</div> : detailsError ? <ErrorBox message={detailsError} onRetry={() => void selectVersion(String(details?.version || 1))} /> : details ? <div className="report-details report-modal-details"><div className="report-detail-grid"><div><span>Archivo</span><strong>{details.fileName || "-"}</strong></div><div><span>Tipo</span><strong>{details.documentType || "-"}</strong></div><div><span>Estado</span><StatusBadge value={details.status} /></div><div><span>Tamano</span><strong>{formatBytes(details.fileSize)}</strong></div><div><span>Creado por</span><strong>{details.createdBy || "-"}</strong></div><div><span>Checksum</span><code>{details.checksumSha256 ? `${details.checksumSha256.slice(0, 18)}...` : "-"}</code></div></div>{details.inspection ? <section className="report-inspection-panel" aria-labelledby="inspection-panel-title"><div className="report-inspection-heading"><div><p className="report-eyebrow">INSPECCION AUTOMATICA</p><h3 id="inspection-panel-title">Capacidades detectadas</h3></div><span className="report-type-tag">{details.inspection.engine || "LEGACY"}</span></div><div className="report-inspection-grid"><div><span>Raiz XML</span><code>{details.inspection.xmlRoot || "-"}</code></div><div><span>Funciones</span><div className="report-inspection-features">{details.inspection.features?.length ? details.inspection.features.map((feature) => <span className="report-type-tag" key={feature}>{feature}</span>) : <small>Sin funciones especiales detectadas</small>}</div></div></div>{details.inspection.warnings?.length ? <div className="report-inspection-warnings"><strong>Advertencias</strong><ul>{details.inspection.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div> : null}</section> : null}<div className="report-version-toolbar"><label>Version consultada<select value={String(details.version)} onChange={(event) => void selectVersion(event.target.value)}>{versions.map((version) => <option key={version.version} value={version.version}>v{version.version} · {version.status}</option>)}</select></label><div className="report-inline-actions"><button className="report-button report-button-secondary" type="button" onClick={() => void downloadOriginalTemplate()} disabled={templateDownloadLoading}><Download size={15} aria-hidden="true" /> {templateDownloadLoading ? "Descargando..." : "Descargar plantilla original"}</button><button className="report-button report-button-secondary" type="button" onClick={activateVersion} disabled={details.status === "ACTIVE"}><CheckCircle2 size={15} aria-hidden="true" /> Activar version</button><button className="report-button report-button-danger" type="button" onClick={() => void deleteTemplate()}><XCircle size={15} aria-hidden="true" /> Eliminar plantilla</button></div></div><div className="report-subpanel"><div className="report-subpanel-heading"><div><p className="report-eyebrow">CONTRATO</p><h3>Parametros de la version</h3></div><button className="report-icon-button" type="button" title="Copiar parametros JSON" aria-label="Copiar parametros JSON" onClick={() => void copyParameters()}><Clipboard size={16} aria-hidden="true" /></button></div><ParameterTable parameters={parameters} /></div><div className="report-details-actions"><button className="report-button report-button-primary" type="button" onClick={() => { setDetailsModalOpen(false); openGenerateModal(selectedCode); }}><Play size={15} aria-hidden="true" /> Probar generacion</button><span>Creada: {formatDate(details.createdAt)} · Activada: {formatDate(details.activatedAt)}</span></div></div> : null}
       </section>
     </div> : null}
 
     {generateModalOpen ? <div className="report-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !generateLoading) setGenerateModalOpen(false); }}>
       <section className="report-modal" role="dialog" aria-modal="true" aria-labelledby="generate-modal-title">
         <div className="report-modal-header"><div><p className="report-eyebrow">GENERACION INDIVIDUAL</p><h2 id="generate-modal-title">Generar documento</h2><p className="report-panel-description">Ejecuta POST /api/v1/reports/generate y descarga la respuesta binaria.</p></div><button className="report-icon-button" type="button" title="Cerrar generacion" aria-label="Cerrar generacion" onClick={() => setGenerateModalOpen(false)} disabled={generateLoading}><XCircle size={17} aria-hidden="true" /></button></div>
-        <form className="report-form report-modal-form" onSubmit={generateReport}><label>Solicitud JSON <span className="report-help">Edita directamente los datos y las opciones de generacion: <code>data</code>, <code>fileName</code>, <code>outputFormat</code>, <code>templateCode</code> y <code>templateVersion</code>.</span><JsonCodeEditor ariaLabel="Solicitud JSON completa para generar el documento" height="430px" onChange={setGenerateData} value={generateData} /></label>{generateRequestFeedback.message ? <p className={generateRequestFeedback.error ? "report-help report-form-feedback report-form-feedback-error" : "report-help report-form-feedback"}>{generateRequestFeedback.message}</p> : null}<div className="report-form-actions"><button className="report-button report-button-secondary" type="button" onClick={saveGenerateRequestDraft} disabled={generateLoading || detailsLoading}><Save size={16} aria-hidden="true" /> Guardar</button><button className="report-button report-button-secondary" type="button" onClick={resetGenerateRequestDraft} disabled={generateLoading || detailsLoading}><RotateCcw size={16} aria-hidden="true" /> Reset</button><button className="report-button report-button-secondary" type="button" onClick={() => setGenerateModalOpen(false)} disabled={generateLoading}>Cancelar</button><button className="report-button report-button-primary" type="submit" disabled={generateLoading || detailsLoading}>{generateLoading ? <LoaderCircle className="report-spin" size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}{generateLoading ? "Generando..." : detailsLoading ? "Cargando parametros..." : "Generar documento"}</button></div></form>{generatedFile ? <div className="report-download-result"><CheckCircle2 size={18} aria-hidden="true" /><div><strong>Documento listo</strong><p>{generatedFile.fileName}</p></div><button className="report-button report-button-secondary" type="button" onClick={() => downloadBlob(generatedFile.blob, generatedFile.fileName)}><Download size={15} aria-hidden="true" /> Descargar</button></div> : null}
+        <form className="report-form report-modal-form" onSubmit={generateReport}><div className="report-form-field"><span className="report-form-field-label">Solicitud JSON <span className="report-help">Edita directamente los datos y las opciones de generacion: <code>data</code>, <code>fileName</code>, <code>outputFormat</code>, <code>templateCode</code> y <code>templateVersion</code>.</span></span><JsonCodeEditor ariaLabel="Solicitud JSON completa para generar el documento" height="430px" onChange={setGenerateData} value={generateData} /></div>{generateRequestFeedback.message ? <p className={generateRequestFeedback.error ? "report-help report-form-feedback report-form-feedback-error" : "report-help report-form-feedback"}>{generateRequestFeedback.message}</p> : null}<div className="report-form-actions"><button className="report-button report-button-secondary" type="button" onClick={saveGenerateRequestDraft} disabled={generateLoading || detailsLoading || !generateSaveEnabled}><Save size={16} aria-hidden="true" /> Guardar</button><button className="report-button report-button-secondary" type="button" onClick={resetGenerateRequestDraft} disabled={generateLoading || detailsLoading}><RotateCcw size={16} aria-hidden="true" /> Reset</button><button className="report-button report-button-secondary" type="button" onClick={() => setGenerateModalOpen(false)} disabled={generateLoading}>Cancelar</button><button className="report-button report-button-primary" type="submit" disabled={generateLoading || detailsLoading}>{generateLoading ? <LoaderCircle className="report-spin" size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}{generateLoading ? "Generando..." : detailsLoading ? "Cargando parametros..." : "Generar documento"}</button></div></form>{generatedFile ? <div className="report-download-result"><CheckCircle2 size={18} aria-hidden="true" /><div><strong>Documento listo</strong><p>{generatedFile.fileName}</p></div><button className="report-button report-button-secondary" type="button" onClick={() => downloadBlob(generatedFile.blob, generatedFile.fileName)}><Download size={15} aria-hidden="true" /> Descargar</button></div> : null}
       </section>
     </div> : null}
 
     {jobsModalOpen ? <div className="report-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !batchLoading && !jobLoading) setJobsModalOpen(false); }}>
       <section className="report-modal" role="dialog" aria-modal="true" aria-labelledby="jobs-modal-title">
         <div className="report-modal-header"><div><p className="report-eyebrow">PROCESAMIENTO ASINCRONO</p><h2 id="jobs-modal-title">Lotes ZIP</h2><p className="report-panel-description">Crea un lote, consulta su estado, cancelalo o descarga el ZIP completado.</p></div><button className="report-icon-button" type="button" title="Cerrar lotes ZIP" aria-label="Cerrar lotes ZIP" onClick={() => setJobsModalOpen(false)} disabled={batchLoading || jobLoading}><XCircle size={17} aria-hidden="true" /></button></div>
-        <form className="report-form report-modal-form" onSubmit={createJob}><label>Cuerpo de POST /api/v1/report-jobs<JsonCodeEditor ariaLabel="Cuerpo JSON de report jobs" height="360px" onChange={setBatchData} value={batchData} /></label><div className="report-form-actions"><button className="report-button report-button-secondary" type="button" onClick={() => setJobsModalOpen(false)} disabled={batchLoading || jobLoading}>Cancelar</button><button className="report-button report-button-primary" type="submit" disabled={batchLoading}>{batchLoading ? <LoaderCircle className="report-spin" size={16} aria-hidden="true" /> : <Send size={16} aria-hidden="true" />}{batchLoading ? "Creando lote..." : "Crear lote"}</button></div></form><div className="report-job-lookup"><label>Id del lote<input value={jobId} onChange={(event) => setJobId(event.target.value)} placeholder="UUID devuelto por el servicio" /></label><div className="report-inline-actions"><button className="report-button report-button-secondary" type="button" onClick={() => void refreshJob()} disabled={jobLoading || !jobId}><RefreshCw size={15} aria-hidden="true" /> Consultar estado</button><button className="report-button report-button-secondary" type="button" onClick={() => void downloadJob()} disabled={jobLoading || !jobId}><Download size={15} aria-hidden="true" /> Descargar ZIP</button><button className="report-button report-button-danger" type="button" onClick={() => void cancelJob()} disabled={jobLoading || !jobId}><XCircle size={15} aria-hidden="true" /> Cancelar</button></div></div>{job ? <div className="report-job-card"><div><span className="report-eyebrow">TRABAJO {job.id}</span><h3>{job.templateCode || "-"} · {job.outputFormat || "-"}</h3></div><StatusBadge value={job.status} /><div className="report-job-metrics"><div><span>Procesados</span><strong>{job.processedItems ?? 0} / {job.totalItems ?? 0}</strong></div><div><span>Exitosos</span><strong>{job.successfulItems ?? 0}</strong></div><div><span>Fallidos</span><strong>{job.failedItems ?? 0}</strong></div><div><span>Expira</span><strong>{formatDate(job.expiresAt)}</strong></div></div>{job.errorMessage ? <p className="report-job-error">{job.errorMessage}</p> : null}</div> : <div className="report-empty-small"><FileArchive size={18} aria-hidden="true" /> Crea un lote para consultar su progreso.</div>}
+        <form className="report-form report-modal-form" onSubmit={createJob}><div className="report-form-field"><span className="report-form-field-label">Cuerpo de POST /api/v1/report-jobs</span><JsonCodeEditor ariaLabel="Cuerpo JSON de report jobs" height="360px" onChange={setBatchData} value={batchData} /></div><div className="report-form-actions"><button className="report-button report-button-secondary" type="button" onClick={() => setJobsModalOpen(false)} disabled={batchLoading || jobLoading}>Cancelar</button><button className="report-button report-button-primary" type="submit" disabled={batchLoading}>{batchLoading ? <LoaderCircle className="report-spin" size={16} aria-hidden="true" /> : <Send size={16} aria-hidden="true" />}{batchLoading ? "Creando lote..." : "Crear lote"}</button></div></form><div className="report-job-lookup"><label>Id del lote<input value={jobId} onChange={(event) => setJobId(event.target.value)} placeholder="UUID devuelto por el servicio" /></label><div className="report-inline-actions"><button className="report-button report-button-secondary" type="button" onClick={() => void refreshJob()} disabled={jobLoading || !jobId}><RefreshCw size={15} aria-hidden="true" /> Consultar estado</button><button className="report-button report-button-secondary" type="button" onClick={() => void downloadJob()} disabled={jobLoading || !jobId}><Download size={15} aria-hidden="true" /> Descargar ZIP</button><button className="report-button report-button-danger" type="button" onClick={() => void cancelJob()} disabled={jobLoading || !jobId}><XCircle size={15} aria-hidden="true" /> Cancelar</button></div></div>{job ? <div className="report-job-card"><div><span className="report-eyebrow">TRABAJO {job.id}</span><h3>{job.templateCode || "-"} · {job.outputFormat || "-"}</h3></div><StatusBadge value={job.status} /><div className="report-job-metrics"><div><span>Procesados</span><strong>{job.processedItems ?? 0} / {job.totalItems ?? 0}</strong></div><div><span>Exitosos</span><strong>{job.successfulItems ?? 0}</strong></div><div><span>Fallidos</span><strong>{job.failedItems ?? 0}</strong></div><div><span>Expira</span><strong>{formatDate(job.expiresAt)}</strong></div></div>{job.errorMessage ? <p className="report-job-error">{job.errorMessage}</p> : null}</div> : <div className="report-empty-small"><FileArchive size={18} aria-hidden="true" /> Crea un lote para consultar su progreso.</div>}
       </section>
     </div> : null}
 

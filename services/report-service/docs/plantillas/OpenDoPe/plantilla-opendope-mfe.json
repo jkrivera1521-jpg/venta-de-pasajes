@@ -1,0 +1,76 @@
+{
+  "data": {
+    "textoSimple": "Informe de servicio para cliente corporativo",
+    "textoLargo": "Este documento resume la atencion realizada, los productos incluidos, los descuentos aplicados y las observaciones operativas del servicio.",
+    "numeroEntero": 42,
+    "numeroDecimal": 1234.56,
+    "porcentaje": 85.5,
+    "activo": true,
+    "incluyeDetalles": true,
+    "fechaDocumento": "2026-10-30",
+    "fechaVencimiento": "2026-11-30",
+    "cliente": {
+      "nombre": "Diego Martinez",
+      "correo": "diego.martinez@example.com",
+      "telefono": "+593 99 999 9999",
+      "direccion": {
+        "calle": "Av. Amazonas",
+        "numero": "123",
+        "ciudad": "Quito",
+        "provincia": "Pichincha"
+      }
+    },
+    "productos": [
+      {
+        "codigo": "P001",
+        "nombre": "Manzanas nacionales",
+        "cantidad": 3,
+        "precio": 2.5,
+        "descuentos": [
+          {
+            "tipo": "Porcentaje",
+            "valor": 10
+          },
+          {
+            "tipo": "Promocion cliente frecuente",
+            "valor": 5
+          }
+        ]
+      },
+      {
+        "codigo": "P002",
+        "nombre": "Naranjas seleccionadas",
+        "cantidad": 5,
+        "precio": 1.75,
+        "descuentos": [
+          {
+            "tipo": "Temporada",
+            "valor": 7.5
+          }
+        ]
+      },
+      {
+        "codigo": "P003",
+        "nombre": "Servicio de entrega a domicilio",
+        "cantidad": 1,
+        "precio": 8,
+        "descuentos": []
+      }
+    ],
+    "etiquetas": [
+      "Urgente",
+      "Cliente frecuente",
+      "Entrega a domicilio"
+    ],
+    "logo": {
+	"data": "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",
+	"contentType": "image/png"
+	},
+    "descripcionEnriquecida": "<p>Servicio <strong>especial</strong> para el cliente.</p><p>La entrega fue <em>confirmada</em> para la fecha indicada.</p><ul><li>Documentacion revisada</li><li>Productos verificados</li></ul>",
+    "observacion": "La solicitud fue revisada por el equipo de operaciones y queda lista para emitir el documento final."
+  },
+  "fileName": "ejemplo-documento-opendope.docx",
+  "outputFormat": "DOCX",
+  "templateCode": "1521",
+  "templateVersion": 1
+}

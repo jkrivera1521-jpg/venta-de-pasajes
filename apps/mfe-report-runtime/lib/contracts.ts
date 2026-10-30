@@ -24,6 +24,13 @@ export type TemplateParameter = {
   source?: string | null;
 };
 
+export type TemplateInspection = {
+  engine?: string | null;
+  features?: string[];
+  xmlRoot?: string | null;
+  warnings?: string[];
+};
+
 function exampleValue(parameter: TemplateParameter) {
   if (parameter.defaultValue !== undefined && parameter.defaultValue !== null) return parameter.defaultValue;
   // `repeated` marks a field rendered inside a loop; it does not make the
@@ -110,6 +117,7 @@ export type TemplateVersion = {
   createdAt?: string | null;
   activatedAt?: string | null;
   parameters?: TemplateParameter[];
+  inspection?: TemplateInspection | null;
 };
 
 export type ReportJob = {

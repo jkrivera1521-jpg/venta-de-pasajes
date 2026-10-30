@@ -21,6 +21,7 @@
         <cloud-sql-jdbc-socket-factory.version>1.24.2</cloud-sql-jdbc-socket-factory.version>
         <jxls.version>3.0.0</jxls.version>
         <poi.version>5.4.1</poi.version>
+        <jsoup.version>1.22.2</jsoup.version>
         <docx4j.version>17.0.0</docx4j.version>
         <woodstox.version>7.1.1</woodstox.version>
         <stax2.version>4.2.2</stax2.version>
@@ -109,6 +110,11 @@
             <version>${poi.version}</version>
         </dependency>
         <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>${jsoup.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.docx4j</groupId>
             <artifactId>docx4j-core</artifactId>
             <version>${docx4j.version}</version>
@@ -129,6 +135,22 @@
                     <artifactId>xml-apis</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+        <!-- Redistributable fonts keep PDF rendering independent from the host OS. -->
+        <dependency>
+            <groupId>org.docx4j</groupId>
+            <artifactId>docx4j-export-fo-fonts-croscore</artifactId>
+            <version>${docx4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.docx4j</groupId>
+            <artifactId>docx4j-export-fo-fonts-crosextra</artifactId>
+            <version>${docx4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.docx4j</groupId>
+            <artifactId>docx4j-export-fo-fonts-symbol</artifactId>
+            <version>${docx4j.version}</version>
         </dependency>
         <!-- docx4j discovers Woodstox through the StAX provider at runtime. -->
         <dependency>

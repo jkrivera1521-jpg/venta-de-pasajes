@@ -7,5 +7,7 @@ public enum ParameterDataType {
     DATE,
     OBJECT,
     ARRAY,
+    IMAGE,
+    RICH_TEXT,
     UNKNOWN
 }

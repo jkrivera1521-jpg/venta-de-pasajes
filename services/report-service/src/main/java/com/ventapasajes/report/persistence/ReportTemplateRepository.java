@@ -16,6 +16,10 @@ public class ReportTemplateRepository implements PanacheRepositoryBase<ReportTem
         return find("code = ?1 and status <> ?2", code, TemplateStatus.DELETED).firstResult();
     }
 
+    public ReportTemplate findByCodeIncludingDeleted(String code) {
+        return find("code = ?1", code).firstResult();
+    }
+
     public List<ReportTemplate> listVisible() {
         return list("status <> ?1 order by code", TemplateStatus.DELETED);
     }

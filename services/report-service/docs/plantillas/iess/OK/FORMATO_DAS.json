@@ -1,0 +1,41 @@
+{
+  "data": {
+    "aprobado": "Ing. Andres Garcia",
+    "cambios": [
+      {
+        "autor": "Diego Martínez",
+        "descripcion": "Se crea el documento",
+        "fecha": "2026-10-01",
+        "version": "V1"
+      },
+	  {
+        "autor": "Javier Ovando",
+        "descripcion": "Se mofica el estandar con nuevos alcances",
+        "fecha": "2026-11-21",
+        "version": "V2"
+      },
+	  {
+        "autor": "Mario Calderón",
+        "descripcion": "Se mofica el estandar con nuevas tablas",
+        "fecha": "2026-12-01",
+        "version": "V3"
+      },
+	  {
+        "autor": "Paola Cabrera",
+        "descripcion": "Se mofica el estandar cambiando la tecnologia",
+        "fecha": "2026-12-31",
+        "version": "V4"
+      }
+	  
+    ],
+    "codigo": "1521",
+    "elaborado": "Ing. Diego Martinez",
+    "fecha": "2026-10-30",
+    "revisado": "Ing. Juan Carlos Estevez",
+    "tema": "Como migrar JEE a Quarkus-Rect"
+  },
+  "fileName": "reporte.docx",
+  "outputFormat": "DOCX",
+  "templateCode": "AAA2",
+  "templateVersion": 1
+}

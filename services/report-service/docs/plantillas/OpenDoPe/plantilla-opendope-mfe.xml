@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<documentoEjemplo>
+
+  <!-- STRING -->
+  <textoSimple>Este es un texto de ejemplo.</textoSimple>
+  <textoLargo>Descripción extensa del documento en español.</textoLargo>
+
+  <!-- NUMBER -->
+  <numeroEntero>42</numeroEntero>
+  <numeroDecimal>1234.56</numeroDecimal>
+  <porcentaje>85.5</porcentaje>
+
+  <!-- BOOLEAN -->
+  <activo>true</activo>
+  <incluyeDetalles>false</incluyeDetalles>
+
+  <!-- DATE -->
+  <fechaDocumento>2026-10-30</fechaDocumento>
+  <fechaVencimiento>2026-11-30</fechaVencimiento>
+
+  <!-- OBJECT -->
+  <cliente>
+    <nombre>Diego Martínez</nombre>
+    <correo>diego@example.com</correo>
+    <telefono>0999999999</telefono>
+
+    <direccion>
+      <calle>Av. Amazonas</calle>
+      <numero>123</numero>
+      <ciudad>Quito</ciudad>
+      <provincia>Pichincha</provincia>
+    </direccion>
+  </cliente>
+
+  <!-- ARRAY DE OBJETOS -->
+  <productos>
+    <item>
+      <codigo>P001</codigo>
+      <nombre>Manzanas</nombre>
+      <cantidad>3</cantidad>
+      <precio>2.50</precio>
+
+      <!-- ARRAY ANIDADO -->
+      <descuentos>
+        <item>
+          <tipo>Porcentaje</tipo>
+          <valor>10</valor>
+        </item>
+        <item>
+          <tipo>Promoción</tipo>
+          <valor>5</valor>
+        </item>
+      </descuentos>
+    </item>
+
+    <item>
+      <codigo>P002</codigo>
+      <nombre>Naranjas</nombre>
+      <cantidad>5</cantidad>
+      <precio>1.75</precio>
+      <descuentos />
+    </item>
+  </productos>
+
+  <!-- ARRAY DE VALORES SIMPLES -->
+  <etiquetas>
+    <item>Urgente</item>
+    <item>Cliente frecuente</item>
+    <item>Entrega a domicilio</item>
+  </etiquetas>
+
+  <!-- IMAGE: Base64 PNG de ejemplo -->
+  <logo>
+    iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=
+  </logo>
+
+  <!-- RICH_TEXT: XHTML escapado -->
+  <descripcionEnriquecida>
+    &lt;p&gt;Servicio &lt;strong&gt;especial&lt;/strong&gt; para el cliente.&lt;/p&gt;
+    &lt;p&gt;Salida confirmada para el día indicado.&lt;/p&gt;
+  </descripcionEnriquecida>
+
+  <!-- VALOR VACÍO U OPCIONAL -->
+  <observacion />
+
+  <!-- UNKNOWN:
+       No es un valor XML específico.
+       Significa que el extractor no pudo determinar el tipo. -->
+
+</documentoEjemplo>

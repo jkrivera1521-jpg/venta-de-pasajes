@@ -5,9 +5,12 @@ Servicio Quarkus 3.25.2 / Java 21 para administrar plantillas de reportes y gene
 ## Alcance
 
 - Versiona plantillas `XLSX` y `DOCX` en PostgreSQL mediante Flyway.
-- Extrae parametros de expresiones `${...}`, comentarios JXLS y variables XML de DOCX.
+- Extrae parametros de expresiones `${...}`, comentarios JXLS, MERGEFIELD, controles de contenido y bindings OpenDoPE de DOCX.
+- Inspecciona cada plantilla y expone motor, capacidades, raiz XML y advertencias en el catalogo y el MFE.
 - Activa una sola version por codigo; las versiones anteriores quedan `RETIRED`.
-- Procesa XLSX con JXLS/POI, DOCX con docx4j y PDF mediante docx4j-export-fo.
+- Procesa XLSX con JXLS/POI, DOCX con docx4j y PDF mediante docx4j-export-fo, incluyendo fuentes Croscore, Crosextra y Symbol.
+- Procesa OpenDoPE, repeticiones, condicionales, headers, footers, imagenes validadas, texto enriquecido permitido, TOC/bookmarks y MERGEFIELD.
+- Actualiza graficos existentes mediante el contrato `charts.chartN`, sus caches y el workbook XLSX embebido.
 - Ejecuta lotes asincronos, genera un ZIP, conserva errores parciales y aplica expiracion.
 - Usa almacenamiento local en desarrollo y GCS cuando `APP_REPORT_STORAGE_PROVIDER=gcs`.
 - Valida firma ZIP, extension, macros, rutas internas, XML externo, tamano y expansion.
@@ -42,7 +45,7 @@ El catalogo permite filtrar `GET /api/v1/templates` por `code`, `documentType`, 
 }
 ```
 
-La respuesta de carga incluye `templateId`, `code`, `version`, `documentType`, `status`, `checksumSha256` y el contrato completo `parameters`. Por compatibilidad, la entrada `parameters` tambien se acepta como alias de `data`.
+La respuesta de carga incluye `templateId`, `code`, `version`, `documentType`, `status`, `checksumSha256`, el contrato completo `parameters` y `inspection`. `inspection` contiene `engine`, `features`, `xmlRoot` y `warnings`. Por compatibilidad, la entrada `parameters` tambien se acepta como alias de `data`.
 
 Los errores se devuelven como `application/problem+json` con `code`, `detail`, `status` y `traceId`.
 
@@ -257,6 +260,8 @@ curl.exe -sS -X DELETE "$env:BASE_URL/api/v1/templates/$env:TEMPLATE_CODE" `
   -H "Authorization: Bearer $env:TOKEN"
 ```
 
+Los codigos de plantilla son unicos. Una plantilla eliminada conserva su codigo para mantener la trazabilidad del historial, por lo que no puede reutilizarse en una nueva carga. Si el codigo ya existe y esta visible, carga una version mayor a la ultima registrada; si esta eliminado, usa otro codigo o restaura la plantilla mediante el flujo administrativo. El servicio responde `409 TEMPLATE_CODE_RESERVED` en el segundo caso y `409 TEMPLATE_VERSION_EXISTS` si la version solicitada ya existe.
+
 ### Errores y respuestas binarias
 
 Para inspeccionar cabeceras y errores de validacion:
@@ -289,13 +294,25 @@ En el perfil `local` el bucket tiene un valor marcador para que Quarkus pueda in
 
 Las plantillas no admiten macros (`xlsm/docm`), referencias XML externas ni rutas ZIP inseguras. La generacion PDF requiere una plantilla DOCX.
 
+## DOCX avanzado
+
+La guia operativa con ejemplos paso a paso y pruebas manuales del MFE esta en [`docs/docx4j/README.md`](docs/docx4j/README.md). Incluye contratos de JSON, fixtures, casos de error y comandos de validacion para cada capacidad.
+
+El flujo recomendado es cargar la plantilla, revisar `inspection`, consultar el contrato de parametros, editar `data` en el popup de generacion y descargar DOCX o PDF. El MFE guarda y recupera el JSON de generacion por codigo y version mediante `Guardar` y `Reset`.
+
 ## Limitaciones conocidas
 
 - La primera version procesa los lotes elemento por elemento, pero mantiene el ZIP final en memoria antes de almacenarlo; para lotes muy grandes debe migrarse el almacenamiento a un stream temporal o multipart.
-- DOCX usa variables preparadas por docx4j, soporta marcadores divididos entre ejecuciones de Word y valores anidados. Tambien expande filas de tabla con la sintaxis legacy `jt:forEach` (por ejemplo, `cambios`); los content controls/OpenDoPE requieren una plantilla y contrato declarados para una siguiente iteracion.
+- DOCX conserva la compatibilidad con variables preparadas por docx4j, marcadores divididos entre ejecuciones de Word, valores anidados y filas legacy `jt:forEach`. OpenDoPE requiere que la plantilla tenga Custom XML y bindings validos; no se inventan bindings faltantes.
+- Las imagenes dinamicas se reciben como base64/data URI validada. No se aceptan URLs remotas por defecto.
+- El texto enriquecido solo se procesa en controles de contenido rich text y con una lista blanca de XHTML.
+- Los graficos deben existir en la plantilla, tener caches editables y un unico workbook XLSX embebido. Se valida que las cantidades de series y puntos coincidan; no se crean graficos nuevos.
+- `docx4j-export-fo` genera un PDF valido y conserva el contenido compatible, pero la fidelidad visual de TOC y graficos puede diferir de Word. Las pruebas automatizadas verifican estructura y MIME; la comparacion pixel a pixel requiere revision visual.
 - La auditoria es durable en `report_audit_event` dentro de la base del servicio. `APP_REPORT_AUDIT_URL` queda reservado para publicar eventos al `audit-service` mediante un adaptador autenticado.
 - La prueba PostgreSQL con Testcontainers está etiquetada como integración y deshabilitada por defecto; CI debe ejecutarla con Docker.
 - Los fixtures de XLSX se construyen en las pruebas para no versionar archivos binarios; las plantillas reales se cargan por `POST /api/v1/templates`.
+
+En algunos entornos Windows restringidos, `@QuarkusTest` puede fallar antes de iniciar la aplicacion con `Unable to establish loopback connection` o `Invalid argument: connect` al crear un selector Netty. Ese error pertenece al entorno de ejecucion de la prueba; las pruebas de motor DOCX se pueden comprobar de forma aislada con `-Dtest=DocxTemplateEngineTest,DynamicImageValidatorTest,JsonToXmlConverterTest,RichTextSanitizerTest,TemplateParameterExtractorTest`. En una terminal Windows normal o CI con loopback habilitado debe ejecutarse tambien la suite completa.
 
 ## Desarrollo
 

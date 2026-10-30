@@ -7,6 +7,9 @@ COPY target/quarkus-app/*.jar /work/
 COPY target/quarkus-app/app/ /work/app/
 COPY target/quarkus-app/quarkus/ /work/quarkus/
 
+RUN mkdir -p /work/report-storage \
+    && chown -R 1001:0 /work
+
 ENV QUARKUS_HTTP_HOST=0.0.0.0
 
 EXPOSE 8080

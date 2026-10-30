@@ -1,0 +1,76 @@
+{
+  "data": {
+    "textoSimple": "Informe de servicio para cliente corporativo",
+    "textoLargo": "Este documento resume la atencion realizada, los productos incluidos, los descuentos aplicados y las observaciones operativas del servicio.",
+    "numeroEntero": 42,
+    "numeroDecimal": 1234.56,
+    "porcentaje": 85.5,
+    "activo": true,
+    "incluyeDetalles": true,
+    "fechaDocumento": "2026-10-30",
+    "fechaVencimiento": "2026-11-30",
+    "cliente": {
+      "nombre": "Diego Martinez",
+      "correo": "diego.martinez@example.com",
+      "telefono": "+593 99 999 9999",
+      "direccion": {
+        "calle": "Av. Amazonas",
+        "numero": "123",
+        "ciudad": "Quito",
+        "provincia": "Pichincha"
+      }
+    },
+    "productos": [
+      {
+        "codigo": "P001",
+        "nombre": "Manzanas nacionales",
+        "cantidad": 3,
+        "precio": 2.5,
+        "descuentos": [
+          {
+            "tipo": "Porcentaje",
+            "valor": 10
+          },
+          {
+            "tipo": "Promocion cliente frecuente",
+            "valor": 5
+          }
+        ]
+      },
+      {
+        "codigo": "P002",
+        "nombre": "Naranjas seleccionadas",
+        "cantidad": 5,
+        "precio": 1.75,
+        "descuentos": [
+          {
+            "tipo": "Temporada",
+            "valor": 7.5
+          }
+        ]
+      },
+      {
+        "codigo": "P003",
+        "nombre": "Servicio de entrega a domicilio",
+        "cantidad": 1,
+        "precio": 8.0,
+        "descuentos": []
+      }
+    ],
+    "etiquetas": [
+      "Urgente",
+      "Cliente frecuente",
+      "Entrega a domicilio"
+    ],
+    "logo": {
+      "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "contentType": "image/png"
+    },
+    "descripcionEnriquecida": "<p>Servicio <strong>especial</strong> para el cliente.</p><p>La entrega fue <em>confirmada</em> para la fecha indicada.</p><ul><li>Documentacion revisada</li><li>Productos verificados</li></ul>",
+    "observacion": "La solicitud fue revisada por el equipo de operaciones y queda lista para emitir el documento final."
+  },
+  "fileName": "ejemplo-documento-opendope.docx",
+  "outputFormat": "DOCX",
+"templateCode": "SDS",
+  "templateVersion": 1
+}

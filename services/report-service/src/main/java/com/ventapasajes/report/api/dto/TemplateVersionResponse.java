@@ -19,5 +19,6 @@ public record TemplateVersionResponse(
         @JsonProperty("createdBy") String createdBy,
         @JsonProperty("createdAt") Instant createdAt,
         @JsonProperty("activatedAt") Instant activatedAt,
-        List<TemplateParameterResponse> parameters) {
+        List<TemplateParameterResponse> parameters,
+        TemplateInspectionResponse inspection) {
 }

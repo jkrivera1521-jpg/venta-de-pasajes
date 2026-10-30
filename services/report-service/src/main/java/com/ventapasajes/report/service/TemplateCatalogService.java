@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ventapasajes.report.api.ReportServiceException;
 import com.ventapasajes.report.api.dto.TemplateParameterResponse;
 import com.ventapasajes.report.api.dto.TemplateResponse;
+import com.ventapasajes.report.api.dto.TemplateInspectionResponse;
 import com.ventapasajes.report.api.dto.TemplateUploadResponse;
 import com.ventapasajes.report.api.dto.TemplateVersionResponse;
 import com.ventapasajes.report.domain.ParameterDataType;
@@ -49,7 +50,10 @@ public class TemplateCatalogService {
         String normalizedCode = normalizeCode(code);
         if (name == null || name.isBlank()) throw bad("INVALID_TEMPLATE", "El nombre de la plantilla es obligatorio.");
         TemplateFileValidator.ValidatedTemplate file = fileValidator.validate(originalName, contentType, content);
-        ReportTemplate template = templates.findByCode(normalizedCode);
+        ReportTemplate template = templates.findByCodeIncludingDeleted(normalizedCode);
+        if (template != null && template.status == TemplateStatus.DELETED) {
+            throw conflict("TEMPLATE_CODE_RESERVED", "El codigo " + normalizedCode + " pertenece a una plantilla eliminada y no puede reutilizarse. Usa otro codigo o restaura la plantilla desde el flujo administrativo.");
+        }
         Instant now = Instant.now();
         boolean newTemplate = template == null;
         if (template == null) {
@@ -92,7 +96,8 @@ public class TemplateCatalogService {
         version.createdBy = actor;
         version.createdAt = now;
         versions.persist(version);
-        List<TemplateParameterExtractor.ExtractedParameter> discovered = extractor.extract(file.extension(), file.content());
+        TemplateParameterExtractor.Inspection inspection = extractor.inspect(file.extension(), file.content());
+        List<TemplateParameterExtractor.ExtractedParameter> discovered = inspection.parameters();
         for (TemplateParameterExtractor.ExtractedParameter parameter : mergeSchema(discovered, declaredSchema)) {
             ReportTemplateParameter entity = new ReportTemplateParameter();
             entity.id = UUID.randomUUID();
@@ -115,7 +120,7 @@ public class TemplateCatalogService {
         if (activate) audit.record("TEMPLATE_VERSION_ACTIVATED", "REPORT_TEMPLATE_VERSION", version.id.toString(), actor,
                 Map.of("templateCode", template.code, "version", version.version));
         List<TemplateParameterResponse> parameterResponses = parameters.listByVersion(version).stream().map(this::parameterResponse).toList();
-        return new TemplateUploadResponse(template.id, template.code, version.version, template.documentType.name(), version.status.name(), version.checksumSha256, parameterResponses);
+        return new TemplateUploadResponse(template.id, template.code, version.version, template.documentType.name(), version.status.name(), version.checksumSha256, parameterResponses, TemplateInspectionResponse.from(inspection.metadata()));
     }
 
     @Transactional
@@ -238,7 +243,12 @@ public class TemplateCatalogService {
 
     private TemplateVersionResponse versionResponse(ReportTemplateVersion value) {
         List<TemplateParameterResponse> params = parameters.listByVersion(value).stream().map(this::parameterResponse).toList();
-        return new TemplateVersionResponse(value.template.code, value.version, value.template.name, value.template.description, value.template.documentType.name(), value.fileName, value.contentType, value.fileSize, value.checksumSha256, value.status.name(), value.createdBy, value.createdAt, value.activatedAt, params);
+        TemplateParameterExtractor.Inspection inspection = inspectVersion(value);
+        return new TemplateVersionResponse(value.template.code, value.version, value.template.name, value.template.description, value.template.documentType.name(), value.fileName, value.contentType, value.fileSize, value.checksumSha256, value.status.name(), value.createdBy, value.createdAt, value.activatedAt, params, TemplateInspectionResponse.from(inspection.metadata()));
+    }
+
+    private TemplateParameterExtractor.Inspection inspectVersion(ReportTemplateVersion value) {
+        return extractor.inspect(value.fileExtension, value.blob == null ? new byte[0] : value.blob.content);
     }
 
     private TemplateParameterResponse parameterResponse(ReportTemplateParameter value) {

@@ -27,6 +27,7 @@ import com.ventapasajes.report.validation.FileNameSanitizer;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.context.control.ActivateRequestContext;
 import jakarta.enterprise.inject.spi.CDI;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -49,6 +50,7 @@ public class ReportJobWorker {
         executor.submit(() -> CDI.current().select(ReportJobWorker.class).get().process(id));
     }
 
+    @ActivateRequestContext
     public void process(UUID id) {
         ReportJobWorker self = CDI.current().select(ReportJobWorker.class).get();
         JobSnapshot job = self.start(id);

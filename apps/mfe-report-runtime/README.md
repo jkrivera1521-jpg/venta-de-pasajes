@@ -7,6 +7,7 @@
 - Consulta el health y el catalogo de plantillas.
 - Carga plantillas XLSX/DOCX con `multipart/form-data`.
 - Consulta versiones, parametros y contratos detectados.
+- Muestra el motor, capacidades, raiz XML y advertencias detectadas en plantillas DOCX.
 - Activa versiones y ejecuta eliminacion logica.
 - Genera documentos XLSX, DOCX o PDF y descarga la respuesta binaria.
 - Crea lotes asincronos, consulta su estado, cancela y descarga el ZIP.
@@ -26,6 +27,8 @@ Variables principales:
 
 - `REPORT_SERVICE_URL`: URL server-side de `report-service`; por defecto `http://localhost:8088`.
 - `NEXT_PUBLIC_MFE_PUBLIC_URL`: URL publicada por el manifest; por defecto `http://localhost:3008`.
+
+La guia paso a paso para probar OpenDoPE, repeticiones, condicionales, headers, footers, imagenes, rich text, graficos, TOC, bookmarks y MERGEFIELD esta en `services/report-service/docs/docx4j/README.md`.
 
 Al registrar el MFE en el Shell, usa `/report-runtime/embedded` como URL de pantalla y `/mfe/manifest` como URL del manifest.
 

@@ -106,6 +106,7 @@ const identityUserStorageKey = "venta-pasajes.identity.current-user";
 const identityLogoutEventKey = "venta-pasajes.identity.logout-event";
 const sessionIdleTimeoutMs = 3 * 60 * 1000;
 const sessionRefreshIntervalMs = 5 * 60 * 1000;
+const sessionRefreshCooldownMs = 30 * 1000;
 
 const shellTimeFormatter = new Intl.DateTimeFormat("es-EC", {
   hour: "2-digit",
@@ -376,6 +377,9 @@ export function ShellConsole() {
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [themeBusy, setThemeBusy] = useState(false);
   const [sessionPinned, setSessionPinned] = useState(false);
+  const resetIdleTimerRef = useRef<(() => void) | null>(null);
+  const lastActivityAtRef = useRef(0);
+  const lastSessionRefreshAtRef = useRef(0);
   const profileSurfaceRef = useRef<HTMLDivElement | null>(null);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -396,6 +400,8 @@ export function ShellConsole() {
   const [cropOffset, setCropOffset] = useState({ x: 0, y: 0 });
   const currentUserQuery = useQuery({
     enabled: authChecked && Boolean(accessToken),
+    // Keep the authenticated shell visible while the refreshed token is checked.
+    placeholderData: (previousData) => previousData,
     queryFn: () => fetchCurrentUser(accessToken as string),
     queryKey: ["frontend-shell", "identity-session", accessToken],
     refetchInterval: 10 * 1000,
@@ -405,6 +411,10 @@ export function ShellConsole() {
   });
   const menuQuery = useQuery({
     enabled: authChecked && Boolean(accessToken),
+    // Keep the last authorized tree while a refreshed token creates a new query key.
+    // Without this placeholder, child modules can briefly disappear and the shell
+    // incorrectly falls back to the first top-level module.
+    placeholderData: (previousData) => previousData,
     queryFn: () => fetchAuthorizedMenu(accessToken as string),
     queryKey: ["frontend-shell", "authorized-menu", accessToken],
     refetchInterval: 30 * 1000,
@@ -540,13 +550,21 @@ export function ShellConsole() {
     visit(dynamicMenuItems);
     return result;
   }, [dynamicMenuItems]);
+  const firstNavigableModuleKey = useMemo(() => {
+    const firstDynamicItem = dynamicMenuFlat.find(isNavigableMenuItem);
+    if (firstDynamicItem) {
+      return firstDynamicItem.code;
+    }
+
+    return modules.find((module) => module.enabled)?.key ?? "online-sales";
+  }, [dynamicMenuFlat, modules]);
   const activeDynamicItem = dynamicMenuFlat.find((item) => item.code === activeModuleKey && isNavigableMenuItem(item));
   const activeMenuPath = useMemo(() => {
     return findMenuPath(dynamicMenuItems, activeModuleKey);
   }, [activeModuleKey, dynamicMenuItems]);
   const activeModule = activeDynamicItem
     ? { entryUrl: activeDynamicItem.target_url, fallbackName: activeDynamicItem.code, fallbackTitle: activeDynamicItem.label, key: activeDynamicItem.code, manifestUrl: activeDynamicItem.manifest_url ?? "" }
-    : modules.find((module) => module.key === activeModuleKey && module.enabled) ?? modules[0];
+    : modules.find((module) => module.key === activeModuleKey && module.enabled) ?? modules.find((module) => module.enabled) ?? modules[0];
   const currentTime = now ? shellTimeFormatter.format(now) : "--:--:--";
   const currentDate = now ? shellDateFormatter.format(now) : "Fecha local";
   const breadcrumbLabels = activeMenuPath.length > 0
@@ -620,13 +638,17 @@ export function ShellConsole() {
   }, [router]);
 
   useEffect(() => {
-    const activeDynamicItemExists = dynamicMenuItems.length > 0 && dynamicMenuFlat.some((item) => item.code === activeModuleKey);
+    if (menuQuery.isPending || menuQuery.isFetching) {
+      return;
+    }
+
+    const activeDynamicItemExists = dynamicMenuItems.length > 0 && dynamicMenuFlat.some((item) => item.code === activeModuleKey && isNavigableMenuItem(item));
     const activeFallbackModuleExists = modules.some((module) => module.key === activeModuleKey && module.enabled);
 
     if (!activeDynamicItemExists && !activeFallbackModuleExists) {
-      setActiveModuleKey(modules[0]?.key ?? "online-sales");
+      setActiveModuleKey(firstNavigableModuleKey);
     }
-  }, [activeModuleKey, dynamicMenuFlat, dynamicMenuItems.length, modules]);
+  }, [activeModuleKey, dynamicMenuFlat, dynamicMenuItems.length, firstNavigableModuleKey, menuQuery.isFetching, menuQuery.isPending, modules]);
 
   useEffect(() => {
     function handleOutsideMenuClick(event: MouseEvent) {
@@ -897,6 +919,8 @@ export function ShellConsole() {
   }
 
   const handleMfeInteraction = useCallback(() => {
+    lastActivityAtRef.current = Date.now();
+    resetIdleTimerRef.current?.();
     setOpenMenuPath([]);
   }, []);
 
@@ -1052,12 +1076,17 @@ export function ShellConsole() {
   }
 
   useEffect(() => {
-    if (!authChecked || !accessToken || !hasCurrentUser || currentUserQuery.isPending || currentUserQuery.isError || sessionPinned) {
+    if (!authChecked || !accessToken || !hasCurrentUser || currentUserQuery.isPending || currentUserQuery.isError) {
       return;
     }
 
     let idleTimer: number | null = null;
     const resetIdleTimer = () => {
+      lastActivityAtRef.current = Date.now();
+      if (sessionPinned) {
+        return;
+      }
+
       if (idleTimer !== null) {
         window.clearTimeout(idleTimer);
       }
@@ -1066,6 +1095,7 @@ export function ShellConsole() {
         void logout(false);
       }, sessionIdleTimeoutMs);
     };
+    resetIdleTimerRef.current = resetIdleTimer;
     const activityEvents = ["pointerdown", "pointermove", "keydown", "touchstart", "wheel", "scroll"] as const;
 
     activityEvents.forEach((eventName) => {
@@ -1077,6 +1107,9 @@ export function ShellConsole() {
       if (idleTimer !== null) {
         window.clearTimeout(idleTimer);
       }
+      if (resetIdleTimerRef.current === resetIdleTimer) {
+        resetIdleTimerRef.current = null;
+      }
       activityEvents.forEach((eventName) => {
         document.removeEventListener(eventName, resetIdleTimer);
       });
@@ -1084,12 +1117,22 @@ export function ShellConsole() {
   }, [accessToken, authChecked, currentUserQuery.isError, currentUserQuery.isPending, hasCurrentUser, sessionPinned]);
 
   useEffect(() => {
-    if (!authChecked || !accessToken || !hasCurrentUser || currentUserQuery.isPending || currentUserQuery.isError || !sessionPinned) {
+    if (!authChecked || !accessToken || !hasCurrentUser || currentUserQuery.isPending || currentUserQuery.isError) {
       return;
     }
 
     let active = true;
-    async function refreshPinnedSession() {
+    async function refreshSession() {
+      if (!sessionPinned && Date.now() - lastActivityAtRef.current >= sessionIdleTimeoutMs) {
+        return;
+      }
+
+      const refreshStartedAt = Date.now();
+      if (refreshStartedAt - lastSessionRefreshAtRef.current < sessionRefreshCooldownMs) {
+        return;
+      }
+      lastSessionRefreshAtRef.current = refreshStartedAt;
+
       try {
         const response = await fetch("/api/identity/auth/refresh", {
           cache: "no-store",
@@ -1114,8 +1157,12 @@ export function ShellConsole() {
       }
     }
 
+    if (sessionPinned) {
+      void refreshSession();
+    }
+
     const refreshTimer = window.setInterval(() => {
-      void refreshPinnedSession();
+      void refreshSession();
     }, sessionRefreshIntervalMs);
 
     return () => {

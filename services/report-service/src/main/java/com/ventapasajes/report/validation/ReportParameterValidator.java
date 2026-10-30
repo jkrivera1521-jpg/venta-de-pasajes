@@ -67,6 +67,8 @@ public class ReportParameterValidator {
             case NUMBER -> value.isNumber();
             case BOOLEAN -> value.isBoolean();
             case ARRAY -> value.isArray();
+            case IMAGE -> value.isTextual() || value.isObject();
+            case RICH_TEXT -> value.isTextual() || value.isObject() || value.isArray();
             case OBJECT -> value.isObject();
         };
     }

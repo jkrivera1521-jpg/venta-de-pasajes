@@ -12,5 +12,6 @@ public record TemplateUploadResponse(
         @JsonProperty("documentType") String documentType,
         String status,
         @JsonProperty("checksumSha256") String checksumSha256,
-        List<TemplateParameterResponse> parameters) {
+        List<TemplateParameterResponse> parameters,
+        TemplateInspectionResponse inspection) {
 }

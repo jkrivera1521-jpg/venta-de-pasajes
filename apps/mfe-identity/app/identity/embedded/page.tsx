@@ -541,8 +541,9 @@ export default function EmbeddedIdentity() {
   useEffect(() => {
     if (window.parent === window) return;
     const notifyShellInteraction = () => window.parent.postMessage({ type: "venta-pasajes:mfe-interaction" }, "*");
-    document.addEventListener("click", notifyShellInteraction);
-    return () => document.removeEventListener("click", notifyShellInteraction);
+    const activityEvents = ["pointerdown", "keydown", "touchstart", "wheel", "scroll"] as const;
+    activityEvents.forEach((eventName) => document.addEventListener(eventName, notifyShellInteraction, { passive: true }));
+    return () => activityEvents.forEach((eventName) => document.removeEventListener(eventName, notifyShellInteraction));
   }, []);
 
   const shellName = useShellName();
