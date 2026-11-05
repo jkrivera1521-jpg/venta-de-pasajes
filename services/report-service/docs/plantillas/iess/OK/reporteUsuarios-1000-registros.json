@@ -12004,8 +12004,8 @@
       }
     ]
   },
-  "fileName": "reporte-usuarios-1000.xlsx",
+  "fileName": "REPORTE-USUARIOS.xlsx",
   "outputFormat": "XLSX",
-  "templateCode": "1616",
-  "templateVersion": 2
+  "templateCode": "REPORTE-USUARIOS",
+  "templateVersion": 1
 }

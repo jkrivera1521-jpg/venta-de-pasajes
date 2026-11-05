@@ -36,12 +36,12 @@ Usa `clustered-column.docx`. Su contrato de ejemplo es:
 
 ## PDF
 
-El exportador PDF de docx4j puede conservar el texto y parte del grafico, pero la fidelidad visual de charts depende de la version de `docx4j-export-fo`. La prueba actual verifica que el DOCX y sus caches queden consistentes. No se debe afirmar equivalencia pixel a pixel con Word sin una prueba visual del mismo fixture en ambos entornos.
+FOP no interpreta los objetos de grafico nativos de Word. Para la salida PDF el servicio genera una copia temporal del DOCX y sustituye cada grafico por un PNG renderizado con los mismos datos; el DOCX descargado conserva el grafico editable y su workbook embebido. La paginacion y los estilos pueden diferir de Word, pero los graficos deben aparecer en el PDF.
 
 ## Verificacion automatizada
 
 ```powershell
-mvn -f .\services\report-service\pom.xml '-Dtest=DocxTemplateEngineTest#updatesChartCachesAndEmbeddedWorkbook,TemplateParameterExtractorTest#exposesChartsAsOptionalStructuredParameter' test
+mvn -f .\services\report-service\pom.xml '-Dtest=DocxTemplateEngineTest#updatesChartCachesAndEmbeddedWorkbook,DocxTemplateEngineTest#exportsChartAsPdfImageWhenFopCannotRenderNativeChart,TemplateParameterExtractorTest#exposesChartsAsOptionalStructuredParameter' test
 ```
 
 ## Limites intencionales

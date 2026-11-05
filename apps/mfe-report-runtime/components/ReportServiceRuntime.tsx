@@ -38,6 +38,7 @@ import {
   formatBytes,
   formatDate,
   readableError,
+  sortReportTemplatesByCreatedAt,
   type ReportFormat,
   type ReportJob,
   type ReportTemplate,
@@ -571,7 +572,8 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
 
   const visibleCatalog = useMemo(() => {
     const query = filter.trim().toLowerCase();
-    return query ? catalog.filter((item) => [item.code, item.name, item.documentType, item.status].some((value) => value?.toLowerCase().includes(query))) : catalog;
+    const orderedCatalog = sortReportTemplatesByCreatedAt(catalog);
+    return query ? orderedCatalog.filter((item) => [item.code, item.name, item.documentType, item.status].some((value) => value?.toLowerCase().includes(query))) : orderedCatalog;
   }, [catalog, filter]);
 
   const generateRequest = useMemo(() => {
@@ -619,9 +621,10 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
         requestJson<ReportTemplate[]>("templates", accessToken),
         requestJson<ServiceStatus>("report/health", accessToken),
       ]);
-      setCatalog(items);
+      const orderedItems = sortReportTemplatesByCreatedAt(items);
+      setCatalog(orderedItems);
       setHealth(status);
-      setSelectedCode((current) => current && items.some((item) => item.code === current) ? current : items[0]?.code || "");
+      setSelectedCode((current) => current && orderedItems.some((item) => item.code === current) ? current : orderedItems[0]?.code || "");
     } catch (error) {
       setCatalogError(error instanceof Error ? error.message : "El servicio de reportes no esta disponible.");
       setHealth(null);
@@ -945,7 +948,7 @@ export default function ReportServiceRuntime({ accessToken }: { accessToken: str
 
     <section className="report-panel"><PanelHeading eyebrow="CATALOGO" title="Plantillas disponibles" description="Consulta las plantillas y selecciona una para inspeccionar sus versiones y parametros." action={<span className="report-count">{visibleCatalog.length} de {catalog.length}</span>} />
       <div className="report-toolbar"><label className="report-search"><Search size={16} aria-hidden="true" /><span className="sr-only">Buscar plantilla</span><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Buscar por codigo, nombre o estado" /></label><button className="report-button report-button-primary" type="button" onClick={() => { setUploadError(""); setUploadModalOpen(true); }}><Upload size={15} aria-hidden="true" /> Cargar plantilla</button></div>
-      {catalogError ? <ErrorBox message={catalogError} onRetry={() => void loadCatalog()} /> : catalogLoading ? <div className="report-loading"><LoaderCircle className="report-spin" size={24} aria-hidden="true" /> Cargando catalogo...</div> : visibleCatalog.length ? <div className="report-table-wrap report-catalog-table"><table><thead><tr><th scope="col">Codigo</th><th scope="col">Nombre</th><th scope="col">Tipo</th><th scope="col">Estado</th><th scope="col">Version activa</th><th scope="col"><span className="sr-only">Acciones</span></th></tr></thead><tbody>{visibleCatalog.map((item) => <tr key={item.code} className={selectedCode === item.code ? "report-row-selected" : undefined}><td><button className="report-link-button" type="button" onClick={() => { setSelectedCode(item.code); setDetailsModalOpen(true); }}>{item.code}</button></td><td><strong>{item.name}</strong><small>{item.description || "Sin descripcion"}</small></td><td><span className="report-type-tag">{item.documentType || "-"}</span></td><td><StatusBadge value={item.status} /></td><td>{item.activeVersion ? `v${item.activeVersion}` : "-"}</td><td><div className="report-row-actions"><button className="report-button report-button-compact" type="button" onClick={() => openGenerateModal(item.code)}><FileSpreadsheet size={14} aria-hidden="true" /> Generar documento</button><button className="report-button report-button-compact" type="button" onClick={() => openJobsModal(item.code)}><FileArchive size={14} aria-hidden="true" /> Lotes ZIP</button><button className="report-button report-button-compact" type="button" onClick={() => openCurlModal(item.code)}><Terminal size={14} aria-hidden="true" /> cURL</button></div></td></tr>)}</tbody></table></div> : <div className="report-empty"><Search size={30} aria-hidden="true" /><strong>{catalog.length ? "No hay coincidencias" : "El catalogo esta vacio"}</strong><p>{catalog.length ? "Prueba otro texto de busqueda." : "Carga la primera plantilla para comenzar."}</p></div>}
+      {catalogError ? <ErrorBox message={catalogError} onRetry={() => void loadCatalog()} /> : catalogLoading ? <div className="report-loading"><LoaderCircle className="report-spin" size={24} aria-hidden="true" /> Cargando catalogo...</div> : visibleCatalog.length ? <div className="report-table-wrap report-catalog-table"><table><thead><tr><th scope="col">Codigo</th><th scope="col">Nombre</th><th scope="col">Creación</th><th scope="col">Tipo</th><th scope="col">Estado</th><th scope="col">Version activa</th><th scope="col"><span className="sr-only">Acciones</span></th></tr></thead><tbody>{visibleCatalog.map((item) => <tr key={item.code} className={selectedCode === item.code ? "report-row-selected" : undefined}><td><button className="report-link-button" type="button" onClick={() => { setSelectedCode(item.code); setDetailsModalOpen(true); }}>{item.code}</button></td><td><strong>{item.name}</strong><small>{item.description || "Sin descripcion"}</small></td><td>{formatDate(item.createdAt)}</td><td><span className="report-type-tag">{item.documentType || "-"}</span></td><td><StatusBadge value={item.status} /></td><td>{item.activeVersion ? `v${item.activeVersion}` : "-"}</td><td><div className="report-row-actions"><button className="report-button report-button-compact" type="button" onClick={() => openGenerateModal(item.code)}><FileSpreadsheet size={14} aria-hidden="true" /> Generar documento</button><button className="report-button report-button-compact" type="button" onClick={() => openJobsModal(item.code)}><FileArchive size={14} aria-hidden="true" /> Lotes ZIP</button><button className="report-button report-button-compact" type="button" onClick={() => openCurlModal(item.code)}><Terminal size={14} aria-hidden="true" /> cURL</button></div></td></tr>)}</tbody></table></div> : <div className="report-empty"><Search size={30} aria-hidden="true" /><strong>{catalog.length ? "No hay coincidencias" : "El catalogo esta vacio"}</strong><p>{catalog.length ? "Prueba otro texto de busqueda." : "Carga la primera plantilla para comenzar."}</p></div>}
     </section>
 
     {uploadModalOpen ? <div className="report-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !uploadLoading) setUploadModalOpen(false); }}>

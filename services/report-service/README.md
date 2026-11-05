@@ -307,7 +307,7 @@ El flujo recomendado es cargar la plantilla, revisar `inspection`, consultar el 
 - Las imagenes dinamicas se reciben como base64/data URI validada. No se aceptan URLs remotas por defecto.
 - El texto enriquecido solo se procesa en controles de contenido rich text y con una lista blanca de XHTML.
 - Los graficos deben existir en la plantilla, tener caches editables y un unico workbook XLSX embebido. Se valida que las cantidades de series y puntos coincidan; no se crean graficos nuevos.
-- `docx4j-export-fo` genera un PDF valido y conserva el contenido compatible, pero la fidelidad visual de TOC y graficos puede diferir de Word. Las pruebas automatizadas verifican estructura y MIME; la comparacion pixel a pixel requiere revision visual.
+- `docx4j-export-fo` genera el PDF. Como FOP no renderiza charts nativos de Word, la salida PDF convierte los graficos existentes a PNG en una copia temporal; el DOCX mantiene los graficos editables. La paginacion y los estilos pueden diferir de Word.
 - La auditoria es durable en `report_audit_event` dentro de la base del servicio. `APP_REPORT_AUDIT_URL` queda reservado para publicar eventos al `audit-service` mediante un adaptador autenticado.
 - La prueba PostgreSQL con Testcontainers está etiquetada como integración y deshabilitada por defecto; CI debe ejecutarla con Docker.
 - Los fixtures de XLSX se construyen en las pruebas para no versionar archivos binarios; las plantillas reales se cargan por `POST /api/v1/templates`.

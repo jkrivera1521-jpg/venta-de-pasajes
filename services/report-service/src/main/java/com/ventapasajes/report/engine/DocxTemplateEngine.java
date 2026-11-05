@@ -51,6 +51,11 @@ public class DocxTemplateEngine implements TemplateEngine {
             TemplateParameterExtractor.Inspection inspection = extractor.inspect("docx", adaptedContent);
             JsonNode normalizedParameters = images.normalize(parameters, inspection.parameters());
             adaptedContent = charts.apply(adaptedContent, normalizedParameters);
+            if (format == OutputFormat.PDF && inspection.metadata().has(TemplateFeature.CHARTS)) {
+                // FOP does not render Word chart objects. Replace them only in the PDF
+                // working copy; DOCX keeps the native, editable chart and workbook.
+                adaptedContent = charts.replaceWithImagesForPdf(adaptedContent, normalizedParameters);
+            }
             // Chart-only DOCX files must keep their original chart parts. Loading and saving
             // them through docx4j reserializes chart OOXML that Word may reject.
             if (format == OutputFormat.DOCX && !requiresDocxProcessing(inspection.metadata())) {

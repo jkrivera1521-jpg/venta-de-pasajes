@@ -254,6 +254,28 @@ class DocxTemplateEngineTest {
     }
 
     @Test
+    void exportsChartAsPdfImageWhenFopCannotRenderNativeChart() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var parameters = mapper.createObjectNode();
+        var chart = parameters.putObject("charts").putObject("chart1");
+        chart.putArray("categories").add("North").add("South").add("East").add("West");
+        var series = chart.putArray("series");
+        series.addObject().put("name", "2026").putArray("values").add(10).add(20).add(30).add(40);
+        series.addObject().put("name", "2027").putArray("values").add(12).add(22).add(32).add(42);
+        series.addObject().put("name", "2028").putArray("values").add(14).add(24).add(34).add(44);
+
+        GeneratedReport pdf = new DocxTemplateEngine().generate(
+                templateVersion(resource("/docx4j/clustered-column.docx")),
+                parameters,
+                OutputFormat.PDF,
+                "chart.pdf");
+
+        String pdfBytes = new String(pdf.content(), StandardCharsets.ISO_8859_1);
+        assertTrue(pdfBytes.startsWith("%PDF-"));
+        assertTrue(pdfBytes.contains("/Subtype /Image"));
+    }
+
+    @Test
     void rejectsChartWithMismatchedSeriesCount() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         var parameters = mapper.createObjectNode();

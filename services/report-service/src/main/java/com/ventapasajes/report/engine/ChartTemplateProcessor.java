@@ -6,10 +6,12 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
@@ -19,6 +21,11 @@ import java.util.zip.ZipOutputStream;
 
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -36,13 +43,19 @@ import jakarta.enterprise.context.ApplicationScoped;
 @ApplicationScoped
 public class ChartTemplateProcessor {
     private static final String CHART_NS = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+    private static final String DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006/main";
+    private static final String PICTURE_NS = "http://schemas.openxmlformats.org/drawingml/2006/picture";
+    private static final String WORD_DRAWING_NS = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
     private static final String SPREADSHEET_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
     private static final String PACKAGE_RELATIONSHIP_NS = "http://schemas.openxmlformats.org/package/2006/relationships";
     private static final String DOCUMENT_RELATIONSHIP_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+    private static final String XMLNS_NS = "http://www.w3.org/2000/xmlns/";
+    private static final String IMAGE_RELATIONSHIP_TYPE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
     private static final int MAX_ENTRY_BYTES = 50 * 1024 * 1024;
     private static final long MAX_TOTAL_BYTES = 100L * 1024 * 1024;
     private static final Pattern CELL_RANGE = Pattern.compile("(?:'([^']+)'|([^!]+))!\\$?([A-Z]+)\\$?(\\d+)(?::\\$?([A-Z]+)\\$?(\\d+))?", Pattern.CASE_INSENSITIVE);
     private static final Pattern XML_TYPE_ATTRIBUTE = Pattern.compile("\\s+t\\s*=\\s*(['\"])[^'\"]*\\1");
+    private final ChartImageRenderer imageRenderer = new ChartImageRenderer();
 
     public byte[] apply(byte[] docx, JsonNode payload) {
         JsonNode charts = payload == null ? null : payload.get("charts");
@@ -79,6 +92,227 @@ public class ChartTemplateProcessor {
             entries.put(workbookPath, updateEmbeddedWorkbook(entries.get(workbookPath), workbookUpdate.getValue()));
         }
         return writeZip(entries);
+    }
+
+    /**
+     * FOP does not understand Word chart frames. For PDF only, replace each chart
+     * frame with a PNG while leaving the original DOCX chart parts untouched.
+     */
+    public byte[] replaceWithImagesForPdf(byte[] docx, JsonNode payload) {
+        JsonNode charts = payload == null ? null : payload.get("charts");
+        if (charts == null || !charts.isObject()) return docx;
+
+        Map<String, byte[]> entries = readZip(docx);
+        boolean changed = false;
+        int imageIndex = 0;
+        for (Map.Entry<String, byte[]> entry : new ArrayList<>(entries.entrySet())) {
+            String sourcePath = entry.getKey();
+            if (!sourcePath.endsWith(".xml") || sourcePath.startsWith("word/charts/")) continue;
+            Document document;
+            try {
+                document = parse(entry.getValue());
+            } catch (Exception ignored) {
+                continue;
+            }
+            NodeList chartNodes = document.getElementsByTagNameNS(CHART_NS, "chart");
+            if (chartNodes.getLength() == 0) continue;
+            String relationshipsPath = relationshipsPath(sourcePath);
+            byte[] relationshipBytes = entries.get(relationshipsPath);
+            if (relationshipBytes == null) throw invalid("No se encontraron las relaciones del documento que contiene el grafico.");
+            Document relationships;
+            try {
+                relationships = parse(relationshipBytes);
+            } catch (Exception error) {
+                throw invalid("No se pudieron leer las relaciones del documento que contiene el grafico.");
+            }
+            Set<String> relationshipIds = relationshipIds(relationships);
+            List<Element> chartsInDocument = new ArrayList<>();
+            for (int index = 0; index < chartNodes.getLength(); index++) chartsInDocument.add((Element) chartNodes.item(index));
+
+            boolean partChanged = false;
+            for (Element chart : chartsInDocument) {
+                String chartRelationshipId = chart.getAttributeNS(DOCUMENT_RELATIONSHIP_NS, "id");
+                if (chartRelationshipId.isBlank()) chartRelationshipId = chart.getAttribute("r:id");
+                String chartPath = relationshipTarget(sourcePath, relationships, chartRelationshipId);
+                if (chartPath == null || !entries.containsKey(chartPath)) continue;
+                String chartKey = chartPath.substring(chartPath.lastIndexOf('/') + 1, chartPath.length() - ".xml".length());
+                JsonNode definition = charts.get(chartKey);
+                if (definition == null) continue;
+
+                String relationshipId = nextRelationshipId(relationshipIds, "rId");
+                relationshipIds.add(relationshipId);
+                String imageName = "chart-pdf-" + chartKey + "-" + imageIndex++ + ".png";
+                String imagePath = sourcePath.substring(0, sourcePath.lastIndexOf('/') + 1) + "media/" + imageName;
+                entries.put(imagePath, imageRenderer.render(entries.get(chartPath), definition, chartKey));
+                Element graphicData = ancestor(chart, "graphicData");
+                if (graphicData == null) continue;
+                replaceGraphicData(graphicData, relationshipId, chartKey);
+                addImageRelationship(relationships, relationshipId, relativeTarget(sourcePath, imagePath));
+                partChanged = true;
+                changed = true;
+            }
+            if (partChanged) {
+                entries.put(sourcePath, serialize(document));
+                entries.put(relationshipsPath, serialize(relationships));
+            }
+        }
+        if (!changed) return docx;
+        addPngContentType(entries);
+        return writeZip(entries);
+    }
+
+    private String relationshipsPath(String sourcePath) {
+        int slash = sourcePath.lastIndexOf('/');
+        if (slash < 0) return "_rels/" + sourcePath + ".rels";
+        return sourcePath.substring(0, slash + 1) + "_rels/" + sourcePath.substring(slash + 1) + ".rels";
+    }
+
+    private Set<String> relationshipIds(Document relationships) {
+        Set<String> ids = new HashSet<>();
+        NodeList nodes = relationships.getElementsByTagNameNS(PACKAGE_RELATIONSHIP_NS, "Relationship");
+        for (int index = 0; index < nodes.getLength(); index++) ids.add(((Element) nodes.item(index)).getAttribute("Id"));
+        return ids;
+    }
+
+    private String nextRelationshipId(Set<String> used, String prefix) {
+        int index = 1;
+        while (used.contains(prefix + index)) index++;
+        return prefix + index;
+    }
+
+    private String relationshipTarget(String sourcePath, Document relationships, String relationshipId) {
+        if (relationshipId == null || relationshipId.isBlank()) return null;
+        NodeList nodes = relationships.getElementsByTagNameNS(PACKAGE_RELATIONSHIP_NS, "Relationship");
+        for (int index = 0; index < nodes.getLength(); index++) {
+            Element relationship = (Element) nodes.item(index);
+            if (!relationshipId.equals(relationship.getAttribute("Id"))) continue;
+            if (!relationship.getAttribute("Type").endsWith("/chart")) return null;
+            return resolvePartPath(sourcePath, relationship.getAttribute("Target"));
+        }
+        return null;
+    }
+
+    private String relativeTarget(String sourcePath, String targetPath) {
+        int slash = sourcePath.lastIndexOf('/');
+        String sourceDirectory = slash < 0 ? "" : sourcePath.substring(0, slash + 1);
+        if (targetPath.startsWith(sourceDirectory)) return targetPath.substring(sourceDirectory.length());
+        return targetPath;
+    }
+
+    private Element ancestor(Element node, String localName) {
+        Node current = node;
+        while (current != null) {
+            if (current instanceof Element element && localName.equals(element.getLocalName())) return element;
+            current = current.getParentNode();
+        }
+        return null;
+    }
+
+    private void replaceGraphicData(Element graphicData, String relationshipId, String chartKey) {
+        Document document = graphicData.getOwnerDocument();
+        graphicData.setAttribute("uri", PICTURE_NS);
+        graphicData.setAttributeNS(XMLNS_NS, "xmlns:pic", PICTURE_NS);
+        graphicData.setAttributeNS(XMLNS_NS, "xmlns:r", DOCUMENT_RELATIONSHIP_NS);
+        while (graphicData.hasChildNodes()) graphicData.removeChild(graphicData.getFirstChild());
+
+        Element picture = document.createElementNS(PICTURE_NS, "pic:pic");
+        Element nonVisual = append(picture, PICTURE_NS, "pic:nvPicPr");
+        Element cNvPr = append(nonVisual, PICTURE_NS, "pic:cNvPr");
+        cNvPr.setAttribute("id", "0");
+        cNvPr.setAttribute("name", chartKey);
+        Element cNvPicPr = append(nonVisual, PICTURE_NS, "pic:cNvPicPr");
+        Element picLocks = append(cNvPicPr, DRAWING_NS, "a:picLocks");
+        picLocks.setAttribute("noChangeAspect", "1");
+        picLocks.setAttribute("noChangeArrowheads", "1");
+
+        Element fill = append(picture, PICTURE_NS, "pic:blipFill");
+        Element blip = append(fill, DRAWING_NS, "a:blip");
+        blip.setAttributeNS(DOCUMENT_RELATIONSHIP_NS, "r:embed", relationshipId);
+        Element extList = append(blip, DRAWING_NS, "a:extLst");
+        Element ext = append(extList, DRAWING_NS, "a:ext");
+        ext.setAttribute("uri", "{28A0092B-C50C-407E-A947-70E740481C1C}");
+        ext.setAttributeNS(XMLNS_NS, "xmlns:a14", "http://schemas.microsoft.com/office/drawing/2010/main");
+        Element useLocalDpi = append(ext, "http://schemas.microsoft.com/office/drawing/2010/main", "a14:useLocalDpi");
+        useLocalDpi.setAttribute("val", "0");
+        append(fill, DRAWING_NS, "a:srcRect");
+        Element stretch = append(fill, DRAWING_NS, "a:stretch");
+        append(stretch, DRAWING_NS, "a:fillRect");
+
+        Element shape = append(picture, PICTURE_NS, "pic:spPr");
+        shape.setAttribute("bwMode", "auto");
+        Element transform = append(shape, DRAWING_NS, "a:xfrm");
+        Element offset = append(transform, DRAWING_NS, "a:off");
+        offset.setAttribute("x", "0");
+        offset.setAttribute("y", "0");
+        Element extent = append(transform, DRAWING_NS, "a:ext");
+        long[] dimensions = inlineExtent(graphicData);
+        extent.setAttribute("cx", Long.toString(dimensions[0]));
+        extent.setAttribute("cy", Long.toString(dimensions[1]));
+        Element geometry = append(shape, DRAWING_NS, "a:prstGeom");
+        geometry.setAttribute("prst", "rect");
+        append(geometry, DRAWING_NS, "a:avLst");
+        append(shape, DRAWING_NS, "a:noFill");
+        Element line = append(shape, DRAWING_NS, "a:ln");
+        append(line, DRAWING_NS, "a:noFill");
+        graphicData.appendChild(picture);
+    }
+
+    private long[] inlineExtent(Element graphicData) {
+        Node current = graphicData;
+        while (current != null) {
+            if (current instanceof Element element && "inline".equals(element.getLocalName())) {
+                NodeList extents = element.getElementsByTagNameNS(WORD_DRAWING_NS, "extent");
+                if (extents.getLength() > 0) {
+                    Element extent = (Element) extents.item(0);
+                    try {
+                        return new long[] {Long.parseLong(extent.getAttribute("cx")), Long.parseLong(extent.getAttribute("cy"))};
+                    } catch (NumberFormatException ignored) {
+                        break;
+                    }
+                }
+                break;
+            }
+            current = current.getParentNode();
+        }
+        return new long[] {5486400L, 3200400L};
+    }
+
+    private Element append(Element parent, String namespace, String qualifiedName) {
+        Element child = parent.getOwnerDocument().createElementNS(namespace, qualifiedName);
+        parent.appendChild(child);
+        return child;
+    }
+
+    private void addImageRelationship(Document relationships, String relationshipId, String target) {
+        Element relationship = relationships.createElementNS(PACKAGE_RELATIONSHIP_NS, "Relationship");
+        relationship.setAttribute("Id", relationshipId);
+        relationship.setAttribute("Type", IMAGE_RELATIONSHIP_TYPE);
+        relationship.setAttribute("Target", target);
+        relationships.getDocumentElement().appendChild(relationship);
+    }
+
+    private void addPngContentType(Map<String, byte[]> entries) {
+        byte[] bytes = entries.get("[Content_Types].xml");
+        if (bytes == null) throw invalid("El paquete DOCX no contiene [Content_Types].xml.");
+        String xml = new String(bytes, StandardCharsets.UTF_8);
+        if (Pattern.compile("<Default\\b[^>]*\\bExtension\\s*=\\s*['\"]png['\"]", Pattern.CASE_INSENSITIVE).matcher(xml).find()) return;
+        String declaration = "<Default Extension=\"png\" ContentType=\"image/png\"/>";
+        int closing = xml.lastIndexOf("</Types>");
+        if (closing < 0) throw invalid("[Content_Types].xml no contiene el elemento Types.");
+        entries.put("[Content_Types].xml", (xml.substring(0, closing) + declaration + xml.substring(closing)).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private byte[] serialize(Document document) {
+        try {
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            Transformer transformer = TransformerFactory.newInstance().newTransformer();
+            transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
+            transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no");
+            transformer.transform(new DOMSource(document), new StreamResult(output));
+            return output.toByteArray();
+        } catch (Exception error) {
+            throw invalid("No se pudo preparar el grafico para la salida PDF.");
+        }
     }
 
     private String chartWorkbookPath(Map<String, byte[]> entries, String chartPath) {

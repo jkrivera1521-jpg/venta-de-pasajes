@@ -1,0 +1,32 @@
+{
+  "data": {
+    "empresaNombre": "Andes Movilidad S.A.",
+    "periodo": "Noviembre 2026",
+    "responsable": "Equipo de reportes",
+    "entornoPdf": "Docker JVM",
+    "fechaGeneracion": "05/11/2026 13:15",
+    "piePdf": "Prueba de fuentes reproducible",
+    "muestraArial": "Arial: ÁÉÍÓÚ áéíóú Ññ ¿Qué tal?",
+    "muestraCalibri": "Calibri: Factura Nº 2026-001 € 1.250,50",
+    "muestraTimes": "Times New Roman: Información técnica y garantía",
+    "muestraCourier": "Courier New: 000123 | 2026-11-05 | OK",
+    "muestraCambria": "Cambria: Resolución, análisis y ejecución",
+    "muestraVerdana": "Verdana: Quito - Guayaquil - Cuenca",
+    "muestraSymbol": "α β γ Δ Ω π ∑ √ ± × ÷ ≤ ≥ ≠",
+    "textoAcentos": "Árbol, avión, revisión, gestión, señal, niño, pingüino, acción, período, público, información y corazón.",
+    "simbolosComerciales": "© ® ™ § € £ ¥ $ ¢ Nº",
+    "simbolosMatematicos": "α β γ Δ Ω π ∑ √ ∞ ± × ÷ ≤ ≥ ≠ ≈",
+    "resumenNumerico": "Subtotal $ 5.780,00 | IVA 12% | Total € 6.473,60 | Variación +18,6%",
+    "descripcionEntorno": "La salida se genera dentro de un contenedor Docker sin depender de las fuentes instaladas en Windows.",
+    "textoLargo": "Este párrafo verifica que una fuente serif conserve sus caracteres durante varias líneas: la generación de reportes debe mantener la lectura de información operativa, fechas, importes, nombres propios y signos de puntuación. También se comprueba que las letras con tilde, la eñe, los signos de apertura y las unidades monetarias permanezcan visibles en la salida PDF.",
+    "estadoGeneracion": "PDF GENERADO CORRECTAMENTE",
+    "nombreContenedor": "report-service-pdf",
+    "versionFop": "Apache FOP 2.11",
+    "resultadoEsperado": "Texto visible, fuentes disponibles y símbolos sin cuadros",
+    "observacion": "Si todos los caracteres se leen correctamente, la prueba de fuentes para Docker queda aprobada."
+  },
+  "fileName": "resultado-fuentes-pdf-docker.pdf",
+  "outputFormat": "PDF",
+  "templateCode": "FUENTES_PDF_DOCKER",
+  "templateVersion": 2
+}

@@ -12,6 +12,17 @@ export type ReportTemplate = {
   updatedAt?: string | null;
 };
 
+export function sortReportTemplatesByCreatedAt(templates: ReportTemplate[]) {
+  return [...templates].sort((left, right) => {
+    const leftCreatedAt = left.createdAt ? Date.parse(left.createdAt) : Number.NEGATIVE_INFINITY;
+    const rightCreatedAt = right.createdAt ? Date.parse(right.createdAt) : Number.NEGATIVE_INFINITY;
+    const leftTimestamp = Number.isFinite(leftCreatedAt) ? leftCreatedAt : Number.NEGATIVE_INFINITY;
+    const rightTimestamp = Number.isFinite(rightCreatedAt) ? rightCreatedAt : Number.NEGATIVE_INFINITY;
+    if (rightTimestamp !== leftTimestamp) return rightTimestamp - leftTimestamp;
+    return left.code.localeCompare(right.code);
+  });
+}
+
 export type TemplateParameter = {
   name: string;
   path: string;

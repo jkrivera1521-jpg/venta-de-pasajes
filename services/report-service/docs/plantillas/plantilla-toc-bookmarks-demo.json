@@ -1,0 +1,27 @@
+{
+  "data": {
+    "empresaNombre": "Andes Movilidad S.A.",
+    "periodo": "Octubre 2026",
+    "responsable": "Maria Fernanda Lopez",
+    "ventasNetas": "$ 248.750,00",
+    "pedidosAtendidos": "1.842",
+    "crecimientoPorcentaje": "18,6%",
+    "satisfaccionCliente": "92,4%",
+    "ventasSierra": "$ 98.420,00",
+    "crecimientoSierra": "21,3%",
+    "responsableSierra": "Carlos Mena",
+    "ventasCosta": "$ 112.680,00",
+    "crecimientoCosta": "16,8%",
+    "responsableCosta": "Daniela Ruiz",
+    "ventasAmazonia": "$ 37.650,00",
+    "crecimientoAmazonia": "14,2%",
+    "responsableAmazonia": "Jorge Chicaiza",
+    "prioridadComercial": "Fortalecer la cobertura de la region Amazonia",
+    "metaSiguientePeriodo": "$ 275.000,00",
+    "comentarioCierre": "Mantener el seguimiento semanal y replicar las practicas de la region Sierra"
+  },
+  "fileName": "resultado-toc-bookmarks-demo.docx",
+  "outputFormat": "DOCX",
+  "templateCode": "TOC_BOOKMARKS_DEMO",
+  "templateVersion": 3
+}
