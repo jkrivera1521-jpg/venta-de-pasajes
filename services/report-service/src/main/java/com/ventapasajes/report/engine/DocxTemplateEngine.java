@@ -13,6 +13,7 @@ import com.ventapasajes.report.persistence.entity.ReportTemplateVersion;
 import com.ventapasajes.report.validation.JsonToXmlConverter;
 import com.ventapasajes.report.validation.DynamicImageValidator;
 import com.ventapasajes.report.validation.TemplateParameterExtractor;
+import com.ventapasajes.report.validation.TemplateInspection;
 
 import org.docx4j.Docx4J;
 import org.docx4j.Docx4jProperties;
@@ -50,6 +51,11 @@ public class DocxTemplateEngine implements TemplateEngine {
             TemplateParameterExtractor.Inspection inspection = extractor.inspect("docx", adaptedContent);
             JsonNode normalizedParameters = images.normalize(parameters, inspection.parameters());
             adaptedContent = charts.apply(adaptedContent, normalizedParameters);
+            // Chart-only DOCX files must keep their original chart parts. Loading and saving
+            // them through docx4j reserializes chart OOXML that Word may reject.
+            if (format == OutputFormat.DOCX && !requiresDocxProcessing(inspection.metadata())) {
+                return new GeneratedReport(adaptedContent, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", fileName);
+            }
             WordprocessingMLPackage document = WordprocessingMLPackage.load(new ByteArrayInputStream(adaptedContent));
             document.setFontMapper(new IdentityPlusMapper());
             if (inspection.metadata().isOpenDope()) {
@@ -101,6 +107,15 @@ public class DocxTemplateEngine implements TemplateEngine {
         } catch (Exception error) {
             LOG.warn("No se pudo actualizar automaticamente la tabla de contenido; se conservara la plantilla original.", error);
         }
+    }
+
+    private boolean requiresDocxProcessing(TemplateInspection metadata) {
+        return metadata.isOpenDope()
+                || metadata.has(TemplateFeature.LEGACY_VARIABLES)
+                || metadata.has(TemplateFeature.LEGACY_JXLS)
+                || metadata.has(TemplateFeature.MERGEFIELD)
+                || metadata.has(TemplateFeature.TOC_BOOKMARKS)
+                || metadata.has(TemplateFeature.RICH_TEXT);
     }
 
     private Map<String, String> flatten(JsonNode node) {

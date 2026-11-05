@@ -1,0 +1,14 @@
+{
+  "data": {
+    "headerCode": "ENCABEZADO-OK-001",
+    "footerCode": "PIE-OK-001",
+    "footerDate": "30/10/2026",
+    "testCode": "HF-001",
+    "userName": "Diego Martinez",
+    "period": "Octubre 2026"
+  },
+  "fileName": "resultado-header-footer.docx",
+  "outputFormat": "DOCX",
+  "templateCode": "1341",
+  "templateVersion": 1
+}

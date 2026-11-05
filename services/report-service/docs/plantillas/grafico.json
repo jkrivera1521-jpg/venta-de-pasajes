@@ -1,0 +1,32 @@
+{
+  "data": {
+    "charts": {
+      "chart1": {
+        "categories": [
+          "Norte",
+          "Sur",
+          "Este",
+          "Oeste"
+        ],
+        "series": [
+          {
+            "name": "2026",
+            "values": [10, 20, 30, 40]
+          },
+          {
+            "name": "2027",
+            "values": [12, 22, 32, 42]
+          },
+          {
+            "name": "2028",
+            "values": [14, 24, 34, 44]
+          }
+        ]
+      }
+    }
+  },
+  "fileName": "reporte-grafico.docx",
+  "outputFormat": "DOCX",
+  "templateCode": "CHARTS_EXAMPLE",
+  "templateVersion": 1
+}

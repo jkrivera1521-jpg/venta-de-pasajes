@@ -1,0 +1,375 @@
+{
+  "data": {
+    "charts": {
+      "chart1": {
+        "categories": [
+          46023,
+          46054,
+          46082,
+          46113,
+          46143
+        ],
+        "series": [
+          {
+            "name": "Ingresos",
+            "values": [
+              120,
+              160,
+              190,
+              220,
+              260
+            ]
+          },
+          {
+            "name": "Costos",
+            "values": [
+              80,
+              90,
+              110,
+              125,
+              140
+            ]
+          }
+        ]
+      },
+      "chart2": {
+        "categories": [
+          "Quito",
+          "Guayaquil",
+          "Cuenca",
+          "Loja"
+        ],
+        "series": [
+          {
+            "name": "2024",
+            "values": [
+              120,
+              180,
+              95,
+              70
+            ]
+          },
+          {
+            "name": "2025",
+            "values": [
+              145,
+              210,
+              120,
+              85
+            ]
+          },
+          {
+            "name": "2026",
+            "values": [
+              170,
+              240,
+              150,
+              110
+            ]
+          }
+        ]
+      },
+      "chart3": {
+        "categories": [
+          "Quito",
+          "Guayaquil",
+          "Cuenca",
+          "Loja"
+        ],
+        "series": [
+          {
+            "name": "Confirmados",
+            "values": [
+              90,
+              130,
+              75,
+              55
+            ]
+          },
+          {
+            "name": "Pendientes",
+            "values": [
+              25,
+              40,
+              18,
+              12
+            ]
+          },
+          {
+            "name": "Cancelados",
+            "values": [
+              5,
+              8,
+              3,
+              2
+            ]
+          }
+        ]
+      },
+      "chart4": {
+        "categories": [
+          "Quito",
+          "Guayaquil",
+          "Cuenca",
+          "Loja"
+        ],
+        "series": [
+          {
+            "name": "Ventas",
+            "values": [
+              70,
+              60,
+              80,
+              55
+            ]
+          },
+          {
+            "name": "Reservas",
+            "values": [
+              20,
+              30,
+              15,
+              30
+            ]
+          },
+          {
+            "name": "Otros",
+            "values": [
+              10,
+              10,
+              5,
+              15
+            ]
+          }
+        ]
+      },
+      "chart5": {
+        "categories": [
+          "Ene",
+          "Feb",
+          "Mar",
+          "Abr"
+        ],
+        "series": [
+          {
+            "name": "Pasajes",
+            "values": [
+              320,
+              410,
+              380,
+              455
+            ]
+          },
+          {
+            "name": "Encomiendas",
+            "values": [
+              120,
+              150,
+              175,
+              190
+            ]
+          },
+          {
+            "name": "Servicios",
+            "values": [
+              45,
+              60,
+              55,
+              75
+            ]
+          }
+        ]
+      },
+      "chart6": {
+        "categories": [
+          "Ene",
+          "Feb",
+          "Mar",
+          "Abr"
+        ],
+        "series": [
+          {
+            "name": "Norte",
+            "values": [
+              120,
+              140,
+              160,
+              180
+            ]
+          },
+          {
+            "name": "Centro",
+            "values": [
+              95,
+              110,
+              125,
+              145
+            ]
+          },
+          {
+            "name": "Sur",
+            "values": [
+              70,
+              85,
+              90,
+              105
+            ]
+          }
+        ]
+      },
+      "chart7": {
+        "categories": [
+          "Ene",
+          "Feb",
+          "Mar",
+          "Abr"
+        ],
+        "series": [
+          {
+            "name": "Adultos",
+            "values": [
+              60,
+              55,
+              65,
+              62
+            ]
+          },
+          {
+            "name": "Ninos",
+            "values": [
+              25,
+              30,
+              20,
+              23
+            ]
+          },
+          {
+            "name": "Tercera edad",
+            "values": [
+              15,
+              15,
+              15,
+              15
+            ]
+          }
+        ]
+      },
+      "chart8": {
+        "categories": [
+          "Boleto",
+          "Abono",
+          "Cargo extra",
+          "Otros"
+        ],
+        "series": [
+          {
+            "name": "Participacion",
+            "values": [
+              45,
+              30,
+              15,
+              10
+            ]
+          }
+        ]
+      },
+      "chart9": {
+        "categories": [
+          "Ene",
+          "Feb",
+          "Mar",
+          "Abr"
+        ],
+        "series": [
+          {
+            "name": "Ventas",
+            "values": [
+              220,
+              260,
+              245,
+              310
+            ]
+          },
+          {
+            "name": "Reservas",
+            "values": [
+              180,
+              205,
+              230,
+              250
+            ]
+          },
+          {
+            "name": "Cancelaciones",
+            "values": [
+              18,
+              22,
+              16,
+              20
+            ]
+          }
+        ]
+      },
+      "chart10": {
+        "categories": [
+          "Ene",
+          "Feb",
+          "Mar",
+          "Abr"
+        ],
+        "series": [
+          {
+            "name": "Cumplimiento",
+            "values": [
+              82,
+              86,
+              91,
+              94
+            ]
+          },
+          {
+            "name": "Satisfaccion",
+            "values": [
+              78,
+              84,
+              88,
+              92
+            ]
+          },
+          {
+            "name": "Disponibilidad",
+            "values": [
+              90,
+              89,
+              93,
+              95
+            ]
+          }
+        ]
+      },
+      "chart11": {
+        "categories": [
+          "Servicio A",
+          "Servicio B",
+          "Servicio C",
+          "Servicio D"
+        ],
+        "series": [
+          {
+            "name": "Participacion",
+            "values": [
+              40,
+              28,
+              20,
+              12
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "fileName": "resultado-graficos-avanzados-corregido.docx",
+  "outputFormat": "DOCX",
+  "templateCode": "CHARTS_ADVANCED",
+  "templateVersion": 1
+}

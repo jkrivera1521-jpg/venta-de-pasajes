@@ -225,6 +225,32 @@ class DocxTemplateEngineTest {
             assertTrue(workbook.getSheetAt(0).getRow(0).getCell(1).getStringCellValue().equals("2026"));
             assertTrue(workbook.getSheetAt(0).getRow(4).getCell(3).getNumericCellValue() == 44.0);
         }
+        String worksheetXml = nestedZipEntry(generated.content(), "word/embeddings/Microsoft_Excel_Worksheet.xlsx", "xl/worksheets/sheet1.xml");
+        assertFalse(worksheetXml.contains("t=\"inlineStr\" s=\"0\"><v>"));
+        assertFalse(worksheetXml.contains("<v>North</v><is>"));
+        assertFalse(worksheetXml.contains("<v>2026</v><is>"));
+    }
+
+    @Test
+    void preservesChartOnlyDocxPartsForWordCompatibility() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var parameters = mapper.createObjectNode();
+        var chart = parameters.putObject("charts").putObject("chart1");
+        chart.putArray("categories").add("North").add("South").add("East").add("West");
+        var series = chart.putArray("series");
+        series.addObject().put("name", "2026").putArray("values").add(10).add(20).add(30).add(40);
+        series.addObject().put("name", "2027").putArray("values").add(12).add(22).add(32).add(42);
+        series.addObject().put("name", "2028").putArray("values").add(14).add(24).add(34).add(44);
+
+        GeneratedReport generated = new DocxTemplateEngine().generate(
+                templateVersion(resource("/docx4j/clustered-column.docx")),
+                parameters,
+                OutputFormat.DOCX,
+                "chart-only.docx");
+
+        assertFalse(documentXml(generated.content()).contains("Modified by docx4j"));
+        assertFalse(partXml(generated.content(), "word/charts/chart1.xml").contains("xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\""));
+        assertTrue(partXml(generated.content(), "word/charts/chart1.xml").contains("North"));
     }
 
     @Test
@@ -398,5 +424,20 @@ class DocxTemplateEngineTest {
             }
         }
         throw new IllegalArgumentException("Falta la entrada ZIP: " + entryName);
+    }
+
+    private String nestedZipEntry(byte[] content, String outerPartName, String nestedPartName) throws Exception {
+        return new String(nestedZipEntryBytes(content, outerPartName, nestedPartName), StandardCharsets.UTF_8);
+    }
+
+    private byte[] nestedZipEntryBytes(byte[] content, String outerPartName, String nestedPartName) throws Exception {
+        byte[] nestedPackage = zipEntry(content, outerPartName);
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(nestedPackage))) {
+            java.util.zip.ZipEntry entry;
+            while ((entry = zip.getNextEntry()) != null) {
+                if (entry.getName().equals(nestedPartName)) return zip.readAllBytes();
+            }
+        }
+        throw new IllegalArgumentException("Falta la entrada ZIP anidada: " + nestedPartName);
     }
 }
