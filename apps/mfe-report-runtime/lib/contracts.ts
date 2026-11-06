@@ -66,26 +66,60 @@ function canonicalParameterPath(path: string) {
   return value.startsWith("${") && value.endsWith("}") ? value.slice(2, -1).trim() : value;
 }
 
-function assignExampleValue(target: Record<string, unknown>, path: string, value: unknown, parameter: TemplateParameter) {
+type ExampleObject = Record<string, unknown>;
+
+function hasDescendant(path: string, paths: Set<string>) {
+  return [...paths].some((candidate) => candidate.startsWith(`${path}.`));
+}
+
+function mergeExampleValue(existing: unknown, value: unknown) {
+  if (Array.isArray(existing) && Array.isArray(value)) {
+    // Keep the representative item created for a collection when a later
+    // parameter describes the same collection as an empty ARRAY value.
+    return existing.length > 0 && value.length === 0 ? existing : value;
+  }
+  if (existing && typeof existing === "object" && !Array.isArray(existing)
+      && value && typeof value === "object" && !Array.isArray(value)) {
+    return { ...(existing as ExampleObject), ...(value as ExampleObject) };
+  }
+  return value;
+}
+
+function assignExampleValue(
+  target: ExampleObject,
+  path: string,
+  value: unknown,
+  collectionPaths: Set<string>,
+) {
   const segments = canonicalParameterPath(path).split(".").filter(Boolean);
   if (!segments.length) return;
-  let current = target;
-  segments.forEach((segment, index) => {
+
+  const assign = (current: unknown, index: number): void => {
+    if (Array.isArray(current)) {
+      if (!current.length) current.push({});
+      assign(current[0], index);
+      return;
+    }
+    if (!current || typeof current !== "object") return;
+
+    const object = current as ExampleObject;
+    const segment = segments[index];
     if (index === segments.length - 1) {
-      current[segment] = value;
+      object[segment] = mergeExampleValue(object[segment], value);
       return;
     }
-    const existing = current[segment];
-    if (index === 0 && parameter.repeated && segments.length > 1) {
-      const items = Array.isArray(existing) ? existing : [];
-      if (!items.length || !items[0] || typeof items[0] !== "object" || Array.isArray(items[0])) items[0] = {};
-      current[segment] = items;
-      current = items[0] as Record<string, unknown>;
-      return;
+
+    const childPath = segments.slice(0, index + 1).join(".");
+    const existing = object[segment];
+    if (existing === undefined || existing === null || typeof existing !== "object") {
+      object[segment] = collectionPaths.has(childPath) ? [{}] : {};
+    } else if (collectionPaths.has(childPath) && !Array.isArray(existing)) {
+      object[segment] = [existing];
     }
-    if (!existing || typeof existing !== "object" || Array.isArray(existing)) current[segment] = {};
-    current = current[segment] as Record<string, unknown>;
-  });
+    assign(object[segment], index + 1);
+  };
+
+  assign(target, 0);
 }
 
 export function buildExampleData(parameters: TemplateParameter[]) {
@@ -107,9 +141,34 @@ export function buildExampleData(parameters: TemplateParameter[]) {
       defaultValue: previous.defaultValue ?? parameter.defaultValue,
     });
   });
-  [...merged.values()]
+
+  const mergedParameters = [...merged.values()];
+  const paths = new Set(mergedParameters.map((parameter) => parameter.path));
+  const collectionPaths = new Set<string>();
+  mergedParameters.forEach((parameter) => {
+    const segments = parameter.path.split(".").filter(Boolean);
+    if (parameter.collection || parameter.dataType === "ARRAY") collectionPaths.add(parameter.path);
+    // A repeated nested field implies a collection at its first repeated
+    // segment even when the extractor could not emit an explicit ARRAY row.
+    if (parameter.repeated && segments.length > 1) collectionPaths.add(segments[0]);
+  });
+
+  // Materialize one representative object at every collection level before
+  // assigning leaf values. This is what lets `viajes.pasajeros.nombre` become
+  // [{ pasajeros: [{ nombre: "Ejemplo" }] }] instead of losing the inner array.
+  [...collectionPaths]
+    .sort((left, right) => left.split(".").length - right.split(".").length)
+    .forEach((path) => {
+      const parameter = merged.get(path);
+      const value = parameter && !hasDescendant(path, paths)
+        ? parameter.dataType === "ARRAY" ? exampleValue(parameter) : [exampleValue(parameter)]
+        : [{}];
+      assignExampleValue(example, path, value, collectionPaths);
+    });
+
+  mergedParameters
     .sort((left, right) => left.path.split(".").length - right.path.split(".").length)
-    .forEach((parameter) => assignExampleValue(example, parameter.path, exampleValue(parameter), parameter));
+    .forEach((parameter) => assignExampleValue(example, parameter.path, exampleValue(parameter), collectionPaths));
   return example;
 }
 

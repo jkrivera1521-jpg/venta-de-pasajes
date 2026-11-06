@@ -1,0 +1,22 @@
+{
+  "data": {
+    "cambios": [
+      {
+        "zona": "Norte",
+        "descripcion": "Ajuste de frecuencia en la ruta Quito - Ibarra"
+      },
+      {
+        "zona": "Sur",
+        "descripcion": "Nueva salida nocturna para Loja"
+      },
+      {
+        "zona": "Centro",
+        "descripcion": "Mantenimiento programado en Ambato"
+      }
+    ]
+  },
+  "fileName": "resultado-legacy-filas-formato.docx",
+  "outputFormat": "DOCX",
+  "templateCode": "LEGACY_FILAS_FORMATO",
+  "templateVersion": 1
+}

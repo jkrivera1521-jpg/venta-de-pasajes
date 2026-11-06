@@ -93,6 +93,83 @@ class DocxTemplateEngineTest {
     }
 
     @Test
+    void rendersNestedOpenDopeArraysAndTrueConditionalBranch() throws Exception {
+        GeneratedReport generated = new DocxTemplateEngine().generate(
+                templateVersion(resource("/docx4j/opendope-arrays-condicionales.docx")),
+                new ObjectMapper().readTree("""
+                        {
+                          "customer": {"name": "Maria Gonzalez"},
+                          "items": [
+                            {"name": "Quito - Guayaquil", "price": "18.50", "passengers": [{"name": "Maria Gonzalez"}, {"name": "Carlos Ruiz"}]},
+                            {"name": "Guayaquil - Cuenca", "price": "14.75", "passengers": [{"name": "Elena Torres"}, {"name": "Jose Mena"}, {"name": "Lucia Vera"}]}
+                          ],
+                          "misc": {"includeBankDetails": true, "wantspam": false}
+                        }
+                        """),
+                OutputFormat.DOCX,
+                "nested-true.docx");
+
+        String xml = documentXml(generated.content());
+        assertTrue(xml.contains("Quito - Guayaquil") && xml.contains("Guayaquil - Cuenca"));
+        assertTrue(xml.contains("Maria Gonzalez") && xml.contains("Carlos Ruiz") && xml.contains("Elena Torres"));
+        assertTrue(xml.contains("Jose Mena") && xml.contains("Lucia Vera"));
+        assertTrue(xml.contains("CONDICION VERDADERA"));
+        assertFalse(xml.contains("CONDICION FALSA"));
+    }
+
+    @Test
+    void rendersNestedOpenDopeArraysAndFalseConditionalBranch() throws Exception {
+        GeneratedReport generated = new DocxTemplateEngine().generate(
+                templateVersion(resource("/docx4j/opendope-arrays-condicionales.docx")),
+                new ObjectMapper().readTree("""
+                        {
+                          "customer": {"name": "Maria Gonzalez"},
+                          "items": [
+                            {"name": "Quito - Guayaquil", "price": "18.50", "passengers": [{"name": "Maria Gonzalez"}, {"name": "Carlos Ruiz"}]},
+                            {"name": "Guayaquil - Cuenca", "price": "14.75", "passengers": [{"name": "Elena Torres"}, {"name": "Jose Mena"}, {"name": "Lucia Vera"}]}
+                          ],
+                          "misc": {"includeBankDetails": false, "wantspam": true}
+                        }
+                        """),
+                OutputFormat.DOCX,
+                "nested-false.docx");
+
+        String xml = documentXml(generated.content());
+        assertTrue(xml.contains("Quito - Guayaquil") && xml.contains("Guayaquil - Cuenca"));
+        assertTrue(xml.contains("Maria Gonzalez") && xml.contains("Carlos Ruiz") && xml.contains("Elena Torres"));
+        assertFalse(xml.contains("CONDICION VERDADERA"));
+        assertTrue(xml.contains("CONDICION FALSA"));
+    }
+
+    @Test
+    void bindsOpenDopeHeadersAndFootersAcrossAllSections() throws Exception {
+        GeneratedReport generated = new DocxTemplateEngine().generate(
+                templateVersion(resource("/docx4j/opendope-headers-footers-secciones.docx")),
+                new ObjectMapper().readTree("""
+                        {"sections": [
+                          {"headerDefault": "Encabezado seccion 1", "firstHeader": "Primera pagina seccion 1", "footerDefault": "Pie seccion 1", "firstFooter": "Primer pie seccion 1"},
+                          {"headerDefault": "Encabezado seccion 2", "firstHeader": "Primera pagina seccion 2", "footerDefault": "Pie seccion 2", "firstFooter": "Primer pie seccion 2"},
+                          {"headerEven": "Encabezado par seccion 3", "headerDefault": "Encabezado impar seccion 3", "footerEven": "Pie par seccion 3", "footerDefaultSecond": "Pie impar seccion 3"}
+                        ]}
+                        """),
+                OutputFormat.DOCX,
+                "headers-footers-sections.docx");
+
+        assertTrue(partXml(generated.content(), "word/header1.xml").contains("Encabezado seccion 1"));
+        assertTrue(partXml(generated.content(), "word/header2.xml").contains("Primera pagina seccion 1"));
+        assertTrue(partXml(generated.content(), "word/header3.xml").contains("Encabezado seccion 2"));
+        assertTrue(partXml(generated.content(), "word/header4.xml").contains("Primera pagina seccion 2"));
+        assertTrue(partXml(generated.content(), "word/header5.xml").contains("Encabezado par seccion 3"));
+        assertTrue(partXml(generated.content(), "word/header6.xml").contains("Encabezado impar seccion 3"));
+        assertTrue(partXml(generated.content(), "word/footer1.xml").contains("Pie seccion 1"));
+        assertTrue(partXml(generated.content(), "word/footer2.xml").contains("Pie seccion 2"));
+        assertTrue(partXml(generated.content(), "word/footer3.xml").contains("Pie par seccion 3"));
+        assertTrue(partXml(generated.content(), "word/footer4.xml").contains("Primer pie seccion 1"));
+        assertTrue(partXml(generated.content(), "word/footer5.xml").contains("Primer pie seccion 2"));
+        assertTrue(partXml(generated.content(), "word/footer6.xml").contains("Pie impar seccion 3"));
+    }
+
+    @Test
     void repairsOpenDopeRepeatWhenItsXpathDefinitionIsMissing() throws Exception {
         byte[] fixture = removeXpathDefinition(
                 removeXpathDefinition(resource("/docx4j/invoice-opendope.docx"), "x2"),

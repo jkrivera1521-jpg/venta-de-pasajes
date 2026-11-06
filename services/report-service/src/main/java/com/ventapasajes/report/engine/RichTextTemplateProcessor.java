@@ -2,6 +2,8 @@ package com.ventapasajes.report.engine;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import jakarta.xml.bind.JAXBElement;
 import org.docx4j.TraversalUtil;
@@ -32,6 +34,7 @@ import com.ventapasajes.report.validation.RichTextSanitizer;
 
 /** Renders the safe rich-text subset into native WordprocessingML. */
 public class RichTextTemplateProcessor {
+    private static final Pattern XPATH_SEGMENT = Pattern.compile("^([^\\[]+)(?:\\[(\\d+)\\])?.*$");
     private final RichTextSanitizer sanitizer;
     private final org.docx4j.wml.ObjectFactory factory = Context.getWmlObjectFactory();
 
@@ -74,30 +77,53 @@ public class RichTextTemplateProcessor {
     }
 
     private String valueFor(SdtElement element, JsonNode parameters) {
-        String path = jsonPath(element.getSdtPr().getDataBinding().getXpath());
-        JsonNode value = atPath(parameters, path);
+        List<PathSegment> path = jsonPath(element.getSdtPr().getDataBinding().getXpath());
+        JsonNode value = atPath(parameters, path, 0);
         if (value == null || value.isMissingNode() || value.isNull()) return "";
         if (value.isObject() && value.has("html")) value = value.get("html");
-        if (!value.isTextual()) throw new IllegalArgumentException("El parametro de texto enriquecido debe ser texto: " + path);
+        if (!value.isTextual()) throw new IllegalArgumentException("El parametro de texto enriquecido debe ser texto: " + pathString(path));
         return sanitizer.sanitize(value.asText());
     }
 
-    private JsonNode atPath(JsonNode root, String path) {
-        if (root == null || !root.isObject()) return com.fasterxml.jackson.databind.node.MissingNode.getInstance();
-        JsonNode direct = root.at("/" + path.replace('.', '/'));
-        if (!direct.isMissingNode()) return direct;
-        return root.at("/" + path.substring(path.indexOf('.') + 1).replace('.', '/'));
+    /** Resolves docx4j XPath bindings, including item[n] inside nested arrays. */
+    private JsonNode atPath(JsonNode current, List<PathSegment> path, int index) {
+        if (current == null) return com.fasterxml.jackson.databind.node.MissingNode.getInstance();
+        if (index >= path.size()) return current;
+        PathSegment segment = path.get(index);
+        if (current.isArray()) {
+            int itemIndex = segment.index() == null ? 0 : Math.max(0, segment.index() - 1);
+            if (itemIndex < current.size()) {
+                return atPath(current.get(itemIndex), path, "item".equals(segment.name()) ? index + 1 : index);
+            }
+            return com.fasterxml.jackson.databind.node.MissingNode.getInstance();
+        }
+        if (!current.isObject()) return com.fasterxml.jackson.databind.node.MissingNode.getInstance();
+        JsonNode child = current.get(segment.name());
+        if (child == null) return com.fasterxml.jackson.databind.node.MissingNode.getInstance();
+        return atPath(child, path, index + 1);
     }
 
-    private String jsonPath(String xpath) {
-        if (xpath == null || xpath.isBlank()) return "";
-        List<String> parts = new ArrayList<>();
+    private List<PathSegment> jsonPath(String xpath) {
+        if (xpath == null || xpath.isBlank()) return List.of();
+        List<PathSegment> parts = new ArrayList<>();
         for (String raw : xpath.split("/")) {
-            String part = raw.replaceAll("\\[[^]]*\\]", "").trim();
-            if (!part.isBlank()) parts.add(part.contains(":") ? part.substring(part.indexOf(':') + 1) : part);
+            String part = raw.trim();
+            if (part.isBlank()) continue;
+            Matcher matcher = XPATH_SEGMENT.matcher(part);
+            if (!matcher.matches()) continue;
+            String name = matcher.group(1).contains(":")
+                    ? matcher.group(1).substring(matcher.group(1).indexOf(':') + 1)
+                    : matcher.group(1);
+            Integer itemIndex = matcher.group(2) == null ? null : Integer.valueOf(matcher.group(2));
+            parts.add(new PathSegment(name, itemIndex));
         }
         if (parts.size() > 1) parts.remove(0);
-        return String.join(".", parts);
+        return parts;
+    }
+
+    private String pathString(List<PathSegment> path) {
+        return path.stream().map(segment -> segment.name() + (segment.index() == null ? "" : "[" + segment.index() + "]"))
+                .reduce((left, right) -> left + "." + right).orElse("");
     }
 
     private void render(SdtElement element, String html) {
@@ -206,5 +232,8 @@ public class RichTextTemplateProcessor {
     }
 
     private record Style(boolean bold, boolean italic, boolean underline) {
+    }
+
+    private record PathSegment(String name, Integer index) {
     }
 }

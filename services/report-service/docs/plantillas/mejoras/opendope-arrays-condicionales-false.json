@@ -1,0 +1,44 @@
+{
+  "data": {
+    "customer": {
+      "name": "Maria Gonzalez"
+    },
+    "items": [
+      {
+        "name": "Quito - Guayaquil",
+        "price": "18.50",
+        "passengers": [
+          {
+            "name": "Maria Gonzalez"
+          },
+          {
+            "name": "Carlos Ruiz"
+          }
+        ]
+      },
+      {
+        "name": "Guayaquil - Cuenca",
+        "price": "14.75",
+        "passengers": [
+          {
+            "name": "Elena Torres"
+          },
+          {
+            "name": "Jose Mena"
+          },
+          {
+            "name": "Lucia Vera"
+          }
+        ]
+      }
+    ],
+    "misc": {
+      "includeBankDetails": false,
+      "wantspam": true
+    }
+  },
+  "fileName": "resultado-arrays-condicionales-false.docx",
+  "outputFormat": "DOCX",
+  "templateCode": "OPENDOPE_ARRAYS_CONDICIONALES",
+  "templateVersion": 1
+}

@@ -1,0 +1,28 @@
+{
+  "data": {
+    "sections": [
+      {
+        "headerDefault": "Encabezado seccion 1",
+        "firstHeader": "Primera pagina seccion 1",
+        "footerDefault": "Pie seccion 1",
+        "firstFooter": "Primer pie seccion 1"
+      },
+      {
+        "headerDefault": "Encabezado seccion 2",
+        "firstHeader": "Primera pagina seccion 2",
+        "footerDefault": "Pie seccion 2",
+        "firstFooter": "Primer pie seccion 2"
+      },
+      {
+        "headerEven": "Encabezado par seccion 3",
+        "headerDefault": "Encabezado impar seccion 3",
+        "footerEven": "Pie par seccion 3",
+        "footerDefaultSecond": "Pie impar seccion 3"
+      }
+    ]
+  },
+  "fileName": "resultado-headers-footers-secciones.docx",
+  "outputFormat": "DOCX",
+  "templateCode": "OPENDOPE_HEADERS_FOOTERS_SECCIONES",
+  "templateVersion": 1
+}

@@ -69,6 +69,7 @@ public class DocxTemplateEngine implements TemplateEngine {
                 }
                 String xml = jsonToXml.convert(normalizedParameters, inspection.metadata().xmlRoot());
                 Docx4J.bind(document, xml, Docx4J.FLAG_BIND_INSERT_XML | Docx4J.FLAG_BIND_BIND_XML);
+                new NestedOpenDopeBindingAdapter().apply(document, adaptedContent, normalizedParameters);
                 // OpenDoPE binding writes scalar values as plain text. Materialize rich text
                 // afterwards so the generated runs are not overwritten by the binding pass.
                 if (inspection.metadata().has(TemplateFeature.RICH_TEXT)) richText.apply(document, normalizedParameters);

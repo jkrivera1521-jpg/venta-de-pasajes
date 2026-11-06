@@ -7,7 +7,9 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -97,29 +99,93 @@ public final class LegacyDocxTemplateAdapter {
         for (Element cell : elements(row.getElementsByTagNameNS(WORD_NS, "tc"))) {
             List<Element> texts = elements(cell.getElementsByTagNameNS(WORD_NS, "t"));
             if (texts.isEmpty()) continue;
-            StringBuilder value = new StringBuilder();
-            texts.forEach(text -> value.append(text.getTextContent()));
-            String result = CLOSE_LOOP.matcher(LOOP.matcher(value.toString()).replaceAll("")).replaceAll("");
-            result = replaceExpressions(result, parameters, loop, item);
-            texts.get(0).setTextContent(result);
-            for (int index = 1; index < texts.size(); index++) texts.get(index).setTextContent("");
+            replaceCellText(texts, parameters, loop, item);
         }
     }
 
-    private static String replaceExpressions(String text, JsonNode parameters, LoopSpec loop, JsonNode item) {
-        Matcher matcher = EXPRESSION.matcher(text);
-        StringBuffer result = new StringBuffer();
-        while (matcher.find()) {
-            String path = normalizePath(matcher.group(1));
+    /**
+     * Replaces tokens across multiple w:t nodes without collapsing the runs.
+     * The old implementation wrote everything into the first node, which
+     * removed the formatting carried by the remaining w:r elements.
+     */
+    private static void replaceCellText(List<Element> texts, JsonNode parameters, LoopSpec loop, JsonNode item) {
+        StringBuilder combined = new StringBuilder();
+        for (Element text : texts) combined.append(text.getTextContent());
+        String original = combined.toString();
+        List<TextOperation> operations = new ArrayList<>();
+        List<int[]> protectedRanges = new ArrayList<>();
+
+        Matcher open = LOOP.matcher(original);
+        while (open.find()) {
+            operations.add(new TextOperation(open.start(), open.end(), ""));
+            protectedRanges.add(new int[] { open.start(), open.end() });
+        }
+        Matcher close = CLOSE_LOOP.matcher(original);
+        while (close.find()) operations.add(new TextOperation(close.start(), close.end(), ""));
+
+        Matcher expression = EXPRESSION.matcher(original);
+        while (expression.find()) {
+            if (insideAny(expression.start(), expression.end(), protectedRanges)) continue;
+            String path = normalizePath(expression.group(1));
             JsonNode value = path.equals(loop.variable()) ? item
                     : path.startsWith(loop.variable() + ".")
                             ? atPath(item, path.substring(loop.variable().length() + 1))
                             : atPath(parameters, path);
-            if (value == null || value.isMissingNode() || value.isNull()) matcher.appendReplacement(result, Matcher.quoteReplacement(matcher.group(0)));
-            else matcher.appendReplacement(result, Matcher.quoteReplacement(display(value)));
+            String replacement = value == null || value.isMissingNode() || value.isNull()
+                    ? expression.group(0) : display(value);
+            operations.add(new TextOperation(expression.start(), expression.end(), replacement));
         }
-        matcher.appendTail(result);
-        return result.toString();
+
+        if (operations.isEmpty()) return;
+        operations.sort((left, right) -> Integer.compare(left.start(), right.start()));
+        Map<Integer, List<Insertion>> insertions = new HashMap<>();
+        List<boolean[]> removed = new ArrayList<>();
+        List<Integer> nodeStarts = new ArrayList<>();
+        int offset = 0;
+        for (Element text : texts) {
+            nodeStarts.add(offset);
+            removed.add(new boolean[text.getTextContent().length()]);
+            offset += text.getTextContent().length();
+        }
+
+        for (TextOperation operation : operations) {
+            boolean inserted = false;
+            for (int index = 0; index < texts.size(); index++) {
+                int nodeStart = nodeStarts.get(index);
+                int nodeEnd = nodeStart + texts.get(index).getTextContent().length();
+                if (operation.start() < nodeEnd && operation.end() > nodeStart) {
+                    if (!inserted) {
+                        int insertionOffset = Math.max(0, operation.start() - nodeStart);
+                        insertions.computeIfAbsent(index, ignored -> new ArrayList<>())
+                                .add(new Insertion(insertionOffset, operation.replacement()));
+                        inserted = true;
+                    }
+                    int removeStart = Math.max(0, operation.start() - nodeStart);
+                    int removeEnd = Math.min(nodeEnd - nodeStart, operation.end() - nodeStart);
+                    for (int character = removeStart; character < removeEnd; character++) removed.get(index)[character] = true;
+                }
+            }
+        }
+
+        for (int index = 0; index < texts.size(); index++) {
+            String originalText = texts.get(index).getTextContent();
+            List<Insertion> nodeInsertions = new ArrayList<>(insertions.getOrDefault(index, List.of()));
+            nodeInsertions.sort((left, right) -> Integer.compare(left.offset(), right.offset()));
+            StringBuilder result = new StringBuilder();
+            int insertionIndex = 0;
+            boolean[] deleted = removed.get(index);
+            for (int character = 0; character <= originalText.length(); character++) {
+                while (insertionIndex < nodeInsertions.size() && nodeInsertions.get(insertionIndex).offset() == character) {
+                    result.append(nodeInsertions.get(insertionIndex++).value());
+                }
+                if (character < originalText.length() && !deleted[character]) result.append(originalText.charAt(character));
+            }
+            texts.get(index).setTextContent(result.toString());
+        }
+    }
+
+    private static boolean insideAny(int start, int end, List<int[]> ranges) {
+        return ranges.stream().anyMatch(range -> start >= range[0] && end <= range[1]);
     }
 
     private static LoopSpec loopSpec(String text) {
@@ -189,5 +255,11 @@ public final class LegacyDocxTemplateAdapter {
     }
 
     private record LoopSpec(String itemsPath, String variable) {
+    }
+
+    private record TextOperation(int start, int end, String replacement) {
+    }
+
+    private record Insertion(int offset, String value) {
     }
 }
